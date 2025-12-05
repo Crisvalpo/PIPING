@@ -1,0 +1,1235 @@
+'use client'
+
+import { useState, useEffect, useRef } from 'react'
+import { searchIsometrics } from '@/services/engineering'
+import { getIsometricDetails, updateWeldExecution, updateJointExecution } from '@/services/master-views'
+import type { IsometricDetails } from '@/services/master-views'
+import { supabase } from '@/lib/supabase'
+
+interface MasterViewsManagerProps {
+    projectId: string
+}
+
+interface WeldDetailModal {
+    weld: any
+    onClose: () => void
+    onUpdate: (weldId: string, updates: any) => void
+}
+
+interface ExecutionReportModal {
+    weld: any
+    projectId: string
+    onClose: () => void
+    onSubmit: (data: { fecha: string; ejecutadoPor: string; supervisadoPor: string }) => void
+}
+
+interface WeldsBySpool {
+    spool_number: string
+    welds: any[]
+    shop_welds_total: number
+    shop_welds_executed: number
+    field_welds_total: number
+    field_welds_executed: number
+    is_fabricated: boolean
+    fabrication_status: 'FABRICADO' | 'EN PROCESO' | 'PENDIENTE' | 'N/A'
+}
+
+// Modal de Detalles de Soldadura con Edición
+function WeldDetailModal({ weld, onClose, onUpdate }: WeldDetailModal) {
+    const [editMode, setEditMode] = useState(false)
+    const [formData, setFormData] = useState({
+        weld_number: weld.weld_number,
+        spool_number: weld.spool_number,
+        type_weld: weld.type_weld || '',
+        nps: weld.nps || '',
+        sch: weld.sch || '',
+        thickness: weld.thickness || '',
+        material: weld.material || '',
+        destination: weld.destination || ''
+    })
+
+    const handleSave = async () => {
+        onUpdate(weld.id, formData)
+        setEditMode(false)
+    }
+
+    const getDestinationText = (dest: string) => {
+        if (dest === 'S') return 'Taller (Shop)'
+        if (dest === 'F') return 'Campo (Field)'
+        return dest || '-'
+    }
+
+    return (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={onClose}>
+            <div className="bg-white rounded-xl w-full max-w-lg shadow-2xl" onClick={(e) => e.stopPropagation()}>
+                {/* Header */}
+                <div className="p-4 border-b border-gray-200 flex justify-between items-center bg-gradient-to-r from-blue-50 to-indigo-50">
+                    <div>
+                        <h3 className="text-lg font-bold text-gray-900">Detalle de Unión</h3>
+                        <p className="text-sm text-gray-600">{formData.weld_number}</p>
+                    </div>
+                    <button onClick={onClose} className="text-gray-500 hover:text-gray-700 text-2xl font-bold">
+                        ×
+                    </button>
+                </div>
+
+                {/* Content */}
+                <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
+                    {editMode ? (
+                        <>
+                            <div>
+                                <label className="block text-sm font-bold text-gray-800 mb-1">Número de Unión</label>
+                                <input
+                                    type="text"
+                                    value={formData.weld_number}
+                                    onChange={(e) => setFormData({ ...formData, weld_number: e.target.value })}
+                                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold text-gray-800 mb-1">Spool</label>
+                                <input
+                                    type="text"
+                                    value={formData.spool_number}
+                                    onChange={(e) => setFormData({ ...formData, spool_number: e.target.value })}
+                                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                                />
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="block text-sm font-bold text-gray-800 mb-1">Tipo de Soldadura</label>
+                                    <input
+                                        type="text"
+                                        value={formData.type_weld}
+                                        onChange={(e) => setFormData({ ...formData, type_weld: e.target.value })}
+                                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-bold text-gray-800 mb-1">NPS</label>
+                                    <input
+                                        type="text"
+                                        value={formData.nps}
+                                        onChange={(e) => setFormData({ ...formData, nps: e.target.value })}
+                                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-bold text-gray-800 mb-1">SCH</label>
+                                    <input
+                                        type="text"
+                                        value={formData.sch}
+                                        onChange={(e) => setFormData({ ...formData, sch: e.target.value })}
+                                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-bold text-gray-800 mb-1">Espesor</label>
+                                    <input
+                                        type="text"
+                                        value={formData.thickness}
+                                        onChange={(e) => setFormData({ ...formData, thickness: e.target.value })}
+                                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                                    />
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold text-gray-800 mb-1">Material</label>
+                                <input
+                                    type="text"
+                                    value={formData.material}
+                                    onChange={(e) => setFormData({ ...formData, material: e.target.value })}
+                                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold text-gray-800 mb-1">Destino</label>
+                                <select
+                                    value={formData.destination}
+                                    onChange={(e) => setFormData({ ...formData, destination: e.target.value })}
+                                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                                >
+                                    <option value="S">Taller (Shop)</option>
+                                    <option value="F">Campo (Field)</option>
+                                </select>
+                            </div>
+                        </>
+                    ) : (
+                        <div className="space-y-3">
+                            <DetailRow label="Spool" value={formData.spool_number} />
+                            <DetailRow label="Tipo de Soldadura" value={formData.type_weld} />
+                            <div className="grid grid-cols-2 gap-4">
+                                <DetailRow label="NPS" value={formData.nps} />
+                                <DetailRow label="SCH" value={formData.sch} />
+                            </div>
+                            <DetailRow label="Espesor" value={formData.thickness} />
+                            <DetailRow label="Material" value={formData.material} />
+                            <DetailRow label="Destino" value={getDestinationText(formData.destination)} />
+                        </div>
+                    )}
+                </div>
+
+                {/* Footer */}
+                <div className="p-4 border-t border-gray-200 bg-gray-50 flex justify-between gap-3">
+                    {editMode ? (
+                        <>
+                            <button
+                                onClick={() => setEditMode(false)}
+                                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300 transition-colors"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                onClick={handleSave}
+                                className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
+                            >
+                                Guardar Cambios
+                            </button>
+                        </>
+                    ) : (
+                        <>
+                            <button
+                                onClick={() => setEditMode(true)}
+                                className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
+                            >
+                                ✏️ Editar
+                            </button>
+                            <button
+                                onClick={onClose}
+                                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300 transition-colors"
+                            >
+                                Cerrar
+                            </button>
+                        </>
+                    )}
+                </div>
+            </div>
+        </div>
+    )
+}
+
+// Modal de Reporte de Ejecución
+function ExecutionReportModal({ weld, projectId, onClose, onSubmit }: ExecutionReportModal) {
+    const [fecha, setFecha] = useState(new Date().toISOString().split('T')[0])
+    const [ejecutadoPor, setEjecutadoPor] = useState('')
+    const [supervisadoPor, setSupervisadoPor] = useState('')
+    const [soldadores, setSoldadores] = useState<any[]>([])
+    const [capataces, setCapataces] = useState<any[]>([])
+    const [loading, setLoading] = useState(true)
+    const [errors, setErrors] = useState({ ejecutadoPor: '', supervisadoPor: '' })
+
+    // Cargar soldadores y capataces del proyecto
+    useEffect(() => {
+        if (projectId) {
+            loadPersonnel()
+        }
+    }, [projectId])
+
+    const loadPersonnel = async () => {
+        try {
+            setLoading(true)
+
+            // Cargar soldadores
+            const soldadoresRes = await fetch(`/api/proyectos/${projectId}/personnel?role=SOLDADOR`)
+            const soldadoresData = await soldadoresRes.json()
+            if (soldadoresData.success) {
+                setSoldadores(soldadoresData.data)
+            }
+
+            // Cargar capataces
+            const capatacesRes = await fetch(`/api/proyectos/${projectId}/personnel?role=CAPATAZ`)
+            const capatacesData = await capatacesRes.json()
+            if (capatacesData.success) {
+                setCapataces(capatacesData.data)
+            }
+
+            setLoading(false)
+        } catch (error) {
+            console.error('Error loading personnel:', error)
+            setLoading(false)
+        }
+    }
+
+    const handleSubmit = () => {
+        setErrors({ ejecutadoPor: '', supervisadoPor: '' })
+
+        if (!fecha || !ejecutadoPor || !supervisadoPor) {
+            alert('Todos los campos son obligatorios')
+            return
+        }
+
+        onSubmit({ fecha, ejecutadoPor, supervisadoPor })
+        onClose()
+    }
+
+    return (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={onClose}>
+            <div className="bg-white rounded-xl w-full max-w-md shadow-2xl" onClick={(e) => e.stopPropagation()}>
+                <div className="p-4 border-b border-gray-200 bg-gradient-to-r from-green-50 to-emerald-50">
+                    <h3 className="text-lg font-bold text-gray-900">Reportar Ejecución</h3>
+                    <p className="text-sm text-gray-700 font-medium">{weld.weld_number}</p>
+                </div>
+
+                <div className="p-6 space-y-4">
+                    {loading ? (
+                        <div className="text-center py-8">
+                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mx-auto"></div>
+                            <p className="text-sm text-gray-600 mt-2">Cargando personal...</p>
+                        </div>
+                    ) : (
+                        <>
+                            <div>
+                                <label className="block text-sm font-bold text-gray-800 mb-1">Fecha de Ejecución *</label>
+                                <input
+                                    type="date"
+                                    value={fecha}
+                                    onChange={(e) => setFecha(e.target.value)}
+                                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-green-500 focus:outline-none"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-bold text-gray-800 mb-1">Ejecutado Por (Soldador) *</label>
+                                <select
+                                    value={ejecutadoPor}
+                                    onChange={(e) => {
+                                        setEjecutadoPor(e.target.value)
+                                        setErrors({ ...errors, ejecutadoPor: '' })
+                                    }}
+                                    className={`w-full border rounded-lg px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-green-500 focus:outline-none ${errors.ejecutadoPor ? 'border-red-500' : 'border-gray-300'
+                                        }`}
+                                >
+                                    <option value="">Seleccionar soldador</option>
+                                    {soldadores.map((s) => (
+                                        <option key={s.user_id} value={s.user_id}>
+                                            {s.nombre_completo || s.email}
+                                            {s.cuadrilla_nombre && ` (${s.cuadrilla_codigo})`}
+                                        </option>
+                                    ))}
+                                </select>
+                                {soldadores.length === 0 && (
+                                    <p className="text-xs text-orange-600 font-medium mt-1">
+                                        ⚠️ No hay soldadores. Cree una cuadrilla primero.
+                                    </p>
+                                )}
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-bold text-gray-800 mb-1">Supervisado Por (Capataz) *</label>
+                                <select
+                                    value={supervisadoPor}
+                                    onChange={(e) => {
+                                        setSupervisadoPor(e.target.value)
+                                        setErrors({ ...errors, supervisadoPor: '' })
+                                    }}
+                                    className={`w-full border rounded-lg px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-green-500 focus:outline-none ${errors.supervisadoPor ? 'border-red-500' : 'border-gray-300'
+                                        }`}
+                                >
+                                    <option value="">Seleccionar capataz</option>
+                                    {capataces.map((c) => (
+                                        <option key={c.user_id} value={c.user_id}>
+                                            {c.nombre_completo || c.email}
+                                            {c.cuadrilla_nombre && ` (${c.cuadrilla_codigo})`}
+                                        </option>
+                                    ))}
+                                </select>
+                                {capataces.length === 0 && (
+                                    <p className="text-xs text-orange-600 font-medium mt-1">
+                                        ⚠️ No hay capataces. Cree una cuadrilla primero.
+                                    </p>
+                                )}
+                            </div>
+                        </>
+                    )}
+                </div>
+
+                <div className="p-4 border-t border-gray-200 bg-gray-50 flex justify-end gap-3">
+                    <button
+                        onClick={onClose}
+                        className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300 transition-colors"
+                    >
+                        Cancelar
+                    </button>
+                    <button
+                        onClick={handleSubmit}
+                        disabled={loading || (soldadores.length === 0 && capataces.length === 0)}
+                        className="px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                        </svg>
+                        Reportar Ejecución
+                    </button>
+                </div>
+            </div>
+        </div>
+    )
+}
+
+// Helper component for detail rows
+function DetailRow({ label, value }: { label: string; value: string }) {
+    return (
+        <div>
+            <span className="text-xs font-bold text-gray-600 uppercase tracking-wider">{label}</span>
+            <div className="text-sm text-gray-900 font-semibold mt-0.5">{value || '-'}</div>
+        </div>
+    )
+}
+
+// Función para agrupar soldaduras por spool y calcular estado de fabricación
+function groupWeldsBySpool(welds: any[]): WeldsBySpool[] {
+    const spoolMap = new Map<string, WeldsBySpool>()
+
+    welds.forEach(weld => {
+        const spoolNumber = weld.spool_number
+        if (!spoolMap.has(spoolNumber)) {
+            spoolMap.set(spoolNumber, {
+                spool_number: spoolNumber,
+                welds: [],
+                shop_welds_total: 0,
+                shop_welds_executed: 0,
+                field_welds_total: 0,
+                field_welds_executed: 0,
+                is_fabricated: false,
+                fabrication_status: 'PENDIENTE'
+            })
+        }
+
+        const spool = spoolMap.get(spoolNumber)!
+        spool.welds.push(weld)
+
+        // Contar soldaduras de taller (S = Shop)
+        if (weld.destination === 'S') {
+            spool.shop_welds_total++
+            if (weld.executed) {
+                spool.shop_welds_executed++
+            }
+        }
+
+        // Contar soldaduras de campo (F = Field)
+        if (weld.destination === 'F') {
+            spool.field_welds_total++
+            if (weld.executed) {
+                spool.field_welds_executed++
+            }
+        }
+    })
+
+    // Calcular estado de fabricación para cada spool
+    spoolMap.forEach(spool => {
+        if (spool.shop_welds_total === 0) {
+            spool.fabrication_status = 'N/A'
+            spool.is_fabricated = false
+        } else if (spool.shop_welds_total === spool.shop_welds_executed) {
+            spool.fabrication_status = 'FABRICADO'
+            spool.is_fabricated = true
+        } else if (spool.shop_welds_executed > 0) {
+            spool.fabrication_status = 'EN PROCESO'
+            spool.is_fabricated = false
+        } else {
+            spool.fabrication_status = 'PENDIENTE'
+            spool.is_fabricated = false
+        }
+    })
+
+    return Array.from(spoolMap.values()).sort((a, b) => a.spool_number.localeCompare(b.spool_number))
+}
+
+export default function MasterViewsManager({ projectId }: MasterViewsManagerProps) {
+    const [isometrics, setIsometrics] = useState<any[]>([])
+    const [loading, setLoading] = useState(true)
+    const [searchTerm, setSearchTerm] = useState('')
+    const [selectedIso, setSelectedIso] = useState<any | null>(null)
+    const [details, setDetails] = useState<IsometricDetails | null>(null)
+    const [loadingDetails, setLoadingDetails] = useState(false)
+    const [activeTab, setActiveTab] = useState<'MATERIALS' | 'UNIONS' | 'SPOOLS' | 'TORQUES'>('UNIONS')
+    const [showRevisionHistory, setShowRevisionHistory] = useState(false)
+    const [selectedRevisionId, setSelectedRevisionId] = useState<string | null>(null)
+    const [revisionFiles, setRevisionFiles] = useState<any[]>([])
+    const [showPdfViewer, setShowPdfViewer] = useState(false)
+    const [selectedPdfUrl, setSelectedPdfUrl] = useState<string | null>(null)
+    const [bottomNavTab, setBottomNavTab] = useState<'home' | 'stats' | 'settings'>('home')
+    const [showSettingsMenu, setShowSettingsMenu] = useState(false)
+
+    // Estados para modales
+    const [selectedWeld, setSelectedWeld] = useState<any | null>(null)
+    const [showExecutionModal, setShowExecutionModal] = useState(false)
+    const [weldForExecution, setWeldForExecution] = useState<any | null>(null)
+
+    // Estado para spools agrupados
+    const [weldsBySpool, setWeldsBySpool] = useState<WeldsBySpool[]>([])
+    const [expandedSpools, setExpandedSpools] = useState<Set<string>>(new Set())
+
+    const fileInputRef = useRef<HTMLInputElement>(null)
+    const [uploadingRevisionId, setUploadingRevisionId] = useState<string | null>(null)
+
+    useEffect(() => {
+        loadIsometrics()
+    }, [projectId, searchTerm])
+
+    // Agrupar soldaduras cuando cambian los detalles
+    useEffect(() => {
+        if (details) {
+            const grouped = groupWeldsBySpool(details.welds)
+            setWeldsBySpool(grouped)
+        }
+    }, [details])
+
+    async function loadIsometrics() {
+        setLoading(true)
+        try {
+            const result = await searchIsometrics(projectId, searchTerm, 0, 50, { status: 'ALL' })
+            setIsometrics(result.data)
+        } catch (error) {
+            console.error('Error loading isometrics:', error)
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    async function handleSelectIso(iso: any) {
+        if (selectedIso?.id === iso.id) {
+            setSelectedIso(null)
+            setDetails(null)
+            return
+        }
+        setSelectedIso(iso)
+        setLoadingDetails(true)
+        const activeRev = iso.revisions?.find((r: any) => r.estado === 'VIGENTE') || iso.revisions?.[0]
+        if (activeRev) {
+            try {
+                const data = await getIsometricDetails(activeRev.id)
+                setDetails(data)
+                setSelectedRevisionId(activeRev.id)
+                const allRevisionIds = iso.revisions?.map((r: any) => r.id) || []
+                await loadAllRevisionFiles(allRevisionIds)
+            } catch (error) {
+                console.error('Error loading details:', error)
+            }
+        }
+        setLoadingDetails(false)
+    }
+
+    const handleWeldUpdate = async (weldId: string, updates: any) => {
+        try {
+            const { error } = await supabase
+                .from('spools_welds')
+                .update(updates)
+                .eq('id', weldId)
+
+            if (error) throw error
+
+            setDetails(prev => {
+                if (!prev) return null
+                return {
+                    ...prev,
+                    welds: prev.welds.map(w => (w.id === weldId ? { ...w, ...updates } : w))
+                }
+            })
+
+            alert('✅ Soldadura actualizada correctamente')
+        } catch (error) {
+            console.error('Error updating weld:', error)
+            alert('❌ Error al actualizar la soldadura')
+        }
+    }
+
+    const handleExecutionReport = async (data: { fecha: string; ejecutadoPor: string; supervisadoPor: string }) => {
+        if (!weldForExecution) return
+
+        try {
+            const { error } = await supabase
+                .from('spools_welds')
+                .update({
+                    executed: true,
+                    execution_date: data.fecha,
+                    executed_by: data.ejecutadoPor,
+                    supervised_by: data.supervisadoPor
+                })
+                .eq('id', weldForExecution.id)
+
+            if (error) throw error
+
+            setDetails(prev => {
+                if (!prev) return null
+                return {
+                    ...prev,
+                    welds: prev.welds.map(w =>
+                        w.id === weldForExecution.id
+                            ? { ...w, executed: true, execution_date: data.fecha, executed_by: data.ejecutadoPor, supervised_by: data.supervisadoPor }
+                            : w
+                    )
+                }
+            })
+
+            alert('✅ Ejecución reportada correctamente')
+        } catch (error) {
+            console.error('Error reporting execution:', error)
+            alert('❌ Error al reportar la ejecución')
+        }
+    }
+
+    const handleJointToggle = async (jointId: string, currentStatus: boolean) => {
+        try {
+            setDetails(prev => {
+                if (!prev) return null
+                return {
+                    ...prev,
+                    joints: prev.joints.map(j => (j.id === jointId ? { ...j, executed: !currentStatus } : j))
+                }
+            })
+            await updateJointExecution(jointId, !currentStatus)
+        } catch (error) {
+            console.error('Error updating joint:', error)
+        }
+    }
+
+    const toggleSpoolExpanded = (spoolNumber: string) => {
+        setExpandedSpools(prev => {
+            const newSet = new Set(prev)
+            if (newSet.has(spoolNumber)) {
+                newSet.delete(spoolNumber)
+            } else {
+                newSet.add(spoolNumber)
+            }
+            return newSet
+        })
+    }
+
+    const loadAllRevisionFiles = async (revisionIds: string[]) => {
+        if (!revisionIds.length) {
+            setRevisionFiles([])
+            return
+        }
+        try {
+            const { data, error } = await supabase
+                .from('revision_files')
+                .select('*')
+                .in('revision_id', revisionIds)
+                .order('version_number', { ascending: false })
+
+            if (error) throw error
+            setRevisionFiles(data || [])
+        } catch (error) {
+            console.error('Error loading revision files:', error)
+            setRevisionFiles([])
+        }
+    }
+
+    const handleViewPdf = async (fileUrl: string) => {
+        let urlToView = fileUrl
+        if (!fileUrl.startsWith('http')) {
+            const { data, error } = await supabase.storage
+                .from('revision-files')
+                .createSignedUrl(fileUrl, 3600)
+
+            if (error || !data) {
+                console.error('Error getting signed URL:', error)
+                alert('Error al abrir el archivo. Verifique que el archivo exista.')
+                return
+            }
+            urlToView = data.signedUrl
+        }
+        setSelectedPdfUrl(urlToView)
+        setShowPdfViewer(true)
+    }
+
+    const handleUploadClick = (revisionId: string) => {
+        setUploadingRevisionId(revisionId)
+        fileInputRef.current?.click()
+    }
+
+    const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0]
+        if (!file || !uploadingRevisionId) return
+
+        try {
+            const fileExt = file.name.split('.').pop()
+            const fileName = `${Math.random().toString(36).substring(2)}.${fileExt}`
+            const filePath = `${uploadingRevisionId}/${fileName}`
+
+            const { error: uploadError } = await supabase.storage
+                .from('revision-files')
+                .upload(filePath, file)
+
+            if (uploadError) throw uploadError
+
+            const { error: dbError } = await supabase
+                .from('revision_files')
+                .insert({
+                    revision_id: uploadingRevisionId,
+                    file_name: file.name,
+                    file_type: 'pdf',
+                    file_url: filePath,
+                    version_number: 1,
+                    uploaded_at: new Date().toISOString(),
+                    is_primary: false
+                })
+
+            if (dbError) throw dbError
+
+            if (selectedIso) {
+                const allRevisionIds = selectedIso.revisions?.map((r: any) => r.id) || []
+                await loadAllRevisionFiles(allRevisionIds)
+            }
+            alert('Archivo subido correctamente')
+        } catch (error) {
+            console.error('Error uploading file:', error)
+            alert('Error al subir el archivo')
+        } finally {
+            setUploadingRevisionId(null)
+            if (fileInputRef.current) fileInputRef.current.value = ''
+        }
+    }
+
+    const handleRevisionChange = async (revisionId: string) => {
+        setSelectedRevisionId(revisionId)
+        setLoadingDetails(true)
+        try {
+            const data = await getIsometricDetails(revisionId)
+            setDetails(data)
+        } catch (error) {
+            console.error('Error loading revision details:', error)
+        }
+        setLoadingDetails(false)
+    }
+
+    return (
+        <div className="relative min-h-screen pb-20">
+            {/* Search Bar */}
+            <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 sticky top-0 z-10 mb-6">
+                <input
+                    type="text"
+                    placeholder="Buscar isométrico..."
+                    value={searchTerm}
+                    onChange={e => setSearchTerm(e.target.value)}
+                    className="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                />
+            </div>
+
+            {/* Isometric List */}
+            <div className="grid grid-cols-1 gap-4">
+                {loading ? (
+                    <div className="text-center py-8 text-gray-500">Cargando...</div>
+                ) : isometrics.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500">No se encontraron isométricos.</div>
+                ) : (
+                    isometrics.map(iso => {
+                        const activeRev = iso.revisions?.find((r: any) => r.estado === 'VIGENTE') || iso.revisions?.[0]
+                        const isSelected = selectedIso?.id === iso.id
+                        const allRevisions = iso.revisions || []
+
+                        return (
+                            <div
+                                key={iso.id}
+                                className={`bg-white rounded-xl shadow-sm border transition-all overflow-hidden ${isSelected ? 'ring-2 ring-blue-500 border-transparent' : 'border-gray-200 hover:border-blue-300'
+                                    }`}
+                            >
+                                {/* Header Card */}
+                                <div onClick={() => handleSelectIso(iso)} className="p-4 cursor-pointer flex justify-between items-center bg-white">
+                                    <div className="flex-1">
+                                        <h3 className="text-lg font-bold text-gray-900">{iso.codigo}</h3>
+                                        <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                            <span className="text-sm text-gray-500">{iso.area}</span>
+                                            {activeRev && (
+                                                <span
+                                                    className={`px-2 py-0.5 rounded text-xs font-bold ${activeRev.estado === 'VIGENTE' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
+                                                        }`}
+                                                >
+                                                    Rev {activeRev.codigo}
+                                                </span>
+                                            )}
+                                            {allRevisions.length > 1 && (
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation()
+                                                        setShowRevisionHistory(!showRevisionHistory)
+                                                    }}
+                                                    className="p-1.5 rounded-full hover:bg-blue-50 text-blue-600 hover:text-blue-800 transition-all"
+                                                    title="Ver historial de revisiones"
+                                                >
+                                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                    </svg>
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <div className="text-gray-400">{isSelected ? '▲' : '▼'}</div>
+                                </div>
+
+                                {/* Revision History Panel */}
+                                {showRevisionHistory && isSelected && (
+                                    <div className="border-t border-gray-200 bg-gradient-to-br from-blue-50 to-indigo-50 p-4">
+                                        <h4 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
+                                            <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                            </svg>
+                                            Historial de Revisiones
+                                        </h4>
+                                        <div className="space-y-2">
+                                            {allRevisions.map((rev: any) => {
+                                                const revFiles = revisionFiles.filter(f => f.revision_id === rev.id)
+                                                const isActiveRevision = selectedRevisionId === rev.id
+
+                                                return (
+                                                    <div
+                                                        key={rev.id}
+                                                        className={`bg-white rounded-lg border-2 transition-all shadow-sm overflow-hidden ${isActiveRevision
+                                                                ? 'border-blue-500 ring-2 ring-blue-200'
+                                                                : 'border-gray-200 hover:border-blue-300'
+                                                            }`}
+                                                    >
+                                                        {/* Revision Header */}
+                                                        <div
+                                                            onClick={() => handleRevisionChange(rev.id)}
+                                                            className="p-3 cursor-pointer hover:bg-gray-50 transition-colors"
+                                                        >
+                                                            <div className="flex items-center justify-between">
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className="font-bold text-gray-900">Rev {rev.codigo}</span>
+                                                                    <span
+                                                                        className={`px-2 py-0.5 rounded-full text-xs font-bold ${rev.estado === 'VIGENTE'
+                                                                                ? 'bg-green-100 text-green-700 border border-green-200'
+                                                                                : 'bg-gray-100 text-gray-600 border border-gray-200'
+                                                                            }`}
+                                                                    >
+                                                                        {rev.estado}
+                                                                    </span>
+                                                                    {isActiveRevision && (
+                                                                        <span className="text-xs text-blue-600 font-semibold flex items-center gap-1">
+                                                                            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                                                                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                                                                            </svg>
+                                                                            Viendo
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                                <span className="text-xs text-gray-500">
+                                                                    {rev.fecha_emision ? new Date(rev.fecha_emision).toLocaleDateString('es-ES') : 'Sin fecha'}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Files Section */}
+                                                        {revFiles.length > 0 && (
+                                                            <div className="border-t border-gray-100 bg-gray-50 px-3 py-2">
+                                                                <div className="text-xs font-semibold text-gray-600 mb-2 flex items-center gap-1">
+                                                                    <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                                                                    </svg>
+                                                                    Archivos ({revFiles.length})
+                                                                </div>
+                                                                <div className="space-y-1">
+                                                                    {revFiles.map(file => (
+                                                                        <div
+                                                                            key={file.id}
+                                                                            className="flex items-center justify-between bg-white rounded border border-gray-200 px-2 py-1.5 hover:border-blue-300 transition-colors"
+                                                                        >
+                                                                            <div className="flex items-center gap-2 flex-1 min-w-0">
+                                                                                <svg className="w-4 h-4 text-red-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                                                                    <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" />
+                                                                                </svg>
+                                                                                <span className="text-xs text-gray-700 truncate font-medium">
+                                                                                    {file.file_name}
+                                                                                </span>
+                                                                            </div>
+                                                                            <button
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation()
+                                                                                    handleViewPdf(file.file_url)
+                                                                                }}
+                                                                                className="ml-2 px-2 py-1 bg-blue-600 text-white rounded text-xs font-medium hover:bg-blue-700 transition-colors flex-shrink-0"
+                                                                            >
+                                                                                Ver PDF
+                                                                            </button>
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                        )}
+
+                                                        {/* Upload Button */}
+                                                        <div className="border-t border-gray-100 bg-white px-3 py-2">
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation()
+                                                                    handleUploadClick(rev.id)
+                                                                }}
+                                                                className="w-full px-3 py-1.5 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-lg text-xs font-semibold hover:from-green-700 hover:to-green-800 transition-all flex items-center justify-center gap-2 shadow-sm"
+                                                            >
+                                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                                                                </svg>
+                                                                Subir Archivo
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                )
+                                            })}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Expanded Details */}
+                                {isSelected && (
+                                    <div className="border-t border-gray-100 bg-gray-50">
+                                        {loadingDetails ? (
+                                            <div className="p-8 text-center">
+                                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                                            </div>
+                                        ) : details ? (
+                                            <div>
+                                                {/* Tabs */}
+                                                <div className="flex overflow-x-auto border-b border-gray-200 bg-white sticky top-0">
+                                                    <button
+                                                        onClick={() => setActiveTab('MATERIALS')}
+                                                        className={`flex-1 py-3 px-4 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${activeTab === 'MATERIALS' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'
+                                                            }`}
+                                                    >
+                                                        Materiales ({details.materials.length})
+                                                    </button>
+                                                    <button
+                                                        onClick={() => setActiveTab('UNIONS')}
+                                                        className={`flex-1 py-3 px-4 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${activeTab === 'UNIONS' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'
+                                                            }`}
+                                                    >
+                                                        Uniones ({details.welds.length})
+                                                    </button>
+                                                    <button
+                                                        onClick={() => setActiveTab('SPOOLS')}
+                                                        className={`flex-1 py-3 px-4 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${activeTab === 'SPOOLS' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'
+                                                            }`}
+                                                    >
+                                                        Spools ({details.spools.length})
+                                                    </button>
+                                                    <button
+                                                        onClick={() => setActiveTab('TORQUES')}
+                                                        className={`flex-1 py-3 px-4 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${activeTab === 'TORQUES' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'
+                                                            }`}
+                                                    >
+                                                        Torques ({details.joints.length})
+                                                    </button>
+                                                </div>
+
+                                                {/* Content */}
+                                                <div className="p-4">
+                                                    {activeTab === 'MATERIALS' && (
+                                                        <div className="space-y-3">
+                                                            {details.materials.map(mat => (
+                                                                <div key={mat.id} className="bg-white p-3 rounded-lg border border-gray-200 shadow-sm text-sm">
+                                                                    <div className="font-bold text-gray-800 mb-1">{mat.item_code}</div>
+                                                                    <div className="text-gray-600 mb-1">{mat.description || 'Sin descripción'}</div>
+                                                                    <div className="flex justify-between items-center text-xs text-gray-500">
+                                                                        <span>Cant: {mat.qty} {mat.qty_unit}</span>
+                                                                        <button className="text-blue-600 hover:text-blue-800 font-medium">+ Solicitar</button>
+                                                                    </div>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    )}
+
+                                                    {activeTab === 'UNIONS' && (
+                                                        <div className="space-y-4">
+                                                            {weldsBySpool.map(spool => {
+                                                                const isExpanded = expandedSpools.has(spool.spool_number)
+                                                                return (
+                                                                    <div key={spool.spool_number} className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+                                                                        {/* Spool Header */}
+                                                                        <div
+                                                                            onClick={() => toggleSpoolExpanded(spool.spool_number)}
+                                                                            className="p-3 cursor-pointer hover:bg-gray-50 transition-colors flex justify-between items-center"
+                                                                        >
+                                                                            <div className="flex-1">
+                                                                                <div className="flex items-center gap-2">
+                                                                                    <span className="font-bold text-gray-900">Spool: {spool.spool_number}</span>
+                                                                                    <span
+                                                                                        className={`px-2 py-0.5 rounded text-xs font-bold ${spool.fabrication_status === 'FABRICADO'
+                                                                                            ? 'bg-green-100 text-green-700'
+                                                                                            : spool.fabrication_status === 'EN PROCESO'
+                                                                                                ? 'bg-yellow-100 text-yellow-700'
+                                                                                                : spool.fabrication_status === 'N/A'
+                                                                                                    ? 'bg-gray-100 text-gray-500'
+                                                                                                    : 'bg-orange-100 text-orange-700'
+                                                                                            }`}
+                                                                                    >
+                                                                                        {spool.fabrication_status}
+                                                                                    </span>
+                                                                                </div>
+                                                                                <div className="text-xs text-gray-500 mt-1">
+                                                                                    Taller: {spool.shop_welds_executed}/{spool.shop_welds_total} •
+                                                                                    Campo: {spool.field_welds_executed}/{spool.field_welds_total} •
+                                                                                    Total: {spool.welds.length} uniones
+                                                                                </div>
+                                                                            </div>
+                                                                            <div className="text-gray-400">{isExpanded ? '▲' : '▼'}</div>
+                                                                        </div>
+
+                                                                        {/* Welds List */}
+                                                                        {isExpanded && (
+                                                                            <div className="border-t border-gray-200 bg-gray-50 p-2 space-y-2">
+                                                                                {spool.welds.map(weld => (
+                                                                                    <div
+                                                                                        key={weld.id}
+                                                                                        onClick={() => setSelectedWeld(weld)}
+                                                                                        className="bg-white p-3 rounded-lg border border-gray-200 flex justify-between items-center shadow-sm cursor-pointer hover:border-blue-300 hover:shadow-md transition-all"
+                                                                                    >
+                                                                                        <div>
+                                                                                            <div className="font-bold text-gray-800 flex items-center gap-2">
+                                                                                                {weld.weld_number}
+                                                                                                <span className={`px-1.5 py-0.5 rounded text-xs font-bold ${weld.destination === 'S' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'
+                                                                                                    }`}>
+                                                                                                    {weld.destination === 'S' ? 'Taller' : 'Campo'}
+                                                                                                </span>
+                                                                                            </div>
+                                                                                            <div className="text-xs text-gray-400">{weld.type_weld} - {weld.nps}"</div>
+                                                                                        </div>
+                                                                                        <div className="flex flex-col items-end gap-2">
+                                                                                            <span
+                                                                                                className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all ${weld.executed ? 'bg-green-100 text-green-700 border border-green-200' : 'bg-gray-100 text-gray-500 border border-gray-200'
+                                                                                                    }`}
+                                                                                            >
+                                                                                                {weld.executed ? 'EJECUTADO' : 'PENDIENTE'}
+                                                                                            </span>
+                                                                                            {!weld.executed && (
+                                                                                                <button
+                                                                                                    onClick={(e) => {
+                                                                                                        e.stopPropagation()
+                                                                                                        setWeldForExecution(weld)
+                                                                                                        setShowExecutionModal(true)
+                                                                                                    }}
+                                                                                                    className="px-3 py-1 bg-green-600 text-white rounded-lg text-xs font-medium hover:bg-green-700 transition-colors flex items-center gap-1"
+                                                                                                >
+                                                                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                                                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                                                                                    </svg>
+                                                                                                    Reportar
+                                                                                                </button>
+                                                                                            )}
+                                                                                        </div>
+                                                                                    </div>
+                                                                                ))}
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                )
+                                                            })}
+                                                        </div>
+                                                    )}
+
+                                                    {activeTab === 'SPOOLS' && (
+                                                        <div className="space-y-3">
+                                                            {details.spools.map(spool => (
+                                                                <div key={spool.spool_number} className="bg-white p-3 rounded-lg border border-gray-200 shadow-sm">
+                                                                    <div className="flex justify-between items-center mb-2">
+                                                                        <span className="font-bold text-gray-800">{spool.spool_number}</span>
+                                                                        <span
+                                                                            className={`text-xs font-bold px-2 py-1 rounded ${spool.status === 'COMPLETE'
+                                                                                ? 'bg-green-100 text-green-700'
+                                                                                : spool.status === 'PARTIAL'
+                                                                                    ? 'bg-yellow-100 text-yellow-700'
+                                                                                    : 'bg-gray-100 text-gray-500'
+                                                                                }`}
+                                                                        >
+                                                                            {spool.status === 'COMPLETE'
+                                                                                ? 'COMPLETO'
+                                                                                : spool.status === 'PARTIAL'
+                                                                                    ? 'PARCIAL'
+                                                                                    : 'PENDIENTE'}
+                                                                        </span>
+                                                                    </div>
+                                                                    <div className="w-full bg-gray-100 rounded-full h-2">
+                                                                        <div
+                                                                            className="bg-blue-600 h-2 rounded-full transition-all"
+                                                                            style={{ width: `${(spool.welds_executed / spool.welds_count) * 100}%` }}
+                                                                        ></div>
+                                                                    </div>
+                                                                    <div className="flex justify-between mt-1 text-xs text-gray-500">
+                                                                        <span>Progreso</span>
+                                                                        <span>{spool.welds_executed} / {spool.welds_count} soldaduras</span>
+                                                                    </div>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    )}
+
+                                                    {activeTab === 'TORQUES' && (
+                                                        <div className="space-y-3">
+                                                            {details.joints.map(joint => (
+                                                                <div key={joint.id} className="bg-white p-3 rounded-lg border border-gray-200 flex justify-between items-center shadow-sm">
+                                                                    <div>
+                                                                        <div className="font-bold text-gray-800">{joint.flanged_joint_number}</div>
+                                                                        <div className="text-xs text-gray-500">Rating: {joint.rating}</div>
+                                                                    </div>
+                                                                    <button
+                                                                        onClick={() => handleJointToggle(joint.id, joint.executed)}
+                                                                        className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all ${joint.executed ? 'bg-green-100 text-green-700 border border-green-200' : 'bg-gray-100 text-gray-500 border border-gray-200 hover:bg-gray-200'
+                                                                            }`}
+                                                                    >
+                                                                        {joint.executed ? 'TORQUEADO' : 'PENDIENTE'}
+                                                                    </button>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="p-8 text-center text-gray-500">No hay detalles cargados para esta revisión.</div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        )
+                    })
+                )}
+            </div>
+
+            {/* Modales */}
+            {selectedWeld && (
+                <WeldDetailModal
+                    weld={selectedWeld}
+                    onClose={() => setSelectedWeld(null)}
+                    onUpdate={handleWeldUpdate}
+                />
+            )}
+
+            {showExecutionModal && weldForExecution && (
+                <ExecutionReportModal
+                    weld={weldForExecution}
+                    projectId={projectId}
+                    onClose={() => {
+                        setShowExecutionModal(false)
+                        setWeldForExecution(null)
+                    }}
+                    onSubmit={handleExecutionReport}
+                />
+            )}
+
+
+            {/* PDF Viewer Modal */}
+            {showPdfViewer && selectedPdfUrl && (
+                <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-xl w-full max-w-4xl h-[90vh] flex flex-col">
+                        <div className="flex justify-between items-center p-4 border-b">
+                            <h3 className="text-lg font-bold text-gray-900">Visor de PDF</h3>
+                            <button
+                                onClick={() => {
+                                    setShowPdfViewer(false)
+                                    setSelectedPdfUrl(null)
+                                }}
+                                className="text-gray-500 hover:text-gray-700 text-2xl font-bold"
+                            >
+                                ×
+                            </button>
+                        </div>
+                        <div className="flex-1 overflow-hidden">
+                            <iframe
+                                src={selectedPdfUrl}
+                                className="w-full h-full"
+                                title="PDF Viewer"
+                            />
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Bottom Navigation Bar */}
+            <div className="fixed bottom-0 left-0 right-0 z-40">
+                <div className="flex items-center justify-around border-t border-gray-200/80 bg-white/90 px-2 pb-4 pt-2 backdrop-blur-lg dark:border-gray-800/80 dark:bg-gray-900/90">
+                    {/* Home Button */}
+                    <a
+                        href="/dashboard/master-views"
+                        className={`flex flex-1 flex-col items-center justify-end gap-1.5 pt-1 transition-all ${bottomNavTab === 'home' ? 'text-blue-600' : 'text-gray-500 dark:text-gray-400'}`}
+                    >
+                        <svg
+                            className="w-6 h-6"
+                            fill={bottomNavTab === 'home' ? 'currentColor' : 'none'}
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            viewBox="0 0 24 24"
+                        >
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                        </svg>
+                        <p className="text-xs font-medium tracking-wide">Inicio</p>
+                    </a>
+
+                    {/* Stats Button */}
+                    <button
+                        onClick={() => setBottomNavTab('stats')}
+                        className={`flex flex-1 flex-col items-center justify-end gap-1.5 pt-1 transition-all ${bottomNavTab === 'stats' ? 'text-blue-600' : 'text-gray-500 dark:text-gray-400'}`}
+                    >
+                        <svg
+                            className="w-6 h-6"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            viewBox="0 0 24 24"
+                        >
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                        </svg>
+                        <p className="text-xs font-medium tracking-wide">Estadísticas</p>
+                    </button>
+
+                    {/* Settings Button with Dropdown */}
+                    <div className="relative flex flex-1">
+                        <button
+                            onClick={() => setShowSettingsMenu(!showSettingsMenu)}
+                            className={`flex flex-1 flex-col items-center justify-end gap-1.5 pt-1 transition-all ${bottomNavTab === 'settings' || showSettingsMenu ? 'text-blue-600' : 'text-gray-500 dark:text-gray-400'}`}
+                        >
+                            <svg
+                                className="w-6 h-6"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                viewBox="0 0 24 24"
+                            >
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            </svg>
+                            <p className="text-xs font-medium tracking-wide">Ajustes</p>
+                        </button>
+
+                        {/* Settings Dropdown Menu */}
+                        {showSettingsMenu && (
+                            <div className="absolute bottom-full right-0 mb-2 bg-white rounded-lg shadow-xl border border-gray-200 overflow-hidden min-w-[200px]">
+                                <a
+                                    href={`/proyectos/${projectId}/cuadrillas`}
+                                    className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors"
+                                    onClick={() => setShowSettingsMenu(false)}
+                                >
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                                    </svg>
+                                    <span className="font-medium">Cuadrillas</span>
+                                </a>
+                                <button
+                                    onClick={() => {
+                                        setBottomNavTab('settings')
+                                        setShowSettingsMenu(false)
+                                        alert('Función de ayuda próximamente...')
+                                    }}
+                                    className="w-full flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors border-t border-gray-100"
+                                >
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                    <span className="font-medium">Ayuda</span>
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
+
+            {/* Hidden File Input */}
+            <input
+                type="file"
+                ref={fileInputRef}
+                className="hidden"
+                accept=".pdf"
+                onChange={handleFileChange}
+            />
+        </div>
+    )
+}
