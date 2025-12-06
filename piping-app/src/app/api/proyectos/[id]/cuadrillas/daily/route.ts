@@ -9,6 +9,8 @@
 import { createClient } from '@/lib/supabase-server';
 import { NextRequest, NextResponse } from 'next/server';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(
     request: NextRequest,
     props: { params: Promise<{ id: string }> }
@@ -25,7 +27,12 @@ export async function GET(
             .eq('proyecto_id', proyectoId)
             .eq('activo', true);
 
-        if (cuadrillasError) throw cuadrillasError;
+        if (cuadrillasError) {
+            console.error('❌ Error fetching cuadrillas_full:', cuadrillasError);
+            throw cuadrillasError;
+        }
+
+        console.log('📊 Raw Cuadrillas Data from View:', JSON.stringify(cuadrillasData, null, 2));
 
         // Transform the data to match UI expectations
         const cuadrillas = cuadrillasData?.map((c: any) => ({

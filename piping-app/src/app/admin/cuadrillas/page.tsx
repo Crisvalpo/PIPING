@@ -89,19 +89,21 @@ export default function CuadrillasPage() {
                     </div>
                 </div>
 
-                {/* Search Bar */}
-                <div className="backdrop-blur-xl bg-white/10 rounded-2xl shadow-xl border border-white/20 p-4 mb-6">
-                    <div className="relative">
-                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/40" />
-                        <input
-                            type="text"
-                            placeholder="Buscar por nombre, código o empresa..."
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            className="w-full pl-12 pr-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50"
-                        />
+                {/* Search Bar - Only show for Super Admin (multiple projects) */}
+                {proyectos.length > 1 && (
+                    <div className="backdrop-blur-xl bg-white/10 rounded-2xl shadow-xl border border-white/20 p-4 mb-6">
+                        <div className="relative">
+                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/40" />
+                            <input
+                                type="text"
+                                placeholder="Buscar por nombre, código o empresa..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="w-full pl-12 pr-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50"
+                            />
+                        </div>
                     </div>
-                </div>
+                )}
 
                 {/* Projects Grid */}
                 {filteredProyectos.length === 0 ? (

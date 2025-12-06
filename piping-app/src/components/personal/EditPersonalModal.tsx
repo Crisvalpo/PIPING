@@ -10,6 +10,7 @@ interface EditPersonalModalProps {
         email?: string
         telefono?: string
         rol?: string
+        jefe_directo_rut?: string | null
     }
     allPersonal: any[]
     onClose: () => void
@@ -21,7 +22,8 @@ export default function EditPersonalModal({ worker, allPersonal, onClose, onSucc
         nombre: worker.nombre,
         email: worker.email || '',
         telefono: worker.telefono || '+56',
-        cargo: worker.rol || ''
+        cargo: worker.rol || '',
+        jefe_directo_rut: worker.jefe_directo_rut || null
     })
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState('')
@@ -157,6 +159,32 @@ export default function EditPersonalModal({ worker, allPersonal, onClose, onSucc
                             className="w-full px-3 py-2 border border-white/20 rounded-lg bg-black/20 text-white focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 placeholder:text-white/20"
                             placeholder="ejemplo@correo.com"
                         />
+                    </div>
+
+                    {/* Jefe Directo */}
+                    <div>
+                        <label className="block text-sm font-medium text-white/80 mb-1">
+                            Jefe Directo (Supervisor)
+                        </label>
+                        <select
+                            value={formData.jefe_directo_rut || ''}
+                            onChange={(e) => setFormData({ ...formData, jefe_directo_rut: e.target.value || null })}
+                            className="w-full px-3 py-2 border border-white/20 rounded-lg bg-black/20 text-white focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 [&>option]:bg-gray-900"
+                        >
+                            <option value="">-- Sin jefe asignado --</option>
+                            {allPersonal
+                                .filter(p => p.rut !== worker.rut) // No puede ser su propio jefe
+                                .sort((a, b) => a.nombre.localeCompare(b.nombre))
+                                .map(p => (
+                                    <option key={p.rut} value={p.rut}>
+                                        {p.nombre} ({p.rol || 'Sin Rol'})
+                                    </option>
+                                ))
+                            }
+                        </select>
+                        <p className="text-xs text-white/40 mt-1">
+                            El sistema usará esto para asignar automáticamente al supervisor cuando este capataz tome una cuadrilla.
+                        </p>
                     </div>
 
                     {/* Teléfono */}

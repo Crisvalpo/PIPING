@@ -108,9 +108,9 @@ export default function UnassignedPanel({
                             onChange={(e) => setFilterCargo(e.target.value)}
                             className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50"
                         >
-                            <option value="">Todos los cargos</option>
+                            <option value="" className="text-gray-900">Todos los cargos</option>
                             {cargos.map(cargo => (
-                                <option key={cargo} value={cargo}>{cargo}</option>
+                                <option key={cargo} value={cargo} className="text-gray-900">{cargo}</option>
                             ))}
                         </select>
                     )}
@@ -123,7 +123,7 @@ export default function UnassignedPanel({
                     className="p-4 border-b border-white/10 bg-red-500/10"
                 >
                     <div className="text-center text-white/60 text-sm py-2">
-                        <span className="font-medium">Arrastra aquí para desasignar</span>
+                        <span className="font-medium">Arrastra aquí para quitar de la cuadrilla</span>
                     </div>
                 </div>
 
@@ -151,13 +151,10 @@ export default function UnassignedPanel({
                 </div>
             </div>
 
-            {/* Overlay */}
-            {isOpen && (
-                <div
-                    className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40"
-                    onClick={onToggle}
-                />
-            )}
+            {/* Overlay removido para permitir drag & drop */
+                /* Si se desea cerrar al hacer click fuera, se debe manejar en el contenedor padre o con un listener global, 
+                   pero para D&D necesitamos que el fondo sea interactivo. */
+            }
         </>
     );
 }

@@ -156,7 +156,6 @@ export async function getCuadrillaMembers(
     // or use cuadrillas_full view
     return [];
 }
-
 /**
  * Asigna un miembro a una cuadrilla
  * - SOLDADOR: va a soldadores_asignaciones (flexible, diario)
@@ -168,37 +167,122 @@ export async function assignMemberToCuadrilla(
     data: AssignMemberRequest,
     assignedBy: string
 ): Promise<any> {
+    // Normalizar rol para manejar variantes (ej: "CAPATAZ PIPING", "MAESTRO MAYOR")
+    const roleUpper = data.role.toUpperCase();
+
     // Si es supervisor o capataz, actualizar directamente la tabla cuadrillas
-    if (data.role === 'SUPERVISOR') {
-        const { error } = await supabase
+    if (roleUpper.includes('SUPERVISOR')) {
+        console.log('🔵 Assigning SUPERVISOR:', { rut: data.rut, cuadrilla_id: data.cuadrilla_id, role: data.role });
+
+        const { data: updatedCuadrilla, error } = await supabase
             .from('cuadrillas')
             .update({ supervisor_rut: data.rut })
-            .eq('id', data.cuadrilla_id);
+            .eq('id', data.cuadrilla_id)
+            .select('id, nombre, supervisor_rut')
+            .single();
+
+        console.log('✅ SUPERVISOR UPDATE result:', { updatedCuadrilla, error });
 
         if (error) throw error;
+
+        if (!updatedCuadrilla || updatedCuadrilla.supervisor_rut !== data.rut) {
+            throw new Error('Supervisor assignment failed - value not persisted');
+        }
 
         return {
             cuadrilla_id: data.cuadrilla_id,
             rut: data.rut,
-            role: data.role,
+            role: data.role, // Mantener el rol original para display
             tipo_asignacion: 'JERARQUIA'
         };
-    } else if (data.role === 'CAPATAZ') {
-        const { error } = await supabase
+    } else if (roleUpper.includes('CAPATAZ')) {
+        console.log('🔵 Assigning CAPATAZ:', { rut: data.rut, cuadrilla_id: data.cuadrilla_id, role: data.role });
+
+        const updates: any = { capataz_rut: data.rut };
+
+        // AUTO-ASIGNACIÓN DE SUPERVISOR
+        // Buscar quién es el supervisor habitual de este capataz en base al historial
+        const { data: historial } = await supabase
             .from('cuadrillas')
-            .update({ capataz_rut: data.rut })
-            .eq('id', data.cuadrilla_id);
+            .select('supervisor_rut')
+            .eq('capataz_rut', data.rut)
+            .neq('supervisor_rut', null)
+            .order('updated_at', { ascending: false })
+            .limit(1)
+            .single();
 
-        if (error) throw error;
+        if (historial?.supervisor_rut) {
+            const { data: cuadrillaActual } = await supabase
+                .from('cuadrillas')
+                .select('supervisor_rut')
+                .eq('id', data.cuadrilla_id)
+                .single();
+
+            if (!cuadrillaActual?.supervisor_rut) {
+                updates.supervisor_rut = historial.supervisor_rut;
+                console.log('📌 Auto-assigning supervisor from history:', historial.supervisor_rut);
+            }
+        }
+
+        // También intentar buscar el "Jefe Directo" configurado en la tabla personal
+        if (!updates.supervisor_rut) {
+            const { data: personalData } = await supabase
+                .from('personal')
+                .select('jefe_directo_rut')
+                .eq('rut', data.rut)
+                .single();
+
+            if (personalData?.jefe_directo_rut) {
+                const { data: cuadrillaActual } = await supabase
+                    .from('cuadrillas')
+                    .select('supervisor_rut')
+                    .eq('id', data.cuadrilla_id)
+                    .single();
+
+                if (!cuadrillaActual?.supervisor_rut) {
+                    updates.supervisor_rut = personalData.jefe_directo_rut;
+                    console.log('📌 Auto-assigning supervisor from jefe_directo:', personalData.jefe_directo_rut);
+                }
+            }
+        }
+
+        console.log('📝 About to UPDATE cuadrillas with:', updates);
+
+        // CRITICAL: Select the updated row to verify persistence
+        const { data: updatedCuadrilla, error } = await supabase
+            .from('cuadrillas')
+            .update(updates)
+            .eq('id', data.cuadrilla_id)
+            .select('id, nombre, codigo, capataz_rut, supervisor_rut')
+            .single();
+
+        console.log('✅ UPDATE completed:', { updatedCuadrilla, error });
+
+        if (error) {
+            console.error('❌ UPDATE failed:', error);
+            throw error;
+        }
+
+        if (!updatedCuadrilla) {
+            console.error('❌ UPDATE returned no data - likely RLS policy blocking');
+            throw new Error('Failed to update cuadrilla - no rows returned (check RLS policies)');
+        }
+
+        if (updatedCuadrilla.capataz_rut !== data.rut) {
+            console.error('❌ UPDATE succeeded but capataz_rut not set:', updatedCuadrilla);
+            throw new Error('Capataz assignment failed - value not persisted');
+        }
+
+        console.log('✅ Capataz successfully assigned and verified');
 
         return {
             cuadrilla_id: data.cuadrilla_id,
             rut: data.rut,
             role: data.role,
-            tipo_asignacion: 'JERARQUIA'
+            tipo_asignacion: 'JERARQUIA',
+            supervisor_auto_assigned: !!updates.supervisor_rut
         };
-    } else if (data.role === 'SOLDADOR') {
-        // Usa la función de la base de datos que cierra automáticamente asignaciones previas
+    } else if (roleUpper.includes('SOLDADOR')) {
         const { data: assignment, error } = await supabase
             .rpc('asignar_soldador_a_cuadrilla', {
                 p_soldador_rut: data.rut,
@@ -208,7 +292,6 @@ export async function assignMemberToCuadrilla(
 
         if (error) throw error;
 
-        // Retornar información de la asignación
         return {
             id: assignment,
             soldador_rut: data.rut,
@@ -217,8 +300,8 @@ export async function assignMemberToCuadrilla(
             tipo_asignacion: 'FLEXIBLE',
             fecha: new Date().toISOString().split('T')[0]
         };
-    } else if (data.role === 'MAESTRO') {
-        // Para maestros, primero desactivar asignación anterior si existe
+    } else {
+        // Por defecto MAESTRO/AYUDANTE
         await supabase
             .from('maestros_asignaciones')
             .update({
@@ -228,7 +311,6 @@ export async function assignMemberToCuadrilla(
             .eq('maestro_rut', data.rut)
             .eq('activo', true);
 
-        // Crear nueva asignación
         const { data: assignment, error } = await supabase
             .from('maestros_asignaciones')
             .insert({
@@ -248,8 +330,6 @@ export async function assignMemberToCuadrilla(
             tipo_asignacion: 'ESTABLE'
         };
     }
-
-    throw new Error(`Role ${data.role} no reconocido`);
 }
 
 /**
@@ -262,9 +342,7 @@ export async function removeMemberFromCuadrilla(
     rut: string,
     role?: string
 ): Promise<void> {
-    // Si no se proporciona el rol, intentar detectarlo
     if (!role) {
-        // Verificar si es supervisor o capataz
         const { data: cuadrilla } = await supabase
             .from('cuadrillas')
             .select('supervisor_rut, capataz_rut')
@@ -276,7 +354,6 @@ export async function removeMemberFromCuadrilla(
         } else if (cuadrilla?.capataz_rut === rut) {
             role = 'CAPATAZ';
         } else {
-            // Verificar en maestros
             const { data: maestro } = await supabase
                 .from('maestros_asignaciones')
                 .select('id')
@@ -288,25 +365,37 @@ export async function removeMemberFromCuadrilla(
             if (maestro) {
                 role = 'MAESTRO';
             } else {
-                role = 'SOLDADOR'; // Por defecto
+                role = 'SOLDADOR';
             }
         }
     }
 
-    // Según el rol, cerrar asignación
-    if (role === 'SUPERVISOR') {
+    const roleUpper = role.toUpperCase();
+
+    if (roleUpper.includes('SUPERVISOR')) {
         await supabase
             .from('cuadrillas')
             .update({ supervisor_rut: null })
             .eq('id', cuadrillaId)
             .eq('supervisor_rut', rut);
-    } else if (role === 'CAPATAZ') {
+    } else if (roleUpper.includes('CAPATAZ')) {
         await supabase
             .from('cuadrillas')
             .update({ capataz_rut: null })
             .eq('id', cuadrillaId)
             .eq('capataz_rut', rut);
-    } else if (role === 'MAESTRO') {
+    } else if (roleUpper.includes('SOLDADOR')) {
+        const { error } = await supabase
+            .from('soldadores_asignaciones')
+            .update({ hora_fin: new Date().toTimeString().split(' ')[0] })
+            .eq('cuadrilla_id', cuadrillaId)
+            .eq('soldador_rut', rut)
+            .eq('fecha', new Date().toISOString().split('T')[0])
+            .is('hora_fin', null);
+
+        if (error) throw error;
+    } else {
+        // Asumimos maestro/ayudante para el resto
         const { error } = await supabase
             .from('maestros_asignaciones')
             .update({
@@ -316,17 +405,6 @@ export async function removeMemberFromCuadrilla(
             .eq('cuadrilla_id', cuadrillaId)
             .eq('maestro_rut', rut)
             .eq('activo', true);
-
-        if (error) throw error;
-    } else if (role === 'SOLDADOR') {
-        // Cerrar asignación actual (hoy)
-        const { error } = await supabase
-            .from('soldadores_asignaciones')
-            .update({ hora_fin: new Date().toTimeString().split(' ')[0] })
-            .eq('cuadrilla_id', cuadrillaId)
-            .eq('soldador_rut', rut)
-            .eq('fecha', new Date().toISOString().split('T')[0])
-            .is('hora_fin', null);
 
         if (error) throw error;
     }

@@ -46,3 +46,4 @@ LEFT JOIN soldadores s ON cm.rut = s.rut
 GROUP BY c.id;
 
 SELECT 'Vista cuadrillas_full creada' as status;
+-- Manual trigger for reload

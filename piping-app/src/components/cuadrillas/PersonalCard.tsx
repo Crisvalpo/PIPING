@@ -33,9 +33,13 @@ export default function PersonalCard({
     const handleDragStart = (e: React.DragEvent) => {
         if (onDragStart) {
             // Determine role from cargo or tipo_asignacion
-            const role = tipo_asignacion === 'FLEXIBLE' || cargo === 'SOLDADOR'
+            let role = tipo_asignacion === 'FLEXIBLE' || cargo === 'SOLDADOR'
                 ? 'SOLDADOR'
-                : 'MAESTRO';
+                : (cargo || 'MAESTRO'); // Usar el cargo real (ej: CAPATAZ PIPING) en lugar de forzar MAESTRO
+
+            // Si el cargo incluye soldador, forzar SOLDADOR para consistencia en assignments
+            if (role.toUpperCase().includes('SOLDADOR')) role = 'SOLDADOR';
+
             onDragStart(e, rut, role);
         }
     };
