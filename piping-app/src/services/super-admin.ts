@@ -130,6 +130,24 @@ export async function deleteUser(userId: string): Promise<ApiResponse> {
 }
 
 /**
+ * Actualizar datos de usuario (empresa/proyecto)
+ */
+export async function updateUser(userId: string, data: { empresa_id?: string | null, proyecto_id?: string | null, rol?: string, es_admin_proyecto?: boolean }): Promise<ApiResponse> {
+    // Si se cambia la empresa, limpiar el proyecto si no pertenece a la empresa (lógica simple: solo update)
+    // El frontend se encargará de validar/filtrar proyectos.
+    const { error } = await supabase
+        .from('users')
+        .update(data)
+        .eq('id', userId)
+
+    if (error) {
+        return { success: false, message: error.message }
+    }
+
+    return { success: true, message: 'Usuario actualizado exitosamente' }
+}
+
+/**
  * Obtener todas las empresas con conteo de proyectos
  */
 /**

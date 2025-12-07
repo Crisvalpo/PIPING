@@ -11,7 +11,6 @@ export default function AppNavbar() {
 
     const navigation = [
         { name: 'Dashboard', href: '/dashboard', icon: Home },
-        { name: 'Cuadrillas', href: '/admin/cuadrillas', icon: Users },
         { name: 'Proyectos', href: '/proyectos', icon: FolderKanban },
         { name: 'Configuración', href: '/settings/personal', icon: Settings },
     ]
@@ -42,8 +41,8 @@ export default function AppNavbar() {
                                     key={item.name}
                                     href={item.href}
                                     className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${active
-                                            ? 'bg-blue-50 text-blue-700'
-                                            : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
+                                        ? 'bg-blue-50 text-blue-700'
+                                        : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
                                         }`}
                                 >
                                     <Icon className="w-4 h-4" />
@@ -96,8 +95,8 @@ export default function AppNavbar() {
                                     href={item.href}
                                     onClick={() => setMobileMenuOpen(false)}
                                     className={`flex items-center gap-3 px-3 py-2 rounded-lg text-base font-medium ${active
-                                            ? 'bg-blue-50 text-blue-700'
-                                            : 'text-gray-700 hover:bg-gray-100'
+                                        ? 'bg-blue-50 text-blue-700'
+                                        : 'text-gray-700 hover:bg-gray-100'
                                         }`}
                                 >
                                     <Icon className="w-5 h-5" />

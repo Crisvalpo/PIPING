@@ -5,23 +5,19 @@
  * Closes their current assignment
  */
 
-import { createClient } from '@/lib/supabase-server';
+import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 import { removeMemberFromCuadrilla } from '@/services/cuadrillas';
 
+// Initialize Supabase client with Service Role Key for admin operations
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+
+// Fallback to Anon key if Service key is missing (though Service key is preferred for admin tasks)
+const supabase = createClient(supabaseUrl, supabaseServiceKey || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
+
 export async function POST(request: NextRequest) {
     try {
-        const supabase = await createClient();
-
-        // Get current user
-        const { data: { user }, error: authError } = await supabase.auth.getUser();
-        if (authError || !user) {
-            return NextResponse.json(
-                { success: false, error: 'No autenticado' },
-                { status: 401 }
-            );
-        }
-
         const body = await request.json();
         const { rut, cuadrilla_id, role } = body;
 

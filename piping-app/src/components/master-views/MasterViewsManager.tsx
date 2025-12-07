@@ -776,8 +776,8 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
                                                     <div
                                                         key={rev.id}
                                                         className={`bg-white rounded-lg border-2 transition-all shadow-sm overflow-hidden ${isActiveRevision
-                                                                ? 'border-blue-500 ring-2 ring-blue-200'
-                                                                : 'border-gray-200 hover:border-blue-300'
+                                                            ? 'border-blue-500 ring-2 ring-blue-200'
+                                                            : 'border-gray-200 hover:border-blue-300'
                                                             }`}
                                                     >
                                                         {/* Revision Header */}
@@ -790,8 +790,8 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
                                                                     <span className="font-bold text-gray-900">Rev {rev.codigo}</span>
                                                                     <span
                                                                         className={`px-2 py-0.5 rounded-full text-xs font-bold ${rev.estado === 'VIGENTE'
-                                                                                ? 'bg-green-100 text-green-700 border border-green-200'
-                                                                                : 'bg-gray-100 text-gray-600 border border-gray-200'
+                                                                            ? 'bg-green-100 text-green-700 border border-green-200'
+                                                                            : 'bg-gray-100 text-gray-600 border border-gray-200'
                                                                             }`}
                                                                     >
                                                                         {rev.estado}
@@ -1194,7 +1194,7 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
                         {showSettingsMenu && (
                             <div className="absolute bottom-full right-0 mb-2 bg-white rounded-lg shadow-xl border border-gray-200 overflow-hidden min-w-[200px]">
                                 <a
-                                    href={`/proyectos/${projectId}/cuadrillas`}
+                                    href={`/proyectos/${projectId}/cuadrillas/manage`}
                                     className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors"
                                     onClick={() => setShowSettingsMenu(false)}
                                 >

@@ -17,6 +17,7 @@ interface PersonalCardProps {
     tipo_asignacion?: 'SOLDADOR' | 'MAESTRO' | 'ESTABLE' | 'FLEXIBLE';
     onDragStart?: (e: React.DragEvent, rut: string, role: string) => void;
     draggable?: boolean;
+    isAbsent?: boolean;
 }
 
 export default function PersonalCard({
@@ -27,7 +28,8 @@ export default function PersonalCard({
     hora_inicio,
     tipo_asignacion,
     onDragStart,
-    draggable = true
+    draggable = true,
+    isAbsent = false
 }: PersonalCardProps) {
 
     const handleDragStart = (e: React.DragEvent) => {
@@ -35,92 +37,62 @@ export default function PersonalCard({
             // Determine role from cargo or tipo_asignacion
             let role = tipo_asignacion === 'FLEXIBLE' || cargo === 'SOLDADOR'
                 ? 'SOLDADOR'
-                : (cargo || 'MAESTRO'); // Usar el cargo real (ej: CAPATAZ PIPING) en lugar de forzar MAESTRO
+                : (cargo || 'MAESTRO');
 
-            // Si el cargo incluye soldador, forzar SOLDADOR para consistencia en assignments
             if (role.toUpperCase().includes('SOLDADOR')) role = 'SOLDADOR';
 
             onDragStart(e, rut, role);
         }
     };
 
-    const getTimeSinceAssignment = () => {
-        if (!hora_inicio) return null;
-
-        const now = new Date();
-        const start = new Date();
-        const [hours, minutes] = hora_inicio.split(':');
-        start.setHours(parseInt(hours), parseInt(minutes), 0);
-
-        const diff = now.getTime() - start.getTime();
-        const hoursDiff = Math.floor(diff / (1000 * 60 * 60));
-        const minutesDiff = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-
-        return `${hoursDiff}h ${minutesDiff}m`;
-    };
-
-    const timeInCuadrilla = getTimeSinceAssignment();
-
     return (
         <div
-            draggable={draggable}
+            draggable={draggable && !isAbsent}
             onDragStart={handleDragStart}
             className={`
-                group relative bg-white/10 backdrop-blur-md border border-white/20 
-                rounded-lg p-3 mb-2
-                hover:bg-white/20 hover:border-white/30 hover:shadow-lg
+                group relative backdrop-blur-md border
+                rounded-md p-2 
                 transition-all duration-200
-                ${draggable ? 'cursor-grab active:cursor-grabbing' : 'cursor-default'}
+                ${isAbsent
+                    ? 'bg-gray-800/50 border-gray-600/50 opacity-60 cursor-not-allowed'
+                    : 'bg-white/10 border-white/20 hover:bg-white/20 hover:border-white/30 hover:shadow-lg'
+                }
+                ${draggable && !isAbsent ? 'cursor-grab active:cursor-grabbing' : 'cursor-default'}
+                overflow-hidden
             `}
         >
             {/* Drag Handle */}
             {draggable && (
                 <div className="absolute left-1 top-1/2 -translate-y-1/2 text-white/40 group-hover:text-white/60">
-                    <GripVertical className="w-4 h-4" />
+                    <GripVertical className="w-3 h-3" />
                 </div>
             )}
 
-            <div className="pl-5">
-                {/* Header: Name + Badge */}
-                <div className="flex items-start justify-between gap-2 mb-1">
-                    <div className="flex items-center gap-2 flex-1 min-w-0">
-                        <User className="w-4 h-4 text-white/60 flex-shrink-0" />
-                        <span className="font-medium text-white text-sm truncate">
-                            {nombre}
-                        </span>
-                    </div>
-
-                    {cargo && (
-                        <span className={`
-                            text-[10px] px-2 py-0.5 rounded-full font-semibold flex-shrink-0
-                            ${cargo === 'SOLDADOR' ? 'bg-blue-500/30 text-blue-200' :
-                                cargo === 'MAESTRO' ? 'bg-purple-500/30 text-purple-200' :
-                                    'bg-gray-500/30 text-gray-200'}
-                        `}>
-                            {cargo}
-                        </span>
-                    )}
-                </div>
-
-                {/* RUT */}
-                <div className="text-white/50 text-xs mb-1">
-                    RUT: {rut}
-                </div>
-
-                {/* Estampa (if soldador) */}
-                {estampa && (
-                    <div className="flex items-center gap-1 text-xs text-yellow-300/80 mb-1">
-                        <Award className="w-3 h-3" />
-                        <span>Estampa: {estampa}</span>
-                    </div>
+            <div className="pl-4 flex items-center gap-2">
+                {/* Absent Badge */}
+                {isAbsent && (
+                    <span className="text-[9px] px-1.5 py-0.5 rounded font-bold flex-shrink-0 uppercase bg-red-600/80 text-white border border-red-500">
+                        AUSENTE
+                    </span>
                 )}
 
-                {/* Time in cuadrilla */}
-                {timeInCuadrilla && (
-                    <div className="text-[10px] text-white/40 mt-1">
-                        En cuadrilla: {timeInCuadrilla}
-                    </div>
+                {/* Role Badge */}
+                {cargo && !isAbsent && (
+                    <span className={`
+                        text-[9px] px-1.5 py-0.5 rounded font-bold flex-shrink-0 uppercase
+                        ${cargo.toUpperCase().includes('SOLDADOR') ? 'bg-orange-500/30 text-orange-200 border border-orange-500/50' :
+                            cargo.toUpperCase().includes('MAESTRO') ? 'bg-green-500/30 text-green-200 border border-green-500/50' :
+                                cargo.toUpperCase().includes('CAPATAZ') ? 'bg-blue-500/30 text-blue-200 border border-blue-500/50' :
+                                    'bg-gray-500/30 text-gray-200 border border-gray-500/50'}
+                    `}>
+                        {cargo.split(' ')[0]}
+                    </span>
                 )}
+
+                {/* Name */}
+                <span className="font-medium text-white text-xs truncate flex-1">
+                    {nombre}
+                </span>
             </div>
         </div>
     );

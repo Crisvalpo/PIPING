@@ -418,6 +418,7 @@ export interface AssignMemberRequest {
     rut: string;
     role: MemberRole;
     observaciones?: string;
+    shift_id?: string; // Optional: If not provided, uses project default
 }
 
 export interface RecordExecutionRequest {

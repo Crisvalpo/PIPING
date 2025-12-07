@@ -6,7 +6,8 @@
 'use client';
 
 import React from 'react';
-import { X } from 'lucide-react';
+import { X, Clock } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
 
 interface CreateCuadrillaModalProps {
     proyectoId: string;
@@ -20,12 +21,42 @@ export default function CreateCuadrillaModal({
     onSuccess
 }: CreateCuadrillaModalProps) {
     const [loading, setLoading] = React.useState(false);
+    const [shifts, setShifts] = React.useState<Array<{ id: string; shift_name: string; is_default: boolean }>>([]);
     const [formData, setFormData] = React.useState({
         nombre: '',
         codigo: '',
         tipo: 'PRINCIPAL',
-        descripcion: ''
+        descripcion: '',
+        shift_id: '' // Will be set to default shift on load
     });
+
+    // Load shifts on mount
+    React.useEffect(() => {
+        loadShifts();
+    }, [proyectoId]);
+
+    const loadShifts = async () => {
+        try {
+            const { data, error } = await supabase
+                .from('project_shifts')
+                .select('id, shift_name, is_default')
+                .eq('proyecto_id', proyectoId)
+                .eq('active', true)
+                .order('is_default', { ascending: false });
+
+            if (error) throw error;
+
+            setShifts(data || []);
+
+            // Auto-select default shift
+            const defaultShift = data?.find(s => s.is_default);
+            if (defaultShift) {
+                setFormData(prev => ({ ...prev, shift_id: defaultShift.id }));
+            }
+        } catch (error) {
+            console.error('Error loading shifts:', error);
+        }
+    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -37,7 +68,8 @@ export default function CreateCuadrillaModal({
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     ...formData,
-                    proyecto_id: proyectoId
+                    proyecto_id: proyectoId,
+                    shift_id: formData.shift_id || null
                 })
             });
 
@@ -130,6 +162,33 @@ export default function CreateCuadrillaModal({
                             placeholder="Detalles adicionales..."
                             rows={3}
                         />
+                    </div>
+
+                    {/* Turno */}
+                    <div>
+                        <label className="block text-sm font-medium text-white/80 mb-2">
+                            <Clock className="w-4 h-4 inline mr-1" />
+                            Turno <span className="text-red-400">*</span>
+                        </label>
+                        {shifts.length === 0 ? (
+                            <div className="text-sm text-white/40 italic">
+                                No hay turnos configurados. Crea turnos primero.
+                            </div>
+                        ) : (
+                            <select
+                                value={formData.shift_id}
+                                onChange={(e) => setFormData({ ...formData, shift_id: e.target.value })}
+                                required
+                                className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            >
+                                <option value="" className="bg-purple-900">Seleccionar turno...</option>
+                                {shifts.map(shift => (
+                                    <option key={shift.id} value={shift.id} className="bg-purple-900">
+                                        {shift.shift_name} {shift.is_default ? '(Default)' : ''}
+                                    </option>
+                                ))}
+                            </select>
+                        )}
                     </div>
 
                     {/* Buttons */}

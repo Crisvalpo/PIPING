@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { X, Save, AlertCircle } from 'lucide-react'
 
 interface EditPersonalModalProps {
@@ -23,13 +23,34 @@ export default function EditPersonalModal({ worker, allPersonal, onClose, onSucc
         email: worker.email || '',
         telefono: worker.telefono || '+56',
         cargo: worker.rol || '',
-        jefe_directo_rut: worker.jefe_directo_rut || null
+        jefe_directo_rut: worker.jefe_directo_rut || null,
+        estampa: '' // Will be loaded from soldadores table if exists
     })
+    const [loadingEstampa, setLoadingEstampa] = useState(false)
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState('')
 
     // Extraer cargos únicos de todo el personal
     const cargosUnicos = Array.from(new Set(allPersonal.map(p => p.rol).filter(Boolean))).sort()
+
+    // Check if current cargo is soldador
+    const isSoldador = formData.cargo.toUpperCase().includes('SOLDADOR')
+
+    // Load existing estampa if soldador
+    useEffect(() => {
+        if (isSoldador) {
+            setLoadingEstampa(true)
+            fetch(`/api/personal/${encodeURIComponent(worker.rut)}/estampa`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success && data.estampa) {
+                        setFormData(prev => ({ ...prev, estampa: data.estampa }))
+                    }
+                })
+                .catch(err => console.error('Error loading estampa:', err))
+                .finally(() => setLoadingEstampa(false))
+        }
+    }, [isSoldador, worker.rut])
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -66,6 +87,22 @@ export default function EditPersonalModal({ worker, allPersonal, onClose, onSucc
             console.log('Response:', { status: res.status, data })
 
             if (res.ok && data.success) {
+                // If soldador, also save estampa
+                if (isSoldador && formData.estampa.trim()) {
+                    try {
+                        const estampaRes = await fetch(`/api/personal/${encodedRut}/estampa`, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ estampa: formData.estampa.trim() })
+                        })
+                        const estampaData = await estampaRes.json()
+                        if (!estampaData.success) {
+                            console.warn('Failed to save estampa:', estampaData.error)
+                        }
+                    } catch (err) {
+                        console.error('Error saving estampa:', err)
+                    }
+                }
                 onSuccess()
                 onClose()
             } else {
@@ -147,6 +184,27 @@ export default function EditPersonalModal({ worker, allPersonal, onClose, onSucc
                         </p>
                     </div>
 
+                    {/* Estampa (solo para soldadores) */}
+                    {isSoldador && (
+                        <div>
+                            <label className="block text-sm font-medium text-white/80 mb-1">
+                                Estampa del Soldador <span className="text-red-400">*</span>
+                            </label>
+                            <input
+                                type="text"
+                                value={formData.estampa}
+                                onChange={(e) => setFormData({ ...formData, estampa: e.target.value.toUpperCase() })}
+                                className="w-full px-3 py-2 border border-orange-500/30 rounded-lg bg-orange-500/5 text-white focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500/50 placeholder:text-white/30 font-mono"
+                                placeholder="S01, S02, S03..."
+                                required={isSoldador}
+                                disabled={loadingEstampa}
+                            />
+                            <p className="text-xs text-orange-300/60 mt-1">
+                                🔥 Estampa única del soldador (ej: S01, S02, S03). Este identificador se usa en las certificaciones y registros.
+                            </p>
+                        </div>
+                    )}
+
                     {/* Email */}
                     <div>
                         <label className="block text-sm font-medium text-white/80 mb-1">
@@ -161,31 +219,37 @@ export default function EditPersonalModal({ worker, allPersonal, onClose, onSucc
                         />
                     </div>
 
-                    {/* Jefe Directo */}
-                    <div>
-                        <label className="block text-sm font-medium text-white/80 mb-1">
-                            Jefe Directo (Supervisor)
-                        </label>
-                        <select
-                            value={formData.jefe_directo_rut || ''}
-                            onChange={(e) => setFormData({ ...formData, jefe_directo_rut: e.target.value || null })}
-                            className="w-full px-3 py-2 border border-white/20 rounded-lg bg-black/20 text-white focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 [&>option]:bg-gray-900"
-                        >
-                            <option value="">-- Sin jefe asignado --</option>
-                            {allPersonal
-                                .filter(p => p.rut !== worker.rut) // No puede ser su propio jefe
-                                .sort((a, b) => a.nombre.localeCompare(b.nombre))
-                                .map(p => (
-                                    <option key={p.rut} value={p.rut}>
-                                        {p.nombre} ({p.rol || 'Sin Rol'})
-                                    </option>
-                                ))
-                            }
-                        </select>
-                        <p className="text-xs text-white/40 mt-1">
-                            El sistema usará esto para asignar automáticamente al supervisor cuando este capataz tome una cuadrilla.
-                        </p>
-                    </div>
+                    {/* Jefe Directo (solo para CAPATAZ) */}
+                    {formData.cargo.toUpperCase().includes('CAPATAZ') && (
+                        <div>
+                            <label className="block text-sm font-medium text-white/80 mb-1">
+                                Jefe Directo (Supervisor) <span className="text-purple-400">*</span>
+                            </label>
+                            <select
+                                value={formData.jefe_directo_rut || ''}
+                                onChange={(e) => setFormData({ ...formData, jefe_directo_rut: e.target.value || null })}
+                                className="w-full px-3 py-2 border border-purple-500/30 rounded-lg bg-purple-500/5 text-white focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500/50 [&>option]:bg-gray-900"
+                                required
+                            >
+                                <option value="">-- Seleccionar Supervisor --</option>
+                                {allPersonal
+                                    .filter(p =>
+                                        p.rut !== worker.rut &&
+                                        p.rol?.toUpperCase().includes('SUPERVISOR')
+                                    )
+                                    .sort((a, b) => a.nombre.localeCompare(b.nombre))
+                                    .map(p => (
+                                        <option key={p.rut} value={p.rut}>
+                                            {p.nombre}
+                                        </option>
+                                    ))
+                                }
+                            </select>
+                            <p className="text-xs text-purple-300/60 mt-1">
+                                ⚡ Cuando arrastres este capataz a una cuadrilla, su supervisor se asignará automáticamente.
+                            </p>
+                        </div>
+                    )}
 
                     {/* Teléfono */}
                     <div>

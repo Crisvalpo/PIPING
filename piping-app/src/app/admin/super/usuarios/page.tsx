@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { getAllUsers, approveUser, rejectUser, deleteUser } from '@/services/super-admin'
+import { getAllUsers, approveUser, rejectUser, deleteUser, getAllEmpresasWithStats, getAllProyectosWithDetails, updateUser } from '@/services/super-admin'
 import ProtectedRoute from '@/components/ProtectedRoute'
-import type { User } from '@/types'
+import type { User, Empresa, Proyecto } from '@/types'
+import { Pencil, X, Check, Trash2, StopCircle, Building2 } from 'lucide-react'
 
 function GestionUsuariosContent() {
     const router = useRouter()
@@ -13,13 +14,31 @@ function GestionUsuariosContent() {
     const [processing, setProcessing] = useState<string | null>(null)
     const [filter, setFilter] = useState<'TODOS' | 'PENDIENTE' | 'ACTIVO' | 'RECHAZADO'>('TODOS')
 
+    // Edit states
+    const [editingUser, setEditingUser] = useState<User | null>(null)
+    const [empresas, setEmpresas] = useState<any[]>([])
+    const [proyectos, setProyectos] = useState<any[]>([])
+    const [editForm, setEditForm] = useState({
+        empresa_id: '',
+        proyecto_id: '',
+        rol: 'USER',
+        es_admin_proyecto: false
+    })
+
     useEffect(() => {
-        loadUsers()
+        loadData()
     }, [])
 
-    async function loadUsers() {
-        const data = await getAllUsers()
-        setUsuarios(data)
+    async function loadData() {
+        setLoading(true)
+        const [usersData, empresasData, proyectosData] = await Promise.all([
+            getAllUsers(),
+            getAllEmpresasWithStats(),
+            getAllProyectosWithDetails()
+        ])
+        setUsuarios(usersData)
+        setEmpresas(empresasData)
+        setProyectos(proyectosData)
         setLoading(false)
     }
 
@@ -70,9 +89,53 @@ function GestionUsuariosContent() {
         setProcessing(null)
     }
 
+    // Edit Handlers
+    function openEditModal(user: User) {
+        setEditingUser(user)
+        setEditForm({
+            empresa_id: user.empresa_id || '',
+            proyecto_id: user.proyecto_id || '',
+            rol: user.rol || 'USER',
+            es_admin_proyecto: user.es_admin_proyecto || false
+        })
+    }
+
+    async function handleSaveEdit(e: React.FormEvent) {
+        e.preventDefault()
+        if (!editingUser || !editingUser.id) return
+
+        setProcessing(editingUser.id)
+
+        // Fix logic: if empty string, send null
+        const updatePayload = {
+            empresa_id: editForm.empresa_id || null,
+            proyecto_id: editForm.proyecto_id || null,
+            rol: editForm.rol,
+            es_admin_proyecto: editForm.es_admin_proyecto
+        }
+
+        const res = await updateUser(editingUser.id, updatePayload)
+
+        if (res.success) {
+            // Update local state is tricky because we need full objects for empresa/proyecto
+            // Let's just reload users to be safe and simple
+            const updatedUsers = await getAllUsers()
+            setUsuarios(updatedUsers)
+            setEditingUser(null)
+        } else {
+            alert('Error actualizando usuario: ' + res.message)
+        }
+        setProcessing(null)
+    }
+
     const filteredUsers = usuarios.filter(u =>
         filter === 'TODOS' ? true : u.estado_usuario === filter
     )
+
+    // Filter projects based on selected company in modal
+    const availableProjects = editForm.empresa_id
+        ? proyectos.filter(p => p.empresa_id === editForm.empresa_id)
+        : []
 
     if (loading) {
         return (
@@ -146,6 +209,16 @@ function GestionUsuariosContent() {
                                                     SUPER ADMIN
                                                 </span>
                                             )}
+                                            {usuario.rol === 'ADMIN' && (
+                                                <span className="px-2 py-0.5 bg-purple-500/20 text-purple-300 rounded text-xs font-bold border border-purple-500/50">
+                                                    ADMIN
+                                                </span>
+                                            )}
+                                            {usuario.es_admin_proyecto && (
+                                                <span className="px-2 py-0.5 bg-cyan-500/20 text-cyan-300 rounded text-xs font-bold border border-cyan-500/50">
+                                                    ADMIN PROYECTO
+                                                </span>
+                                            )}
                                         </div>
                                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-gray-400 mt-2">
                                             <p className="flex items-center gap-2">
@@ -155,56 +228,164 @@ function GestionUsuariosContent() {
                                                 {usuario.correo}
                                             </p>
                                             <p className="flex items-center gap-2">
-                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                                                </svg>
+                                                <Building2 className="w-4 h-4" />
                                                 {usuario.empresa?.nombre || 'Sin Empresa'}
                                             </p>
                                             <p className="flex items-center gap-2">
-                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
-                                                </svg>
+                                                <span className="font-bold">P</span>
                                                 {usuario.proyecto?.nombre || 'Sin Proyecto'}
                                             </p>
                                         </div>
                                     </div>
 
                                     {/* Acciones */}
-                                    {usuario.estado_usuario === 'PENDIENTE' && (
-                                        <div className="flex gap-3">
-                                            <button
-                                                onClick={() => handleReject(usuario.id!)}
-                                                disabled={processing === usuario.id}
-                                                className="px-4 py-2 bg-red-500/10 text-red-300 border border-red-500/30 rounded-lg hover:bg-red-500/20 transition-colors disabled:opacity-50"
-                                            >
-                                                Rechazar
-                                            </button>
-                                            <button
-                                                onClick={() => handleApprove(usuario.id!)}
-                                                disabled={processing === usuario.id}
-                                                className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 shadow-lg shadow-green-500/20 transition-all disabled:opacity-50"
-                                            >
-                                                {processing === usuario.id ? 'Procesando...' : '✅ Aprobar'}
-                                            </button>
-                                        </div>
-                                    )}
+                                    <div className="flex items-center gap-2">
+                                        {usuario.estado_usuario === 'PENDIENTE' && (
+                                            <>
+                                                <button
+                                                    onClick={() => handleReject(usuario.id!)}
+                                                    disabled={!!processing}
+                                                    className="p-2 bg-red-500/10 text-red-300 rounded-lg hover:bg-red-500/20 transition-colors"
+                                                    title="Rechazar"
+                                                >
+                                                    <X className="w-5 h-5" />
+                                                </button>
+                                                <button
+                                                    onClick={() => handleApprove(usuario.id!)}
+                                                    disabled={!!processing}
+                                                    className="p-2 bg-green-500/20 text-green-300 rounded-lg hover:bg-green-500/30 transition-colors"
+                                                    title="Aprobar"
+                                                >
+                                                    <Check className="w-5 h-5" />
+                                                </button>
+                                            </>
+                                        )}
 
-                                    {/* Botón Eliminar */}
-                                    <button
-                                        onClick={() => handleDelete(usuario.id!)}
-                                        disabled={processing === usuario.id}
-                                        className="ml-4 p-2 text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all"
-                                        title="Eliminar usuario permanentemente"
-                                    >
-                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                        </svg>
-                                    </button>
+                                        <button
+                                            onClick={() => openEditModal(usuario)}
+                                            disabled={!!processing}
+                                            className="p-2 bg-blue-500/10 text-blue-300 rounded-lg hover:bg-blue-500/20 transition-colors"
+                                            title="Editar Usuario"
+                                        >
+                                            <Pencil className="w-5 h-5" />
+                                        </button>
+
+                                        <button
+                                            onClick={() => handleDelete(usuario.id!)}
+                                            disabled={!!processing}
+                                            className="p-2 hover:bg-white/10 text-gray-400 hover:text-red-400 rounded-lg transition-colors"
+                                            title="Eliminar"
+                                        >
+                                            <Trash2 className="w-5 h-5" />
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         ))
                     )}
                 </div>
+
+                {/* Edit Modal */}
+                {editingUser && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+                        <div className="bg-gray-900 border border-white/10 rounded-2xl w-full max-w-md shadow-2xl">
+                            <div className="p-6 border-b border-white/10 flex justify-between items-center">
+                                <h3 className="text-xl font-bold text-white">Editar Usuario</h3>
+                                <button
+                                    onClick={() => setEditingUser(null)}
+                                    className="text-gray-400 hover:text-white"
+                                >
+                                    <X className="w-6 h-6" />
+                                </button>
+                            </div>
+                            <form onSubmit={handleSaveEdit} className="p-6 space-y-4">
+                                <div>
+                                    <h4 className="text-white font-medium mb-1">{editingUser.nombre}</h4>
+                                    <p className="text-sm text-gray-400 mb-4">{editingUser.correo}</p>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-300 mb-1">Rol del Sistema</label>
+                                        <select
+                                            value={editForm.rol}
+                                            onChange={(e) => setEditForm(prev => ({ ...prev, rol: e.target.value }))}
+                                            className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-purple-500 outline-none"
+                                        >
+                                            <option value="USER">Usuario (User)</option>
+                                            <option value="ADMIN">Administrador (Admin)</option>
+                                            <option value="SUPER_ADMIN">Super Admin</option>
+                                        </select>
+                                    </div>
+                                    <div className="flex items-end pb-2">
+                                        <label className="flex items-center gap-2 cursor-pointer text-gray-300 select-none">
+                                            <input
+                                                type="checkbox"
+                                                checked={editForm.es_admin_proyecto}
+                                                onChange={(e) => setEditForm(prev => ({ ...prev, es_admin_proyecto: e.target.checked }))}
+                                                className="w-4 h-4 rounded border-white/20 bg-black/40 text-purple-600 focus:ring-purple-500 focus:ring-offset-gray-900"
+                                            />
+                                            <span className="text-sm">Es Admin de Proyecto</span>
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-300 mb-1">Empresa</label>
+                                    <select
+                                        value={editForm.empresa_id}
+                                        onChange={(e) => setEditForm(prev => ({
+                                            ...prev,
+                                            empresa_id: e.target.value,
+                                            proyecto_id: '' // Reset project when company changes
+                                        }))}
+                                        className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-purple-500 outline-none"
+                                    >
+                                        <option value="">-- Sin Empresa --</option>
+                                        {empresas.map(emp => (
+                                            <option key={emp.id} value={emp.id}>{emp.nombre}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-300 mb-1">Proyecto</label>
+                                    <select
+                                        value={editForm.proyecto_id}
+                                        onChange={(e) => setEditForm(prev => ({ ...prev, proyecto_id: e.target.value }))}
+                                        disabled={!editForm.empresa_id}
+                                        className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-purple-500 outline-none disabled:opacity-50"
+                                    >
+                                        <option value="">-- Sin Proyecto --</option>
+                                        {availableProjects.map(proj => (
+                                            <option key={proj.id} value={proj.id}>{proj.nombre} ({proj.codigo})</option>
+                                        ))}
+                                    </select>
+                                    {!editForm.empresa_id && (
+                                        <p className="text-xs text-gray-500 mt-1">Selecciona una empresa primero</p>
+                                    )}
+                                </div>
+
+                                <div className="pt-4 flex gap-3">
+                                    <button
+                                        type="button"
+                                        onClick={() => setEditingUser(null)}
+                                        className="flex-1 px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white hover:bg-white/10 transition-colors"
+                                    >
+                                        Cancelar
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        disabled={!!processing}
+                                        className="flex-1 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors font-medium shadow-lg shadow-purple-500/20"
+                                    >
+                                        {processing === editingUser.id ? 'Guardando...' : 'Guardar Cambios'}
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     )

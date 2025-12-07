@@ -15,7 +15,7 @@ interface Trabajador {
     cargo?: string;
     estampa?: string;
     hora_inicio?: string;
-    tipo_asignacion?: 'SOLDADOR' | 'MAESTRO' | 'ESTABLE' | 'FLEXIBLE';
+    tipo?: string; // Changed from tipo_asignacion to match View
     rol?: string;
 }
 
@@ -29,26 +29,26 @@ interface CuadrillaColumnProps {
         trabajadores_actuales: Trabajador[];
         total_members: number;
     };
-    availableSupervisors?: Array<{ rut: string; nombre: string }>;
     onDragOver: (e: React.DragEvent) => void;
     onDrop: (e: React.DragEvent, cuadrillaId: string) => void;
     onDragStart: (e: React.DragEvent, rut: string, role: string, fromCuadrillaId: string) => void;
     onEdit: (cuadrillaId: string) => void;
     onDelete: (cuadrillaId: string) => void;
-    onAssignSupervisor: (cuadrillaId: string, supervisorRut: string) => void;
+    absentWorkers?: Set<string>;
+    compact?: boolean;
 }
 
 export default function CuadrillaColumn({
     cuadrilla,
-    availableSupervisors = [],
     onDragOver,
     onDrop,
     onDragStart,
     onEdit,
     onDelete,
-    onAssignSupervisor
+    absentWorkers = new Set(),
+    compact = false
 }: CuadrillaColumnProps) {
-    const [collapsed, setCollapsed] = React.useState(false);
+    const [collapsed, setCollapsed] = React.useState(true); // Start collapsed by default
 
     const handleDragStart = (e: React.DragEvent, rut: string, role: string) => {
         onDragStart(e, rut, role, cuadrilla.id);
@@ -58,97 +58,71 @@ export default function CuadrillaColumn({
         onDrop(e, cuadrilla.id);
     };
 
-    // Build descriptive name
-    const displayName = cuadrilla.nombre ||
-        (cuadrilla.supervisor && cuadrilla.capataz
-            ? `Sup. ${cuadrilla.supervisor.nombre} - Cap. ${cuadrilla.capataz.nombre}`
-            : cuadrilla.codigo || 'Sin nombre');
-
     return (
-        <div className="flex-shrink-0 w-80 bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl p-4">
+        <div className="flex-shrink-0 w-full bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl p-3 overflow-hidden">
             {/* Column Header */}
-            <div className="mb-4">
+            <div className="mb-2">
                 <div
-                    className="flex items-center justify-between mb-2"
+                    className="flex flex-col gap-2 cursor-pointer pb-2"
+                    onClick={() => setCollapsed(!collapsed)}
                 >
-                    <div
-                        className="flex items-center gap-2 flex-1 cursor-pointer"
-                        onClick={() => setCollapsed(!collapsed)}
-                    >
-                        <Users className="w-5 h-5 text-white/80" />
-                        <h3 className="font-semibold text-white text-lg truncate max-w-[150px]">
-                            {displayName}
+                    {/* Row 1: Icon + Name */}
+                    <div className="flex items-center gap-2 min-w-0">
+                        <Users className="w-5 h-5 text-white/90 flex-shrink-0" />
+                        <h3 className="font-bold text-white text-base truncate tracking-tight">
+                            {cuadrilla.nombre || cuadrilla.codigo || 'Sin nombre'}
                         </h3>
                     </div>
 
-                    <div className="flex items-center gap-2">
-                        <span className="bg-blue-500/20 text-blue-300 text-sm font-bold px-2 py-1 rounded-full">
-                            {cuadrilla.total_members}
+                    {/* Row 2: Actions aligned right */}
+                    <div className="flex items-center justify-end gap-1.5">
+                        <span className="bg-blue-600 shadow-lg shadow-blue-500/20 text-white text-xs font-bold px-2.5 py-0.5 rounded-full mr-1 flex items-center justify-center min-w-[20px]">
+                            {(() => {
+                                let count = 0;
+                                if (cuadrilla.supervisor && !absentWorkers.has(cuadrilla.supervisor.rut)) count++;
+                                if (cuadrilla.capataz && !absentWorkers.has(cuadrilla.capataz.rut)) count++;
+                                count += cuadrilla.trabajadores_actuales.filter((t: any) => !absentWorkers.has(t.rut)).length;
+                                return count;
+                            })()}
                         </span>
+                        <div className="flex items-center gap-1 bg-white/5 rounded-lg p-0.5 border border-white/5">
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    onEdit(cuadrilla.id);
+                                }}
+                                className="p-1.5 hover:bg-white/10 rounded-md transition-colors group"
+                                title="Editar"
+                            >
+                                <Edit className="w-3.5 h-3.5 text-blue-300 group-hover:text-blue-200" />
+                            </button>
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (confirm('¿Eliminar cuadrilla?')) {
+                                        onDelete(cuadrilla.id);
+                                    }
+                                }}
+                                className="p-1.5 hover:bg-white/10 rounded-md transition-colors group"
+                                title="Eliminar"
+                            >
+                                <Trash2 className="w-3.5 h-3.5 text-red-400 group-hover:text-red-300" />
+                            </button>
+                        </div>
                         <button
                             onClick={(e) => {
                                 e.stopPropagation();
-                                onEdit(cuadrilla.id);
+                                setCollapsed(!collapsed);
                             }}
-                            className="p-1 hover:bg-white/10 rounded transition-colors"
-                            title="Editar cuadrilla"
+                            className="p-1.5 hover:bg-white/10 rounded-lg transition-colors ml-1"
                         >
-                            <Edit className="w-4 h-4 text-blue-300 hover:text-blue-400" />
-                        </button>
-                        <button
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                if (confirm('¿Eliminar esta cuadrilla? Todos los miembros quedarán disponibles.')) {
-                                    onDelete(cuadrilla.id);
-                                }
-                            }}
-                            className="p-1 hover:bg-white/10 rounded transition-colors"
-                            title="Eliminar cuadrilla"
-                        >
-                            <Trash2 className="w-4 h-4 text-red-400 hover:text-red-500" />
-                        </button>
-                        <button
-                            onClick={() => setCollapsed(!collapsed)}
-                            className="p-1 hover:bg-white/10 rounded transition-colors"
-                        >
-                            {collapsed ? <ChevronDown className="w-4 h-4 text-white/60" /> : <ChevronUp className="w-4 h-4 text-white/60" />}
+                            {collapsed ?
+                                <ChevronDown className="w-4 h-4 text-white/60" /> :
+                                <ChevronUp className="w-4 h-4 text-white/60" />
+                            }
                         </button>
                     </div>
                 </div>
-
-                {/* Supervisor Select & Info */}
-                {!collapsed && (
-                    <div className="space-y-2 ml-7">
-                        {/* Supervisor Selector */}
-                        {availableSupervisors.length > 0 && (
-                            <div>
-                                <label className="block text-xs text-white/40 mb-1">Supervisor:</label>
-                                <select
-                                    value={cuadrilla.supervisor?.rut || ''}
-                                    onChange={(e) => onAssignSupervisor(cuadrilla.id, e.target.value)}
-                                    className="w-full px-2 py-1 text-xs bg-white/10 border border-white/20 rounded text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
-                                >
-                                    <option value="" className="text-gray-900">Sin supervisor</option>
-                                    {availableSupervisors.map((sup) => (
-                                        <option key={sup.rut} value={sup.rut} className="text-gray-900">
-                                            {sup.nombre}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-                        )}
-
-                        {/* Info básica */}
-                        <div className="text-xs text-white/50 space-y-1">
-                            {cuadrilla.capataz && (
-                                <div>Cap: {cuadrilla.capataz.nombre}</div>
-                            )}
-                            {cuadrilla.codigo && (
-                                <div className="text-white/40">Código: {cuadrilla.codigo}</div>
-                            )}
-                        </div>
-                    </div>
-                )}
             </div>
 
             {/* Drop Zone */}
@@ -157,40 +131,34 @@ export default function CuadrillaColumn({
                     onDragOver={onDragOver}
                     onDrop={handleDrop}
                     className={`
-                        min-h-[400px] max-h-[600px] overflow-y-auto
-                        border-2 border-dashed border-white/10 rounded-lg p-3
+                        min-h-[100px]
+                        border-2 border-dashed border-white/10 rounded-lg p-2
                         transition-colors duration-200
                         hover:border-white/30 hover:bg-white/5
                     `}
                 >
                     {/* Supervisor Section */}
                     {cuadrilla.supervisor && (
-                        <div className="mb-3 pb-3 border-b border-white/10">
-                            <div className="text-xs text-purple-300 font-semibold mb-1 flex items-center gap-1">
+                        <div className="mb-2 pb-2 border-b border-white/10">
+                            <div className="text-[10px] text-purple-300 font-semibold mb-1 flex items-center gap-1">
                                 <span>👤</span>
                                 <span>SUPERVISOR</span>
                             </div>
-                            <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg p-2">
-                                <div className="text-white font-medium text-sm">{cuadrilla.supervisor.nombre}</div>
-                                {cuadrilla.supervisor.email && (
-                                    <div className="text-white/50 text-xs">{cuadrilla.supervisor.email}</div>
-                                )}
+                            <div className="bg-purple-500/10 border border-purple-500/30 rounded px-2 py-1">
+                                <div className="text-white font-medium text-xs truncate">{cuadrilla.supervisor.nombre}</div>
                             </div>
                         </div>
                     )}
 
                     {/* Capataz Section */}
                     {cuadrilla.capataz && (
-                        <div className="mb-3 pb-3 border-b border-white/10">
-                            <div className="text-xs text-blue-300 font-semibold mb-1 flex items-center gap-1">
+                        <div className="mb-2 pb-2 border-b border-white/10">
+                            <div className="text-[10px] text-blue-300 font-semibold mb-1 flex items-center gap-1">
                                 <span>⚡</span>
                                 <span>CAPATAZ</span>
                             </div>
-                            <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-2">
-                                <div className="text-white font-medium text-sm">{cuadrilla.capataz.nombre}</div>
-                                {cuadrilla.capataz.email && (
-                                    <div className="text-white/50 text-xs">{cuadrilla.capataz.email}</div>
-                                )}
+                            <div className="bg-blue-500/10 border border-blue-500/30 rounded px-2 py-1">
+                                <div className="text-white font-medium text-xs truncate">{cuadrilla.capataz.nombre}</div>
                             </div>
                         </div>
                     )}
@@ -198,7 +166,7 @@ export default function CuadrillaColumn({
                     {/* Soldadores Section */}
                     {(() => {
                         const soldadores = cuadrilla.trabajadores_actuales.filter((t: any) =>
-                            t.tipo_asignacion === 'FLEXIBLE' || t.rol?.toUpperCase().includes('SOLDADOR')
+                            t.tipo === 'soldador' || t.cargo?.toUpperCase().includes('SOLDADOR')
                         );
                         return soldadores.length > 0 && (
                             <div className="mb-3 pb-3 border-b border-white/10">
@@ -208,7 +176,7 @@ export default function CuadrillaColumn({
                                         <span>SOLDADORES</span>
                                     </div>
                                     <span className="bg-orange-500/20 text-orange-300 px-2 py-0.5 rounded-full text-xs font-bold">
-                                        {soldadores.length}
+                                        {soldadores.filter((t: any) => !absentWorkers.has(t.rut)).length}
                                     </span>
                                 </div>
                                 <div className="space-y-1">
@@ -220,8 +188,9 @@ export default function CuadrillaColumn({
                                             cargo={trabajador.cargo || trabajador.rol}
                                             estampa={trabajador.estampa}
                                             hora_inicio={trabajador.hora_inicio}
-                                            tipo_asignacion={trabajador.tipo_asignacion}
+                                            tipo_asignacion={trabajador.tipo} // Updated
                                             onDragStart={handleDragStart}
+                                            isAbsent={absentWorkers.has(trabajador.rut)}
                                         />
                                     ))}
                                 </div>
@@ -231,10 +200,14 @@ export default function CuadrillaColumn({
 
                     {/* Maestros Section */}
                     {(() => {
-                        const maestros = cuadrilla.trabajadores_actuales.filter((t: any) =>
-                            t.tipo_asignacion === 'ESTABLE' ||
-                            (t.rol && !t.rol.toUpperCase().includes('SOLDADOR'))
-                        );
+                        const maestros = cuadrilla.trabajadores_actuales.filter((t: any) => {
+                            const isSoldador = t.tipo === 'soldador' || t.cargo?.toUpperCase().includes('SOLDADOR');
+                            if (isSoldador) return false;
+
+                            const r = t.cargo?.toUpperCase() || '';
+                            return r.includes('MAESTRO') || r.includes('TUBERO') || r.includes('CAÑERIA');
+                        });
+
                         return maestros.length > 0 && (
                             <div className="mb-3">
                                 <div className="text-xs text-green-300 font-semibold mb-2 flex items-center justify-between">
@@ -243,7 +216,7 @@ export default function CuadrillaColumn({
                                         <span>MAESTROS</span>
                                     </div>
                                     <span className="bg-green-500/20 text-green-300 px-2 py-0.5 rounded-full text-xs font-bold">
-                                        {maestros.length}
+                                        {maestros.filter((t: any) => !absentWorkers.has(t.rut)).length}
                                     </span>
                                 </div>
                                 <div className="space-y-1">
@@ -255,8 +228,52 @@ export default function CuadrillaColumn({
                                             cargo={trabajador.cargo || trabajador.rol}
                                             estampa={trabajador.estampa}
                                             hora_inicio={trabajador.hora_inicio}
-                                            tipo_asignacion={trabajador.tipo_asignacion}
+                                            tipo_asignacion={trabajador.tipo} // Updated
                                             onDragStart={handleDragStart}
+                                            isAbsent={absentWorkers.has(trabajador.rut)}
+                                        />
+                                    ))}
+                                </div>
+                            </div>
+                        );
+                    })()}
+
+                    {/* Otros / Ayudantes Section */}
+                    {(() => {
+                        const otros = cuadrilla.trabajadores_actuales.filter((t: any) => {
+                            const isSoldador = t.tipo === 'soldador' || t.cargo?.toUpperCase().includes('SOLDADOR');
+                            if (isSoldador) return false;
+
+                            const r = t.cargo?.toUpperCase() || '';
+                            const isMaestro = r.includes('MAESTRO') || r.includes('TUBERO') || r.includes('CAÑERIA');
+                            if (isMaestro) return false;
+
+                            return true;
+                        });
+
+                        return otros.length > 0 && (
+                            <div className="mb-3">
+                                <div className="text-xs text-gray-400 font-semibold mb-2 flex items-center justify-between">
+                                    <div className="flex items-center gap-1">
+                                        <span>📋</span>
+                                        <span>OTROS</span>
+                                    </div>
+                                    <span className="bg-gray-500/20 text-gray-300 px-2 py-0.5 rounded-full text-xs font-bold">
+                                        {otros.length}
+                                    </span>
+                                </div>
+                                <div className="space-y-1">
+                                    {otros.map((trabajador: any) => (
+                                        <PersonalCard
+                                            key={trabajador.rut}
+                                            rut={trabajador.rut}
+                                            nombre={trabajador.nombre}
+                                            cargo={trabajador.cargo || trabajador.rol}
+                                            estampa={trabajador.estampa}
+                                            hora_inicio={trabajador.hora_inicio}
+                                            tipo_asignacion={trabajador.tipo} // Updated
+                                            onDragStart={handleDragStart}
+                                            isAbsent={absentWorkers.has(trabajador.rut)}
                                         />
                                     ))}
                                 </div>

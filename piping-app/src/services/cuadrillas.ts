@@ -287,7 +287,8 @@ export async function assignMemberToCuadrilla(
             .rpc('asignar_soldador_a_cuadrilla', {
                 p_soldador_rut: data.rut,
                 p_cuadrilla_id: data.cuadrilla_id,
-                p_observaciones: data.observaciones || null
+                p_observaciones: data.observaciones || null,
+                p_shift_id: data.shift_id || null
             });
 
         if (error) throw error;
@@ -302,32 +303,24 @@ export async function assignMemberToCuadrilla(
         };
     } else {
         // Por defecto MAESTRO/AYUDANTE
-        await supabase
-            .from('maestros_asignaciones')
-            .update({
-                activo: false,
-                fecha_desasignacion: new Date().toISOString().split('T')[0]
-            })
-            .eq('maestro_rut', data.rut)
-            .eq('activo', true);
-
-        const { data: assignment, error } = await supabase
-            .from('maestros_asignaciones')
-            .insert({
-                maestro_rut: data.rut,
-                cuadrilla_id: data.cuadrilla_id,
-                observaciones: data.observaciones,
-                activo: true
-            })
-            .select()
-            .single();
+        // Usar función RPC para manejar tracking de tiempo correctamente
+        const { data: assignmentId, error } = await supabase
+            .rpc('asignar_maestro_a_cuadrilla', {
+                p_maestro_rut: data.rut,
+                p_cuadrilla_id: data.cuadrilla_id,
+                p_observaciones: data.observaciones || null,
+                p_shift_id: data.shift_id || null
+            });
 
         if (error) throw error;
 
         return {
-            ...assignment,
+            id: assignmentId,
+            rut: data.rut,
+            cuadrilla_id: data.cuadrilla_id,
             role: data.role,
-            tipo_asignacion: 'ESTABLE'
+            tipo_asignacion: 'ESTABLE',
+            fecha: new Date().toISOString().split('T')[0]
         };
     }
 }

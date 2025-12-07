@@ -1,18 +1,59 @@
 'use client'
 
-import { useState } from 'react'
-import { useParams, usePathname } from 'next/navigation'
+import { useState, useEffect } from 'react'
+import { useParams, usePathname, useRouter } from 'next/navigation'
 import { Users } from 'lucide-react'
+import { supabase } from '@/lib/supabase'
 
 export default function BottomNavigation() {
     const params = useParams()
     const pathname = usePathname()
+    const router = useRouter()
     const [showSettingsMenu, setShowSettingsMenu] = useState(false)
+    const [userProjectId, setUserProjectId] = useState<string | null>(null)
 
     // Detectar páginas activas
     const isHome = pathname?.includes('/master-views')
     const isStats = pathname?.includes('stats') || pathname?.includes('estadisticas')
     const isSettings = pathname?.includes('/settings') || showSettingsMenu
+    // Get user's project on mount
+    useEffect(() => {
+        async function getUserProject() {
+            try {
+                const { data: { user } } = await supabase.auth.getUser()
+                if (!user) return
+
+                const { data: userData } = await supabase
+                    .from('users')
+                    .select('proyecto_id')
+                    .eq('id', user.id)
+                    .single()
+
+                if (userData?.proyecto_id) {
+                    setUserProjectId(userData.proyecto_id)
+                }
+            } catch (error) {
+                console.error('Error getting user project:', error)
+            }
+        }
+        getUserProject()
+    }, [])
+
+    const handleCuadrillasClick = (e: React.MouseEvent) => {
+        e.preventDefault()
+        setShowSettingsMenu(false)
+
+        console.log('🔍 User Project ID:', userProjectId)
+
+        if (userProjectId) {
+            const targetUrl = `/proyectos/${userProjectId}/cuadrillas/manage`
+            console.log('✅ Redirecting to:', targetUrl)
+            router.push(targetUrl)
+        } else {
+            console.log('⚠️ No project ID, redirecting to admin')
+            router.push('/admin/cuadrillas')
+        }
+    }
 
     return (
         <>
@@ -78,16 +119,15 @@ export default function BottomNavigation() {
                         {/* Settings Dropdown Menu */}
                         {showSettingsMenu && (
                             <div className="absolute bottom-full right-0 mb-2 bg-white rounded-lg shadow-xl border border-gray-200 overflow-hidden min-w-[200px]">
-                                <a
-                                    href="/admin/cuadrillas"
-                                    className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors"
-                                    onClick={() => setShowSettingsMenu(false)}
+                                <button
+                                    onClick={handleCuadrillasClick}
+                                    className="w-full flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors"
                                 >
                                     <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                                     </svg>
                                     <span className="font-medium">Cuadrillas</span>
-                                </a>
+                                </button>
                                 <a
                                     href="/settings/personal"
                                     className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors border-t border-gray-100"
@@ -96,6 +136,30 @@ export default function BottomNavigation() {
                                     <Users className="w-5 h-5" />
                                     <span className="font-medium">Personal</span>
                                 </a>
+                                {userProjectId && (
+                                    <a
+                                        href={`/proyectos/${userProjectId}/reportes`}
+                                        className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors border-t border-gray-100"
+                                        onClick={() => setShowSettingsMenu(false)}
+                                    >
+                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                        </svg>
+                                        <span className="font-medium">Historial</span>
+                                    </a>
+                                )}
+                                {userProjectId && (
+                                    <a
+                                        href={`/proyectos/${userProjectId}/reporte-diario`}
+                                        className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors border-t border-gray-100"
+                                        onClick={() => setShowSettingsMenu(false)}
+                                    >
+                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                                        </svg>
+                                        <span className="font-medium">Reporte Diario</span>
+                                    </a>
+                                )}
                                 <button
                                     onClick={() => {
                                         setShowSettingsMenu(false)

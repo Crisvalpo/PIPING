@@ -12,7 +12,7 @@ interface EditCuadrillaModalProps {
     cuadrilla: {
         id: string;
         nombre: string;
-        codigo: string;
+        codigo?: string;
         tipo?: string;
         descripcion?: string;
     };
@@ -35,6 +35,14 @@ export default function EditCuadrillaModal({
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+
+        console.log('📝 Submitting edit for cuadrilla:', cuadrilla);
+
+        if (!cuadrilla.id) {
+            alert('Error interno: ID de cuadrilla no encontrado');
+            return;
+        }
+
         setLoading(true);
 
         try {

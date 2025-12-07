@@ -82,8 +82,11 @@ export async function GET(
             if (c.capataz?.rut) assignedRuts.add(c.capataz.rut);
         });
 
-        // Filter out assigned personnel
-        const personal_disponible = allPersonal?.filter(p => !assignedRuts.has(p.rut)) || [];
+        // Filter out assigned personnel (but keep Supervisors available for multiple assignment)
+        const personal_disponible = allPersonal?.filter(p => {
+            const isSupervisor = p.cargo?.toUpperCase().includes('SUPERVISOR');
+            return !assignedRuts.has(p.rut) || isSupervisor;
+        }) || [];
 
         return NextResponse.json({
             success: true,

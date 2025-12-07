@@ -52,7 +52,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
     try {
         const body = await request.json()
-        const { proyecto_id, nombre, codigo, descripcion } = body
+        const { proyecto_id, nombre, codigo, descripcion, shift_id } = body
 
         if (!proyecto_id || !nombre || !codigo) {
             return NextResponse.json(
@@ -61,50 +61,76 @@ export async function POST(request: Request) {
             )
         }
 
-        // Crear cuadrilla
-        const { data, error } = await supabase
+        // 1. Check if exists (active or inactive)
+        const { data: existing } = await supabase
             .from('cuadrillas')
-            .insert({
-                proyecto_id,
-                nombre,
-                codigo,
-                descripcion
-            })
-            .select()
-            .single()
+            .select('id, active')
+            .eq('proyecto_id', proyecto_id)
+            .or(`nombre.eq.${nombre},codigo.eq.${codigo}`)
+            .maybeSingle()
+
+        let result;
+        let error;
+
+        if (existing) {
+            if (existing.active) {
+                return NextResponse.json(
+                    { error: 'Ya existe una cuadrilla activa con este nombre o código' },
+                    { status: 409 }
+                )
+            } else {
+                // 2. If inactive, reactivate and update
+                console.log(`♻️ Reactivating cuadrilla ${existing.id}`);
+                const { data, error: updateError } = await supabase
+                    .from('cuadrillas')
+                    .update({
+                        nombre,
+                        codigo,
+                        descripcion,
+                        shift_id: shift_id || null,
+                        active: true, // Reactivate
+                        // Clear old assignments just in case
+                        supervisor_rut: null,
+                        capataz_rut: null
+                    })
+                    .eq('id', existing.id)
+                    .select()
+                    .single()
+
+                result = data;
+                error = updateError;
+            }
+        } else {
+            // 3. Create new
+            const { data, error: insertError } = await supabase
+                .from('cuadrillas')
+                .insert({
+                    proyecto_id,
+                    nombre,
+                    codigo,
+                    descripcion,
+                    shift_id: shift_id || null,
+                    active: true
+                })
+                .select()
+                .single()
+
+            result = data;
+            error = insertError;
+        }
 
         if (error) throw error
 
         return NextResponse.json({
             success: true,
-            message: 'Cuadrilla creada exitosamente',
-            data
+            message: existing ? 'Cuadrilla restaurada exitosamente' : 'Cuadrilla creada exitosamente',
+            data: result
         })
+
     } catch (error: any) {
         console.error('[POST /api/cuadrillas] Error:', error)
-
-        // Handle duplicate key error (Postgres code 23505)
-        if (error.code === '23505') {
-            if (error.message?.includes('nombre')) {
-                return NextResponse.json(
-                    { error: 'Ya existe una cuadrilla con este nombre en el proyecto' },
-                    { status: 409 }
-                )
-            }
-            if (error.message?.includes('codigo')) {
-                return NextResponse.json(
-                    { error: 'Ya existe una cuadrilla con este código en el proyecto' },
-                    { status: 409 }
-                )
-            }
-            return NextResponse.json(
-                { error: 'Ya existe una cuadrilla con estos datos (nombre o código duplicado)' },
-                { status: 409 }
-            )
-        }
-
         return NextResponse.json(
-            { error: error.message || 'Error al crear cuadrilla' },
+            { error: error.message || 'Error al procesar cuadrilla' },
             { status: 500 }
         )
     }

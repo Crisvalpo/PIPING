@@ -25,7 +25,7 @@ export async function GET(request: Request) {
 
         let query = supabase
             .from('personal')
-            .select('rut, nombre, email, telefono, cargo')
+            .select('rut, nombre, email, telefono, cargo, jefe_directo_rut')
             .eq('proyecto_id', proyectoId)
             .order('nombre')
 

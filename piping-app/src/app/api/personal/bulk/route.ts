@@ -81,19 +81,24 @@ export async function POST(request: Request) {
                 }
 
                 // Insertar en personal
+                const insertData = {
+                    rut: rutFormateado,
+                    nombre: worker.nombre.toUpperCase(),
+                    email: worker.email,
+                    telefono: worker.telefono,
+                    cargo: worker.cargo?.toUpperCase(),
+                    activo: true,
+                    proyecto_id: proyectoId
+                };
+
+                console.log(`👤 Inserting worker: ${rutFormateado}`, insertData);
+
                 const { error: insertError } = await supabase
                     .from('personal')
-                    .insert({
-                        rut: rutFormateado,
-                        nombre: worker.nombre.toUpperCase(),
-                        email: worker.email,
-                        telefono: worker.telefono,
-                        cargo: worker.cargo?.toUpperCase(),
-                        activo: true,
-                        proyecto_id: proyectoId
-                    })
+                    .insert(insertData)
 
                 if (insertError) {
+                    console.error(`❌ Insert Error for ${rutFormateado}:`, insertError);
                     if (insertError.code === '23505') {
                         // Ya existe, contar como skipped con mensaje claro
                         results.errors.push({
@@ -104,11 +109,12 @@ export async function POST(request: Request) {
                     } else {
                         results.errors.push({
                             rut: worker.rut,
-                            error: insertError.message
+                            error: `Error BD: ${insertError.message}`
                         })
                         results.skipped++
                     }
                 } else {
+                    console.log(`✅ Worker ${rutFormateado} inserted successfully`);
                     results.imported++
                 }
 
