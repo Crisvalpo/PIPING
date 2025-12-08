@@ -102,14 +102,18 @@ export default function ImportCSVModal({ onClose, onSuccess }: ImportCSVModalPro
                 NOMBRE: 'JUAN PEREZ',
                 EMAIL: 'juan@empresa.com',
                 TELEFONO: '+56912345678',
-                CARGO: 'SOLDADOR'
+                CARGO: 'SOLDADOR',
+                CODIGO: 'EMP-001',
+                JORNADA: '5x2'
             },
             {
                 RUT: '98.765.432-1',
                 NOMBRE: 'MARIA GONZALEZ',
                 EMAIL: 'maria@empresa.com',
                 TELEFONO: '+56987654321',
-                CARGO: 'CAPATAZ'
+                CARGO: 'CAPATAZ',
+                CODIGO: 'EMP-024',
+                JORNADA: '14x14 A'
             }
         ]
 
@@ -139,7 +143,9 @@ export default function ImportCSVModal({ onClose, onSuccess }: ImportCSVModalPro
                     nombre: normalizedRow['NOMBRE'] || normalizedRow['NOMBRES'] || normalizedRow['NOMBRE_COMPLETO'],
                     email: normalizedRow['EMAIL'] || normalizedRow['CORREO'],
                     telefono: normalizedRow['TELEFONO'] || normalizedRow['CELULAR'],
-                    cargo: normalizedRow['CARGO'] || normalizedRow['ROL']
+                    cargo: normalizedRow['CARGO'] || normalizedRow['ROL'],
+                    codigo: normalizedRow['CODIGO'] || normalizedRow['COD_TRABAJADOR'],  // NEW
+                    jornada: normalizedRow['JORNADA'] || normalizedRow['REGIMEN']        // NEW
                 }
             }).filter(w => w.rut && w.nombre)
 
@@ -256,7 +262,7 @@ export default function ImportCSVModal({ onClose, onSuccess }: ImportCSVModalPro
                                 </h4>
                                 <p className="text-xs text-blue-200/80 mb-3">
                                     El archivo debe contener al menos las columnas <strong>RUT</strong> y <strong>NOMBRE</strong>.
-                                    Opcionalmente puede incluir EMAIL, TELEFONO y CARGO.
+                                    Opcionalmente puede incluir EMAIL, TELEFONO, CARGO, <strong>CODIGO</strong> y <strong>JORNADA</strong>.
                                 </p>
                                 <button
                                     onClick={downloadTemplate}

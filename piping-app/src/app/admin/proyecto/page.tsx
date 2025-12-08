@@ -7,6 +7,7 @@ import { getMyProyecto, getProyectoStats } from '@/services/proyectos'
 import { getPendingSolicitudes } from '@/services/solicitudes'
 import ProtectedRoute from '@/components/ProtectedRoute'
 import ProjectWeekConfigModal from '@/components/admin/ProjectWeekConfigModal'
+import WorkScheduleManager from '@/components/admin/WorkScheduleManager'
 import type { User, ProyectoWithEmpresa } from '@/types'
 import Link from 'next/link'
 
@@ -22,6 +23,7 @@ function AdminProyectoContent() {
     })
     const [loading, setLoading] = useState(true)
     const [showWeekConfigModal, setShowWeekConfigModal] = useState(false)
+    const [showScheduleManager, setShowScheduleManager] = useState(false)
     const [weekConfigured, setWeekConfigured] = useState(false)
 
     useEffect(() => {
@@ -285,6 +287,24 @@ function AdminProyectoContent() {
                             </div>
                         </div>
                     </div>
+
+                    {/* Gestionar Jornadas */}
+                    <div
+                        onClick={() => setShowScheduleManager(true)}
+                        className="backdrop-blur-xl bg-gradient-to-br from-blue-500/20 to-cyan-500/20 rounded-2xl shadow-xl border border-white/20 p-8 hover:scale-105 transition-all duration-200 cursor-pointer"
+                    >
+                        <div className="flex items-center space-x-4">
+                            <div className="p-4 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-xl">
+                                <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                            </div>
+                            <div>
+                                <h3 className="text-2xl font-bold text-white mb-1">Gestionar Jornadas</h3>
+                                <p className="text-purple-200">Configura regímenes de trabajo (5x2, 14x14, etc.)</p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 {/* Week Config Modal */}
@@ -305,6 +325,19 @@ function AdminProyectoContent() {
                             } catch (err) {
                                 console.log('Could not reload week config')
                             }
+                        }}
+                    />
+                )}
+
+                {/* Work Schedule Manager Modal */}
+                {proyecto && (
+                    <WorkScheduleManager
+                        isOpen={showScheduleManager}
+                        onClose={() => setShowScheduleManager(false)}
+                        proyectoId={proyecto.id!}
+                        onSave={() => {
+                            // Refresh page data if needed
+                            setShowScheduleManager(false)
                         }}
                     />
                 )}

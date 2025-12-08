@@ -11,6 +11,8 @@ interface BulkWorker {
     cargo?: string
     email?: string
     telefono?: string
+    codigo?: string    // NEW: Worker code
+    jornada?: string   // NEW: Schedule name (5x2, 14x14 A, etc.)
 }
 
 /**
@@ -80,6 +82,25 @@ export async function POST(request: Request) {
                     continue
                 }
 
+                // Buscar work_schedule si jornada está especificada
+                let workScheduleId = null
+                if (worker.jornada) {
+                    const { data: schedule } = await supabase
+                        .from('work_schedules')
+                        .select('id')
+                        .eq('proyecto_id', proyectoId)
+                        .eq('nombre', worker.jornada.trim())
+                        .eq('activo', true)
+                        .single()
+
+                    if (schedule) {
+                        workScheduleId = schedule.id
+                    } else {
+                        // Jornada no encontrada - registrar warning pero continuar
+                        console.warn(`⚠️ Jornada "${worker.jornada}" not found for ${rutFormateado}`)
+                    }
+                }
+
                 // Insertar en personal
                 const insertData = {
                     rut: rutFormateado,
@@ -87,6 +108,8 @@ export async function POST(request: Request) {
                     email: worker.email,
                     telefono: worker.telefono,
                     cargo: worker.cargo?.toUpperCase(),
+                    codigo_trabajador: worker.codigo?.trim() || null,  // NEW
+                    work_schedule_id: workScheduleId,                   // NEW
                     activo: true,
                     proyecto_id: proyectoId
                 };
