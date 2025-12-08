@@ -125,10 +125,14 @@ export default function PersonalTable({ personal, loading, onReload }: PersonalT
                                 </tr>
                             ) : (
                                 filteredPersonal.map((worker) => (
-                                    <tr key={worker.rut} className="hover:bg-white/5 transition-colors">
+                                    <tr key={worker.rut} className={`transition-colors ${worker.presente === false
+                                        ? 'bg-red-900/10 hover:bg-red-900/20 opacity-70'
+                                        : 'hover:bg-white/5'}`}>
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <div className="flex items-center">
-                                                <div className="flex-shrink-0 h-10 w-10 bg-white/10 rounded-full flex items-center justify-center text-white font-bold border border-white/10">
+                                                <div className={`flex-shrink-0 h-10 w-10 rounded-full flex items-center justify-center text-white font-bold border ${worker.presente === false
+                                                    ? 'bg-red-900/40 border-red-500/50'
+                                                    : 'bg-white/10 border-white/10'}`}>
                                                     {worker.nombre.charAt(0)}
                                                 </div>
                                                 <div className="ml-4">
@@ -185,6 +189,14 @@ export default function PersonalTable({ personal, loading, onReload }: PersonalT
                                                             }`}>
                                                             {worker.shift_name.toLowerCase().includes('noche') ? '🌙' : '☀️'}
                                                             {worker.shift_name}
+                                                        </span>
+                                                    )}
+                                                    {worker.presente === false && (
+                                                        <span className="ml-2 px-2 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider bg-red-900/60 text-red-300 border border-red-700/50 flex items-center gap-1">
+                                                            ⚠️ Ausente
+                                                            {worker.motivo_ausencia && (
+                                                                <span className="text-[9px] normal-case font-normal">({worker.motivo_ausencia})</span>
+                                                            )}
                                                         </span>
                                                     )}
                                                 </div>

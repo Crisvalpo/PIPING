@@ -100,13 +100,26 @@ export async function GET(request: Request) {
                     shift_name = (esSoldador as any).cuadrillas?.project_shifts?.shift_name
                 }
 
+                // Verificar asistencia de hoy
+                const today = new Date().toISOString().split('T')[0]
+                const { data: attendance } = await supabase
+                    .from('asistencia_diaria')
+                    .select('presente, motivo_ausencia')
+                    .eq('personal_rut', p.rut)
+                    .eq('proyecto_id', proyectoId)
+                    .eq('fecha', today)
+                    .limit(1)
+                    .single()
+
                 return {
                     ...p,
                     rol,
                     asignado,
                     cuadrilla,
                     shift_name,
-                    activo: true
+                    activo: true,
+                    presente: attendance?.presente !== false, // Default to true if no record
+                    motivo_ausencia: attendance?.motivo_ausencia || null
                 }
             })
         )

@@ -2,15 +2,17 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { Upload, Building2, Users } from 'lucide-react'
+import { Upload, Building2, Users, ClipboardList } from 'lucide-react'
 import PersonalTable from '@/components/personal/PersonalTable'
 import ImportCSVModal from '@/components/personal/ImportCSVModal'
 import TransferSoldadorModal from '@/components/personal/TransferSoldadorModal'
+import AttendanceModal from '@/components/cuadrillas/AttendanceModal'
 
 export default function PersonalPage() {
     const router = useRouter()
     const [showImportModal, setShowImportModal] = useState(false)
     const [showTransferModal, setShowTransferModal] = useState(false)
+    const [showAttendanceModal, setShowAttendanceModal] = useState(false)
     const [selectedSoldador, setSelectedSoldador] = useState<any>(null)
     const [personal, setPersonal] = useState([])
     const [loading, setLoading] = useState(false)
@@ -91,81 +93,90 @@ export default function PersonalPage() {
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900 p-6">
-            <div className="max-w-7xl mx-auto space-y-6">
-                {/* Header */}
-                <div className="backdrop-blur-xl bg-white/10 rounded-xl shadow-2xl border border-white/20 p-6">
-                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                        <div className="flex-1">
-                            <h1 className="text-2xl font-bold text-white flex items-center gap-3">
-                                <Users className="w-7 h-7 text-blue-400" />
-                                Gestión de Personal
-                            </h1>
-                            <p className="text-white/60 text-sm mt-1">Administra el personal del proyecto y sus roles</p>
+        <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900 py-6 px-2 md:px-4 space-y-6">
+            {/* Header */}
+            <div className="backdrop-blur-xl bg-white/10 rounded-xl shadow-2xl border border-white/20 p-6">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                    <div className="flex-1">
+                        <h1 className="text-2xl font-bold text-white flex items-center gap-3">
+                            <Users className="w-7 h-7 text-blue-400" />
+                            Gestión de Personal
+                        </h1>
+                        <p className="text-white/60 text-sm mt-1">Administra el personal del proyecto y sus roles</p>
 
-                            {/* Project Selector for Super Admin */}
-                            {isSuperAdminUser && (
-                                <div className="mt-3 flex items-center gap-3 bg-white/10 p-2 rounded-lg border border-white/10 w-full md:w-auto md:max-w-md backdrop-blur-md transition-all hover:bg-white/15">
-                                    <div className="p-1.5 bg-blue-500/20 rounded-lg">
-                                        <Building2 className="w-4 h-4 text-blue-300" />
-                                    </div>
-                                    <div className="flex-1">
-                                        <select
-                                            value={selectedProyectoId}
-                                            onChange={(e) => setSelectedProyectoId(e.target.value)}
-                                            className="w-full bg-transparent text-white border-0 p-0 focus:ring-0 text-sm font-semibold cursor-pointer [&>option]:bg-gray-900"
-                                        >
-                                            <option value="">-- Seleccionar Proyecto --</option>
-                                            {proyectos.map(p => (
-                                                <option key={p.id} value={p.id}>
-                                                    {p.nombre} ({p.codigo})
-                                                </option>
-                                            ))}
-                                        </select>
-                                    </div>
+                        {/* Project Selector for Super Admin */}
+                        {isSuperAdminUser && (
+                            <div className="mt-3 flex items-center gap-3 bg-white/10 p-2 rounded-lg border border-white/10 w-full md:w-auto md:max-w-md backdrop-blur-md transition-all hover:bg-white/15">
+                                <div className="p-1.5 bg-blue-500/20 rounded-lg">
+                                    <Building2 className="w-4 h-4 text-blue-300" />
                                 </div>
-                            )}
-                        </div>
+                                <div className="flex-1">
+                                    <select
+                                        value={selectedProyectoId}
+                                        onChange={(e) => setSelectedProyectoId(e.target.value)}
+                                        className="w-full bg-transparent text-white border-0 p-0 focus:ring-0 text-sm font-semibold cursor-pointer [&>option]:bg-gray-900"
+                                    >
+                                        <option value="">-- Seleccionar Proyecto --</option>
+                                        {proyectos.map(p => (
+                                            <option key={p.id} value={p.id}>
+                                                {p.nombre} ({p.codigo})
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
+                        )}
+                    </div>
 
-                        <div className="flex items-center gap-3">
-                            <button
-                                onClick={() => setShowImportModal(true)}
-                                disabled={!selectedProyectoId}
-                                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors text-sm font-medium ${selectedProyectoId
-                                    ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg shadow-blue-500/30'
-                                    : 'bg-white/10 text-white/40 cursor-not-allowed'
-                                    }`}
-                            >
-                                <Upload className="w-4 h-4" />
-                                Importar
-                            </button>
-                        </div>
+                    <div className="flex items-center gap-3">
+                        <button
+                            onClick={() => setShowAttendanceModal(true)}
+                            disabled={!selectedProyectoId}
+                            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors text-sm font-medium ${selectedProyectoId
+                                ? 'bg-purple-600 text-white hover:bg-purple-700 shadow-lg shadow-purple-500/30'
+                                : 'bg-white/10 text-white/40 cursor-not-allowed'
+                                }`}
+                        >
+                            <ClipboardList className="w-4 h-4" />
+                            Asistencia
+                        </button>
+                        <button
+                            onClick={() => setShowImportModal(true)}
+                            disabled={!selectedProyectoId}
+                            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors text-sm font-medium ${selectedProyectoId
+                                ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg shadow-blue-500/30'
+                                : 'bg-white/10 text-white/40 cursor-not-allowed'
+                                }`}
+                        >
+                            <Upload className="w-4 h-4" />
+                            Importar
+                        </button>
                     </div>
                 </div>
-
-                {/* Main Content */}
-                {!selectedProyectoId ? (
-                    <div className="backdrop-blur-xl bg-white/10 rounded-xl shadow-2xl border border-white/20 p-12 text-center">
-                        <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-4">
-                            <Building2 className="w-8 h-8 text-white/40" />
-                        </div>
-                        <h3 className="text-xl font-medium text-white mb-2">Selecciona un Proyecto</h3>
-                        <p className="text-white/60 max-w-sm mx-auto">
-                            {isSuperAdminUser
-                                ? "Selecciona un proyecto del menú superior para ver y gestionar su personal."
-                                : "No tienes un proyecto asignado. Contacta al administrador."}
-                        </p>
-                    </div>
-                ) : (
-                    <div className="backdrop-blur-xl bg-white/10 rounded-xl shadow-2xl border border-white/20 overflow-hidden">
-                        <PersonalTable
-                            personal={personal}
-                            loading={loading}
-                            onReload={() => loadPersonal(selectedProyectoId)}
-                        />
-                    </div>
-                )}
             </div>
+
+            {/* Main Content */}
+            {!selectedProyectoId ? (
+                <div className="backdrop-blur-xl bg-white/10 rounded-xl shadow-2xl border border-white/20 p-12 text-center">
+                    <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <Building2 className="w-8 h-8 text-white/40" />
+                    </div>
+                    <h3 className="text-xl font-medium text-white mb-2">Selecciona un Proyecto</h3>
+                    <p className="text-white/60 max-w-sm mx-auto">
+                        {isSuperAdminUser
+                            ? "Selecciona un proyecto del menú superior para ver y gestionar su personal."
+                            : "No tienes un proyecto asignado. Contacta al administrador."}
+                    </p>
+                </div>
+            ) : (
+                <div className="backdrop-blur-xl bg-white/10 rounded-xl shadow-2xl border border-white/20 overflow-hidden">
+                    <PersonalTable
+                        personal={personal}
+                        loading={loading}
+                        onReload={() => loadPersonal(selectedProyectoId)}
+                    />
+                </div>
+            )}
 
             {/* Modals */}
             {showImportModal && (
@@ -190,6 +201,15 @@ export default function PersonalPage() {
                         setSelectedSoldador(null)
                         if (selectedProyectoId) loadPersonal(selectedProyectoId)
                     }}
+                />
+            )}
+
+            {showAttendanceModal && selectedProyectoId && (
+                <AttendanceModal
+                    isOpen={showAttendanceModal}
+                    onClose={() => setShowAttendanceModal(false)}
+                    proyectoId={selectedProyectoId}
+                    onSave={() => loadPersonal(selectedProyectoId)}
                 />
             )}
         </div>

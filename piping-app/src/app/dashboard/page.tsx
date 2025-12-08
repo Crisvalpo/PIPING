@@ -14,6 +14,8 @@ function DashboardContent() {
     const [esSuperAdmin, setEsSuperAdmin] = useState(false)
     const [esAdminProyecto, setEsAdminProyecto] = useState(false)
     const [loading, setLoading] = useState(true)
+    const [semanaProyecto, setSemanaProyecto] = useState<number | null>(null)
+    const [diaProyecto, setDiaProyecto] = useState<number | null>(null)
 
     useEffect(() => {
         async function loadData() {
@@ -31,6 +33,20 @@ function DashboardContent() {
                 if (!superAdmin && currentUser.proyecto_id) {
                     const proyectoData = await getMyProyecto()
                     setProyecto(proyectoData)
+
+                    // Load project week info
+                    if (proyectoData?.id) {
+                        try {
+                            const weekRes = await fetch(`/api/proyectos/${proyectoData.id}/config-semanas`)
+                            const weekData = await weekRes.json()
+                            if (weekData.success) {
+                                setSemanaProyecto(weekData.data.semana_actual)
+                                setDiaProyecto(weekData.data.dia_proyecto)
+                            }
+                        } catch (err) {
+                            console.error('Error loading week info:', err)
+                        }
+                    }
                 }
             }
             setLoading(false)
@@ -61,8 +77,20 @@ function DashboardContent() {
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                 <div className="flex justify-between items-center">
                     <div>
-                        <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-                        <p className="text-gray-600 mt-1">Bienvenido de vuelta, {user.nombre}</p>
+                        <h1 className="text-3xl font-bold text-gray-900">
+                            {semanaProyecto !== null ? `Semana ${semanaProyecto}` : 'Dashboard'}
+                        </h1>
+                        <div className="flex items-center gap-2 mt-1">
+                            <p className="text-gray-600">Bienvenido de vuelta, {user.nombre}</p>
+                            {semanaProyecto !== null && diaProyecto !== null && (
+                                <span className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full text-xs font-semibold flex items-center gap-1">
+                                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                    </svg>
+                                    Día {diaProyecto}
+                                </span>
+                            )}
+                        </div>
                     </div>
                     <div className="flex gap-3">
                         {esSuperAdmin && (

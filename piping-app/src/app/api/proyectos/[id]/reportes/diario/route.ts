@@ -328,7 +328,7 @@ export async function GET(
 
         return NextResponse.json({
             success: true,
-            meta: { date, project_id: projectId },
+            meta: { date, project_id: projectId, semana_proyecto: null, dia_proyecto: null },
             stats: globalStats,
             shifts: shiftResults
         })

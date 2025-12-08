@@ -275,16 +275,6 @@ export default function KanbanBoard({
             {/* Toolbar - Always visible */}
             <div className="flex-shrink-0 bg-gray-900/60 backdrop-blur-sm border-b border-white/10 px-4 py-2">
                 <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                        <div className="flex items-center gap-2 text-white/80 text-sm">
-                            <Calendar className="w-4 h-4" />
-                            <span className="font-medium">{new Date(fecha).toLocaleDateString('es-CL')}</span>
-                        </div>
-                        <div className="text-white/50 text-xs">
-                            {cuadrillas.length} cuadrillas
-                        </div>
-                    </div>
-
                     <div className="flex items-center gap-2">
                         <button
                             onClick={() => setShowCreateModal(true)}
@@ -308,6 +298,10 @@ export default function KanbanBoard({
                             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
                             <span>Actualizar</span>
                         </button>
+                    </div>
+
+                    <div className="text-white/50 text-xs">
+                        {cuadrillas.length} cuadrillas
                     </div>
                 </div>
             </div>

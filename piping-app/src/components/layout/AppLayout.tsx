@@ -11,7 +11,7 @@ export default function AppLayout({
 }) {
     const pathname = usePathname()
     // Identificar si estamos en la vista de gestión de cuadrillas o reporte diario para usar full-width
-    const isFullWidth = pathname?.includes('/cuadrillas/manage') || pathname?.includes('/reporte-diario')
+    const isFullWidth = pathname?.includes('/cuadrillas/manage') || pathname?.includes('/reporte-diario') || pathname?.includes('/settings/personal') || pathname?.includes('/reportes')
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-purple-900 via-indigo-900 to-blue-900 pb-20">
