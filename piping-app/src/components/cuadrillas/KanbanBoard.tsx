@@ -18,6 +18,8 @@ interface Cuadrilla {
     id: string;
     nombre: string;
     codigo?: string;
+    tipo?: string;
+    descripcion?: string; // Added description field
     supervisor?: { rut: string; nombre: string; email?: string } | null;
     capataz?: { rut: string; nombre: string; email?: string } | null;
     trabajadores_actuales: any[];
@@ -195,8 +197,11 @@ export default function KanbanBoard({
         }
     };
 
-    const handleEdit = (cuadrilla: Cuadrilla) => {
-        setEditingCuadrilla(cuadrilla);
+    const handleEdit = (cuadrillaId: string) => {
+        const found = cuadrillas.find(c => c.id === cuadrillaId);
+        if (found) {
+            setEditingCuadrilla(found);
+        }
     };
 
     const handleDelete = async (cuadrillaId: string) => {

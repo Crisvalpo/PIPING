@@ -39,8 +39,15 @@ export default function EditCuadrillaModal({
     });
 
     React.useEffect(() => {
+        setFormData({
+            nombre: cuadrilla.nombre || '',
+            codigo: cuadrilla.codigo || '',
+            tipo: cuadrilla.tipo || 'PRINCIPAL',
+            descripcion: cuadrilla.descripcion || '',
+            shift_id: cuadrilla.shift_id || ''
+        });
         loadShifts();
-    }, [cuadrilla.proyecto_id]);
+    }, [cuadrilla.id, cuadrilla.proyecto_id]); // Safe: depend only on primitives
 
     const loadShifts = async () => {
         try {
