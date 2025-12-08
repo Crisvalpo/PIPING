@@ -75,9 +75,9 @@ export async function PUT(
         console.log('[PUT /api/personal/[rut]] Params received:', params)
         const rut = params.rut
         const body = await request.json()
-        const { nombre, email, telefono, cargo, jefe_directo_rut } = body
+        const { nombre, email, telefono, cargo, jefe_directo_rut, codigo_trabajador, work_schedule_id } = body
 
-        console.log('[PUT /api/personal/[rut]] Processing:', { rut, nombre, email, telefono, cargo, jefe_directo_rut })
+        console.log('[PUT /api/personal/[rut]] Processing:', { rut, nombre, email, telefono, cargo, jefe_directo_rut, codigo_trabajador, work_schedule_id })
 
         if (!rut) {
             console.error('[PUT /api/personal/[rut]] RUT is missing!')
@@ -94,6 +94,9 @@ export async function PUT(
         if (telefono !== undefined) updates.telefono = telefono
         if (cargo !== undefined) updates.cargo = cargo.toUpperCase()
         if (jefe_directo_rut !== undefined) updates.jefe_directo_rut = jefe_directo_rut
+        if (codigo_trabajador !== undefined) updates.codigo_trabajador = codigo_trabajador
+        if (work_schedule_id !== undefined) updates.work_schedule_id = work_schedule_id
+
 
         if (Object.keys(updates).length === 0) {
             return NextResponse.json(

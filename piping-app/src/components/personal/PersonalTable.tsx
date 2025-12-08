@@ -102,6 +102,8 @@ export default function PersonalTable({ personal, loading, onReload }: PersonalT
                             <tr>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-purple-100 uppercase tracking-wider">Nombre / RUT</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-purple-100 uppercase tracking-wider">Contacto</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-purple-100 uppercase tracking-wider">Código</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-purple-100 uppercase tracking-wider">Jornada</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-purple-100 uppercase tracking-wider">Rol</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-purple-100 uppercase tracking-wider">Cuadrilla</th>
                                 <th className="px-6 py-3 text-right text-xs font-medium text-purple-100 uppercase tracking-wider">Acciones</th>
@@ -110,14 +112,14 @@ export default function PersonalTable({ personal, loading, onReload }: PersonalT
                         <tbody className="bg-white/5 divide-y divide-white/10">
                             {loading ? (
                                 <tr>
-                                    <td colSpan={5} className="px-6 py-12 text-center">
+                                    <td colSpan={7} className="px-6 py-12 text-center">
                                         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white/50 mx-auto"></div>
                                         <p className="mt-2 text-white/50 text-sm">Cargando personal...</p>
                                     </td>
                                 </tr>
                             ) : filteredPersonal.length === 0 ? (
                                 <tr>
-                                    <td colSpan={5} className="px-6 py-12 text-center text-white/50">
+                                    <td colSpan={7} className="px-6 py-12 text-center text-white/50">
                                         {searchTerm || filterRole !== 'ALL'
                                             ? 'No se encontraron trabajadores con los filtros aplicados'
                                             : 'No se encontraron trabajadores'}
@@ -166,6 +168,18 @@ export default function PersonalTable({ personal, loading, onReload }: PersonalT
                                                     </button>
                                                 )}
                                             </div>
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap">
+                                            <span className="text-sm text-white/70">{worker.codigo_trabajador || '-'}</span>
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap">
+                                            {worker.work_schedules?.nombre ? (
+                                                <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-cyan-500/20 text-cyan-200 border border-cyan-500/30">
+                                                    {worker.work_schedules.nombre}
+                                                </span>
+                                            ) : (
+                                                <span className="text-sm text-white/40">-</span>
+                                            )}
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full border ${worker.rol === 'SUPERVISOR' ? 'bg-purple-500/20 text-purple-200 border-purple-500/30' :

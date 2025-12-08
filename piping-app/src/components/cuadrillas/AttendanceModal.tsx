@@ -6,12 +6,15 @@ interface Worker {
     rut: string
     nombre: string
     cargo: string
-    email: string
-    // Estado local para el modal
+
     presente: boolean
     motivo?: string
     justificado?: boolean
-    dirty?: boolean // Si se ha modificado
+    dirty?: boolean
+    // New fields from view/logic
+    debe_trabajar_hoy: boolean
+    jornada?: string
+    es_dia_extra?: boolean
 }
 
 interface AttendanceModalProps {
@@ -26,7 +29,7 @@ export default function AttendanceModal({ isOpen, onClose, proyectoId, onSave }:
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
     const [searchTerm, setSearchTerm] = useState('')
-    const [showOnlyAbsent, setShowOnlyAbsent] = useState(false)
+    const [showResting, setShowResting] = useState(false) // Toggle for resting section
 
     useEffect(() => {
         if (isOpen) {
@@ -37,10 +40,11 @@ export default function AttendanceModal({ isOpen, onClose, proyectoId, onSave }:
     async function loadPersonnel() {
         setLoading(true)
         try {
-            // 1. Obtener personal del proyecto
+            // 1. Obtener personal desde la VISTA INTELIGENTE
             const { data: personal, error: personalError } = await supabase
-                .from('personal')
-                .select('rut, nombre, cargo, email')
+                .from('view_personal_with_schedule')
+                .select('rut, nombre, cargo, debe_trabajar_hoy, jornada')
+                .eq('proyecto_id', proyectoId)
                 .order('nombre')
 
             if (personalError) throw personalError
@@ -59,10 +63,21 @@ export default function AttendanceModal({ isOpen, onClose, proyectoId, onSave }:
             const combined: Worker[] = personal.map(p => {
                 const record = attendance?.find(a => a.personal_rut === p.rut)
                 return {
-                    ...p,
-                    presente: record ? record.presente : true, // Default to Present
+                    rut: p.rut,
+                    nombre: p.nombre,
+                    cargo: p.cargo,
+
+                    jornada: p.jornada,
+                    debe_trabajar_hoy: p.debe_trabajar_hoy,
+
+                    // Si ya tiene asistencia marcada, usamos eso. Si no, default depende de si debe trabajar.
+                    // Si NO debe trabajar, por default está ausente (false).
+                    // Si DEBE trabajar, por default está presente (true) ?? O ausente para obligar a pasar lista?
+                    // Mantengamos lógica anterior: Default to Present si debe trabajar.
+                    presente: record ? record.presente : (p.debe_trabajar_hoy ? true : false),
                     motivo: record?.motivo_ausencia || '',
-                    dirty: false
+                    dirty: false,
+                    es_dia_extra: false // Init flag
                 }
             })
 
@@ -77,12 +92,17 @@ export default function AttendanceModal({ isOpen, onClose, proyectoId, onSave }:
     const handleTogglePresence = (rut: string) => {
         setWorkers(prev => prev.map(w => {
             if (w.rut === rut) {
+                const newPresence = !w.presente
+
+                // Si no debe trabajar hoy y lo marcamos presente -> Es día extra
+                const isExtraDay = !w.debe_trabajar_hoy && newPresence
+
                 return {
                     ...w,
-                    presente: !w.presente,
+                    presente: newPresence,
                     dirty: true,
-                    // Si se marca presente, limpiar motivo
-                    motivo: !w.presente ? '' : w.motivo
+                    motivo: !newPresence ? '' : w.motivo, // Limpiar motivo si se marca presente
+                    es_dia_extra: isExtraDay // Set flag for save
                 }
             }
             return w
@@ -101,7 +121,6 @@ export default function AttendanceModal({ isOpen, onClose, proyectoId, onSave }:
     async function handleSave() {
         setSaving(true)
         try {
-            // Filtrar solo los modificados
             const changed = workers.filter(w => w.dirty)
 
             if (changed.length === 0) {
@@ -109,7 +128,6 @@ export default function AttendanceModal({ isOpen, onClose, proyectoId, onSave }:
                 return
             }
 
-            // Enviar actualizaciones en paralelo
             const promises = changed.map(w =>
                 fetch('/api/cuadrillas/asistencia', {
                     method: 'POST',
@@ -119,16 +137,14 @@ export default function AttendanceModal({ isOpen, onClose, proyectoId, onSave }:
                         proyecto_id: proyectoId,
                         presente: w.presente,
                         motivo: w.motivo,
-                        hora_entrada: '08:00:00' // Default
+                        hora_entrada: '08:00:00',
+                        es_dia_extra: w.es_dia_extra // Send flag to API
                     })
                 })
             )
 
             await Promise.all(promises)
-
-            // Recargar datos para refrescar el estado
             await loadPersonnel()
-
             if (onSave) onSave()
 
         } catch (error) {
@@ -139,15 +155,16 @@ export default function AttendanceModal({ isOpen, onClose, proyectoId, onSave }:
         }
     }
 
-    // Filtrar visualmente
-    const filteredWorkers = workers.filter(w => {
-        const matchesSearch = w.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            w.cargo.toLowerCase().includes(searchTerm.toLowerCase())
-        const matchesFilter = showOnlyAbsent ? !w.presente : true
-        return matchesSearch && matchesFilter
-    })
+    // Filtrar y agrupar
+    const matchesFilter = (w: Worker) =>
+        w.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        w.cargo.toLowerCase().includes(searchTerm.toLowerCase())
 
-    const absentsCount = workers.filter(w => !w.presente).length
+    const dutyWorkers = workers.filter(w => w.debe_trabajar_hoy && matchesFilter(w))
+    const restWorkers = workers.filter(w => !w.debe_trabajar_hoy && matchesFilter(w))
+
+    const dutyAbsents = dutyWorkers.filter(w => !w.presente).length
+    const restExtras = restWorkers.filter(w => w.presente).length
 
     if (!isOpen) return null
 
@@ -185,84 +202,78 @@ export default function AttendanceModal({ isOpen, onClose, proyectoId, onSave }:
                             onChange={(e) => setSearchTerm(e.target.value)}
                         />
                     </div>
-                    <button
-                        onClick={() => setShowOnlyAbsent(!showOnlyAbsent)}
-                        className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors border ${showOnlyAbsent
-                            ? 'bg-red-500/20 border-red-500 text-red-200'
-                            : 'bg-white/5 border-white/10 text-white/70 hover:bg-white/10'
-                            }`}
-                    >
-                        {showOnlyAbsent ? 'Mostrar Todos' : `Ver Ausentes (${absentsCount})`}
-                    </button>
                 </div>
 
                 {/* List */}
-                <div className="flex-1 overflow-y-auto p-4 min-h-[300px]">
+                <div className="flex-1 overflow-y-auto p-4 min-h-[300px] space-y-6">
                     {loading ? (
                         <div className="h-full flex items-center justify-center">
                             <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
                         </div>
                     ) : (
-                        <div className="space-y-2">
-                            {filteredWorkers.map(worker => (
-                                <div
-                                    key={worker.rut}
-                                    className={`flex items-center gap-4 p-3 rounded-lg border transition-all ${worker.presente
-                                        ? 'bg-white/5 border-white/5 hover:bg-white/10'
-                                        : 'bg-red-900/20 border-red-500/30'
-                                        }`}
-                                >
-                                    {/* Avatar/Name */}
-                                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center font-bold text-white text-sm shrink-0">
-                                        {worker.nombre.substring(0, 2).toUpperCase()}
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <div className="font-medium text-white truncate">{worker.nombre}</div>
-                                        <div className="text-xs text-white/50 flex items-center gap-2">
-                                            <span className="bg-white/10 px-1.5 rounded">{worker.cargo}</span>
-                                            <span>{worker.rut}</span>
+                        <>
+                            {/* Sección 1: Deben Trabajar (Turno de Hoy) */}
+                            <div>
+                                <h3 className="text-sm font-bold text-blue-200 mb-3 flex items-center gap-2 uppercase tracking-wider">
+                                    <div className="w-2 h-2 rounded-full bg-blue-400"></div>
+                                    Turno de Hoy ({dutyWorkers.length})
+                                    {dutyAbsents > 0 && (
+                                        <span className="text-red-400 text-xs normal-case ml-auto">
+                                            {dutyAbsents} ausentes
+                                        </span>
+                                    )}
+                                </h3>
+                                <div className="space-y-2">
+                                    {dutyWorkers.map(worker => (
+                                        <WorkerRow
+                                            key={worker.rut}
+                                            worker={worker}
+                                            onToggle={() => handleTogglePresence(worker.rut)}
+                                            onMotivoChange={(val) => handleMotivoChange(worker.rut, val)}
+                                        />
+                                    ))}
+                                    {dutyWorkers.length === 0 && (
+                                        <div className="text-white/30 text-sm italic p-4 border border-white/5 rounded-lg text-center">
+                                            No hay personal programado para hoy.
                                         </div>
-                                    </div>
+                                    )}
+                                </div>
+                            </div>
 
-                                    {/* Status Toggle */}
-                                    <div className="flex items-center gap-4">
-                                        {!worker.presente && (
-                                            <input
-                                                type="text"
-                                                placeholder="Motivo (ej. Licencia)"
-                                                className="bg-black/40 border border-white/10 rounded px-3 py-1.5 text-sm text-white focus:border-red-500 w-48"
-                                                value={worker.motivo}
-                                                onChange={(e) => handleMotivoChange(worker.rut, e.target.value)}
-                                                autoFocus
+                            {/* Sección 2: En Descanso / Libre */}
+                            <div>
+                                <button
+                                    onClick={() => setShowResting(!showResting)}
+                                    className="w-full flex items-center justify-between text-left text-sm font-bold text-gray-400 mb-3 hover:text-white transition-colors"
+                                >
+                                    <div className="flex items-center gap-2 uppercase tracking-wider">
+                                        <div className={`w-2 h-2 rounded-full ${restExtras > 0 ? 'bg-yellow-500 animate-pulse' : 'bg-gray-600'}`}></div>
+                                        En Descanso / Libre ({restWorkers.length})
+                                    </div>
+                                    <span className="text-xs font-normal bg-white/5 px-2 py-1 rounded">
+                                        {showResting ? 'Ocultar' : 'Mostrar'}
+                                    </span>
+                                </button>
+
+                                {showResting && (
+                                    <div className="space-y-2 pl-4 border-l-2 border-white/5">
+                                        {restWorkers.map(worker => (
+                                            <WorkerRow
+                                                key={worker.rut}
+                                                worker={worker}
+                                                onToggle={() => handleTogglePresence(worker.rut)}
+                                                onMotivoChange={(val) => handleMotivoChange(worker.rut, val)}
                                             />
+                                        ))}
+                                        {restWorkers.length === 0 && (
+                                            <div className="text-white/30 text-sm italic">
+                                                Nadie está en descanso hoy.
+                                            </div>
                                         )}
-
-                                        <button
-                                            onClick={() => handleTogglePresence(worker.rut)}
-                                            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${worker.presente
-                                                ? 'bg-green-500/20 text-green-400 hover:bg-green-500/30'
-                                                : 'bg-red-500 text-white hover:bg-red-600 shadow-lg shadow-red-500/20'
-                                                }`}
-                                        >
-                                            {worker.presente ? (
-                                                <>
-                                                    <Check size={18} /> Presente
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <X size={18} /> Ausente
-                                                </>
-                                            )}
-                                        </button>
                                     </div>
-                                </div>
-                            ))}
-                            {filteredWorkers.length === 0 && (
-                                <div className="text-center text-white/40 py-10">
-                                    No se encontraron trabajadores
-                                </div>
-                            )}
-                        </div>
+                                )}
+                            </div>
+                        </>
                     )}
                 </div>
 
@@ -293,6 +304,78 @@ export default function AttendanceModal({ isOpen, onClose, proyectoId, onSave }:
                     </div>
                 </div>
 
+            </div>
+        </div>
+    )
+}
+
+function WorkerRow({ worker, onToggle, onMotivoChange }: {
+    worker: Worker,
+    onToggle: () => void,
+    onMotivoChange: (val: string) => void
+}) {
+    return (
+        <div className={`flex items-center gap-4 p-3 rounded-lg border transition-all ${worker.presente
+            ? (worker.es_dia_extra ? 'bg-yellow-500/10 border-yellow-500/30' : 'bg-white/5 border-white/5 hover:bg-white/10')
+            : 'bg-red-900/20 border-red-500/30'
+            }`}>
+            {/* Avatar/Name */}
+            <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-white text-sm shrink-0 ${worker.es_dia_extra ? 'bg-yellow-600' : 'bg-gradient-to-br from-blue-500 to-purple-600'
+                }`}>
+                {worker.nombre.substring(0, 2).toUpperCase()}
+            </div>
+
+            <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                    <div className="font-medium text-white truncate">{worker.nombre}</div>
+                    {worker.es_dia_extra && (
+                        <span className="text-[10px] font-bold bg-yellow-500/20 text-yellow-200 px-1.5 py-0.5 rounded border border-yellow-500/30 uppercase tracking-wide">
+                            Día Extra
+                        </span>
+                    )}
+                </div>
+                <div className="text-xs text-white/50 flex items-center gap-2">
+                    <span className="bg-white/10 px-1.5 rounded">{worker.cargo}</span>
+                    {worker.jornada && (
+                        <span className="bg-blue-500/10 text-blue-300 px-1.5 rounded border border-blue-500/20">
+                            {worker.jornada}
+                        </span>
+                    )}
+                </div>
+            </div>
+
+            {/* Status Toggle */}
+            <div className="flex items-center gap-4">
+                {!worker.presente && (
+                    <input
+                        type="text"
+                        placeholder="Motivo (ej. Licencia)"
+                        className="bg-black/40 border border-white/10 rounded px-3 py-1.5 text-sm text-white focus:border-red-500 w-48"
+                        value={worker.motivo}
+                        onChange={(e) => onMotivoChange(e.target.value)}
+                        autoFocus
+                    />
+                )}
+
+                <button
+                    onClick={onToggle}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${worker.presente
+                        ? (worker.es_dia_extra
+                            ? 'bg-yellow-500/20 text-yellow-200 hover:bg-yellow-500/30'
+                            : 'bg-green-500/20 text-green-400 hover:bg-green-500/30')
+                        : 'bg-red-500 text-white hover:bg-red-600 shadow-lg shadow-red-500/20'
+                        }`}
+                >
+                    {worker.presente ? (
+                        <>
+                            <Check size={18} /> {worker.es_dia_extra ? 'Autorizado' : 'Presente'}
+                        </>
+                    ) : (
+                        <>
+                            <X size={18} /> Ausente
+                        </>
+                    )}
+                </button>
             </div>
         </div>
     )

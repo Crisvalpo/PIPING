@@ -178,12 +178,23 @@ export async function assignMemberToCuadrilla(
             .from('cuadrillas')
             .update({ supervisor_rut: data.rut })
             .eq('id', data.cuadrilla_id)
-            .select('id, nombre, supervisor_rut')
+            .select('id, nombre, supervisor_rut, capataz_rut')
             .single();
 
         console.log('✅ SUPERVISOR UPDATE result:', { updatedCuadrilla, error });
 
         if (error) throw error;
+
+        // SYNC: Si hay un capataz asignado a esta cuadrilla, actualizar su jefe directo
+        if (updatedCuadrilla.capataz_rut) {
+            console.log('🔄 Syncing capataz jefe_directo:', { capataz: updatedCuadrilla.capataz_rut, jefe: data.rut });
+            const { error: syncError } = await supabase
+                .from('personal')
+                .update({ jefe_directo_rut: data.rut })
+                .eq('rut', updatedCuadrilla.capataz_rut);
+
+            if (syncError) console.warn('⚠️ Failed to sync capataz jefe_directo:', syncError);
+        }
 
         if (!updatedCuadrilla || updatedCuadrilla.supervisor_rut !== data.rut) {
             throw new Error('Supervisor assignment failed - value not persisted');
@@ -271,6 +282,17 @@ export async function assignMemberToCuadrilla(
         if (updatedCuadrilla.capataz_rut !== data.rut) {
             console.error('❌ UPDATE succeeded but capataz_rut not set:', updatedCuadrilla);
             throw new Error('Capataz assignment failed - value not persisted');
+        }
+
+        // SYNC: Si la cuadrilla tiene supervisor, asignarlo como jefe directo del capataz
+        if (updatedCuadrilla.supervisor_rut) {
+            console.log('🔄 Syncing capataz jefe_directo (from cuadrilla supervisor):', { capataz: data.rut, jefe: updatedCuadrilla.supervisor_rut });
+            const { error: syncError } = await supabase
+                .from('personal')
+                .update({ jefe_directo_rut: updatedCuadrilla.supervisor_rut })
+                .eq('rut', data.rut);
+
+            if (syncError) console.warn('⚠️ Failed to sync capataz jefe_directo:', syncError);
         }
 
         console.log('✅ Capataz successfully assigned and verified');
