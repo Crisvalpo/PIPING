@@ -52,7 +52,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
     try {
         const body = await request.json()
-        const { proyecto_id, nombre, codigo, descripcion, shift_id } = body
+        const { proyecto_id, nombre, codigo, descripcion, shift_id, capataz_rut } = body
 
         if (!proyecto_id || !nombre || !codigo) {
             return NextResponse.json(
@@ -89,9 +89,9 @@ export async function POST(request: Request) {
                         descripcion,
                         shift_id: shift_id || null,
                         active: true, // Reactivate
-                        // Clear old assignments just in case
+                        // Reset assignments or set new capataz if provided
                         supervisor_rut: null,
-                        capataz_rut: null
+                        capataz_rut: capataz_rut || null
                     })
                     .eq('id', existing.id)
                     .select()
@@ -110,7 +110,9 @@ export async function POST(request: Request) {
                     codigo,
                     descripcion,
                     shift_id: shift_id || null,
-                    active: true
+                    active: true,
+                    // Initial assignment
+                    capataz_rut: capataz_rut || null
                 })
                 .select()
                 .single()
@@ -143,7 +145,7 @@ export async function POST(request: Request) {
 export async function PUT(request: Request) {
     try {
         const body = await request.json()
-        const { id, nombre, descripcion, activo } = body
+        const { id, nombre, descripcion, activo, shift_id, tipo } = body
 
         if (!id) {
             return NextResponse.json(
@@ -156,6 +158,8 @@ export async function PUT(request: Request) {
         if (nombre !== undefined) updates.nombre = nombre
         if (descripcion !== undefined) updates.descripcion = descripcion
         if (activo !== undefined) updates.activo = activo
+        if (shift_id !== undefined) updates.shift_id = shift_id
+        if (tipo !== undefined) updates.tipo = tipo
 
         const { data, error } = await supabase
             .from('cuadrillas')
@@ -220,7 +224,7 @@ export async function DELETE(request: Request) {
         // Soft delete: marcar como inactiva
         const { data, error } = await supabase
             .from('cuadrillas')
-            .update({ activo: false })
+            .update({ active: false })
             .eq('id', id)
             .select()
             .single()

@@ -62,10 +62,10 @@ export default function PersonalTable({ personal, loading, onReload }: PersonalT
 
     return (
         <>
-            <div className="backdrop-blur-xl bg-white/10 rounded-xl shadow-2xl border border-white/20 overflow-hidden">
+            <div className="flex flex-col">
                 {/* Toolbar */}
-                <div className="p-4 border-b border-white/20 flex flex-col sm:flex-row gap-4 justify-between items-center bg-white/5">
-                    <div className="relative w-full sm:w-96">
+                <div className="w-full p-4 border-b border-white/10 flex justify-between items-center bg-white/5 gap-4">
+                    <div className="relative w-96">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-purple-200 w-4 h-4" />
                         <input
                             type="text"
@@ -96,7 +96,7 @@ export default function PersonalTable({ personal, loading, onReload }: PersonalT
                 </div>
 
                 {/* Table */}
-                <div className="overflow-x-auto">
+                <div className="max-h-[60vh] overflow-y-auto overflow-x-auto">
                     <table className="min-w-full divide-y divide-white/10">
                         <thead className="bg-white/5">
                             <tr>
@@ -177,7 +177,16 @@ export default function PersonalTable({ personal, loading, onReload }: PersonalT
                                             {worker.asignado ? (
                                                 <div className="flex items-center text-green-400">
                                                     <CheckCircle className="w-4 h-4 mr-1" />
-                                                    <span className="text-sm">{worker.cuadrilla || 'Asignado'}</span>
+                                                    <span className="text-sm mr-2">{worker.cuadrilla || 'Asignado'}</span>
+                                                    {worker.shift_name && (
+                                                        <span className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider border flex items-center gap-1 ${worker.shift_name.toLowerCase().includes('noche')
+                                                            ? 'bg-indigo-900/40 text-indigo-300 border-indigo-700/50'
+                                                            : 'bg-amber-900/40 text-amber-300 border-amber-700/50'
+                                                            }`}>
+                                                            {worker.shift_name.toLowerCase().includes('noche') ? '🌙' : '☀️'}
+                                                            {worker.shift_name}
+                                                        </span>
+                                                    )}
                                                 </div>
                                             ) : (
                                                 <div className="flex items-center text-amber-400">
@@ -211,7 +220,7 @@ export default function PersonalTable({ personal, loading, onReload }: PersonalT
                     </table>
                 </div>
 
-                <div className="px-6 py-3 border-t border-white/10 bg-white/5 text-xs text-white/50 flex justify-between rounded-b-xl">
+                <div className="px-6 py-2 border-t border-white/10 bg-black/20 text-xs text-white/50 flex justify-between">
                     <span>Total: {filteredPersonal.length} trabajadores</span>
                     <span className="flex gap-4">
                         <span className="text-green-400">✓ {asignados} asignados</span>

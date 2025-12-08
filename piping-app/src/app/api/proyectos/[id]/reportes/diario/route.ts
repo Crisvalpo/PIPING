@@ -64,7 +64,6 @@ export async function GET(
         if (shiftsError) throw shiftsError
 
         // Auto-create or Recover default shift if none exist (Fix for 404 error)
-        // Auto-create or Recover default shift if none exist (Fix for 404 error)
         if (!shifts || shifts.length === 0) {
             console.log('No active shifts found for project:', projectId, '- Attempting recovery...')
 
@@ -90,7 +89,6 @@ export async function GET(
                     .from('project_shifts')
                     .update({
                         active: true,
-                        // is_default is already true, no need to set it (and avoid redundant index check)
                     })
                     .eq('id', existingDefault.id)
                     .select()
@@ -189,8 +187,7 @@ export async function GET(
                 cuadrillas ( id, nombre, codigo, proyecto_id, shift_id ),
                 personal:maestro_rut ( rut, nombre, cargo )
             `)
-            .gte('created_at', `${date}T00:00:00`)
-            .lte('created_at', `${date}T23:59:59`)
+            .eq('activo', true)
 
         // 5. Fetch soldadores assignments for this date
         const { data: soldadores } = await supabase
@@ -204,8 +201,7 @@ export async function GET(
                 cuadrillas ( id, nombre, codigo, proyecto_id, shift_id ),
                 personal:soldador_rut ( rut, nombre, cargo )
             `)
-            .gte('created_at', `${date}T00:00:00`)
-            .lte('created_at', `${date}T23:59:59`)
+            .eq('activo', true)
 
         // 6. Combine and filter by project
         const allAssignments = [
@@ -248,15 +244,12 @@ export async function GET(
                 // Determine effective hours (worker specific or shift default)
                 // Use assignment timestamps if available (e.g. late arrival / early leave stored in assignment)
                 // For now we assume assignments cover the full shift unless marked otherwise
-                // But wait, the assignments table DOES store created_at (start) and potentially end.
 
                 // Logic:
                 // Start = Max(ShiftStart, AssignmentStart)
                 // End = Min(ShiftEnd, AssignmentEnd)
 
                 const shiftStart = shift.start_time
-                // const assignmentStart = a.hora_inicio // This is TIME type
-
                 const start = a.hora_inicio || shiftStart
                 const end = a.hora_fin || shiftEnd
 
@@ -282,9 +275,7 @@ export async function GET(
 
             // Calculate shift stats
             const activeCrews = new Set(shiftAssignments.map(a => a.cuadrilla_id)).size
-            const presentWorkers = processedWorkers.length // Already filtered absent? No wait.
-            // step 3 filtered absentSet. We need to filter processedWorkers
-
+            // Filter absent workers
             const presentWorkersList = processedWorkers.filter(w => !absentSet.has(w.rut))
             const totalHoursShift = presentWorkersList.reduce((sum, w) => sum + w.hours, 0)
 
@@ -302,7 +293,7 @@ export async function GET(
                     totalHours: totalHoursShift,
                     avgHours: presentWorkersList.length ? (totalHoursShift / presentWorkersList.length).toFixed(1) : '0'
                 },
-                data: [] // We could group by cuadrilla here if needed, but the frontend seems to expect shift.data to be cuadrillas?
+                data: []
             })
 
             // Re-group workers by Cuadrilla for the "data" field
@@ -311,7 +302,7 @@ export async function GET(
             presentWorkersList.forEach(w => {
                 if (!workersByCuadrilla.has(w.cuadrilla)) {
                     workersByCuadrilla.set(w.cuadrilla, {
-                        id: w.cuadrilla, // We don't have ID here easily unless we store it in processedWorkers
+                        id: w.cuadrilla,
                         nombre: w.cuadrilla,
                         personas: 0,
                         horas: 0,

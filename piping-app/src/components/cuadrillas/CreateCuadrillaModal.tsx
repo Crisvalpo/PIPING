@@ -22,18 +22,51 @@ export default function CreateCuadrillaModal({
 }: CreateCuadrillaModalProps) {
     const [loading, setLoading] = React.useState(false);
     const [shifts, setShifts] = React.useState<Array<{ id: string; shift_name: string; is_default: boolean }>>([]);
+    const [personalList, setPersonalList] = React.useState<Array<{ rut: string; nombre: string; cargo?: string }>>([]);
+    const [assignedLeaders, setAssignedLeaders] = React.useState<Set<string>>(new Set());
     const [formData, setFormData] = React.useState({
         nombre: '',
         codigo: '',
         tipo: 'PRINCIPAL',
         descripcion: '',
-        shift_id: '' // Will be set to default shift on load
+        shift_id: '', // Will be set to default shift on load
+        capataz_rut: '' // New field for Capataz assignment
     });
 
-    // Load shifts on mount
+    // Load shifts, personal, and existing leaders on mount
     React.useEffect(() => {
         loadShifts();
+        loadPersonal();
+        loadExistingLeaders();
     }, [proyectoId]);
+
+    const loadPersonal = async () => {
+        const { data } = await supabase
+            .from('personal')
+            .select('rut, nombre, cargo') // Added cargo
+            .eq('proyecto_id', proyectoId)
+            .eq('activo', true)
+            .order('nombre');
+
+        if (data) setPersonalList(data);
+    };
+
+    const loadExistingLeaders = async () => {
+        const { data } = await supabase
+            .from('cuadrillas')
+            .select('supervisor_rut, capataz_rut')
+            .eq('proyecto_id', proyectoId)
+            .eq('active', true);
+
+        if (data) {
+            const leaders = new Set<string>();
+            data.forEach(c => {
+                if (c.supervisor_rut) leaders.add(c.supervisor_rut);
+                if (c.capataz_rut) leaders.add(c.capataz_rut);
+            });
+            setAssignedLeaders(leaders);
+        }
+    };
 
     const loadShifts = async () => {
         try {
@@ -162,6 +195,43 @@ export default function CreateCuadrillaModal({
                             placeholder="Detalles adicionales..."
                             rows={3}
                         />
+                    </div>
+
+                    {/* Capataz Selector (Auto-Complete Name) */}
+                    <div>
+                        <label className="block text-sm font-medium text-white/80 mb-2">
+                            Líder / Capataz Sugerido
+                        </label>
+                        <select
+                            onChange={(e) => {
+                                const selectedName = e.target.options[e.target.selectedIndex].getAttribute('data-name');
+                                if (e.target.value && selectedName) {
+                                    setFormData(prev => ({
+                                        ...prev,
+                                        nombre: `Cuadrilla ${selectedName}`,
+                                        capataz_rut: e.target.value
+                                    }));
+                                } else {
+                                    setFormData(prev => ({
+                                        ...prev,
+                                        capataz_rut: ''
+                                    }));
+                                }
+                            }}
+                            className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                            <option value="" className="bg-purple-900">-- Seleccionar para autocompletar --</option>
+                            {personalList
+                                .filter(p => !assignedLeaders.has(p.rut)) // Filter out already assigned leaders
+                                .map(p => (
+                                    <option key={p.rut} value={p.rut} data-name={p.nombre} className="bg-purple-900">
+                                        {p.nombre} ({p.cargo || 'SIN CARGO'})
+                                    </option>
+                                ))}
+                        </select>
+                        <p className="text-xs text-white/40 mt-1">
+                            Solo se muestran trabajadores no asignados como líderes.
+                        </p>
                     </div>
 
                     {/* Turno */}

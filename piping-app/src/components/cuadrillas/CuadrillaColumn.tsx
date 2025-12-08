@@ -28,6 +28,8 @@ interface CuadrillaColumnProps {
         capataz?: { rut: string; nombre: string; email?: string } | null;
         trabajadores_actuales: Trabajador[];
         total_members: number;
+        shift_name?: string;
+        shift_start_time?: string;
     };
     onDragOver: (e: React.DragEvent) => void;
     onDrop: (e: React.DragEvent, cuadrillaId: string) => void;
@@ -58,8 +60,15 @@ export default function CuadrillaColumn({
         onDrop(e, cuadrilla.id);
     };
 
+    // Determine shift styles
+    const isNightShift = cuadrilla.shift_name?.toLowerCase().includes('noche') ||
+        (cuadrilla.shift_start_time && parseInt(cuadrilla.shift_start_time.split(':')[0]) >= 20);
+
+    const bgClass = isNightShift ? 'bg-slate-900/40 border-indigo-500/30' : 'bg-white/5 border-white/10';
+    const activeBorderClass = isNightShift ? 'hover:border-indigo-400/50 hover:bg-slate-900/60' : 'hover:border-white/30 hover:bg-white/5';
+
     return (
-        <div className="flex-shrink-0 w-full bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl p-3 overflow-hidden">
+        <div className={`flex-shrink-0 w-full backdrop-blur-sm border rounded-xl p-3 overflow-hidden ${bgClass}`}>
             {/* Column Header */}
             <div className="mb-2">
                 <div
@@ -68,7 +77,9 @@ export default function CuadrillaColumn({
                 >
                     {/* Row 1: Icon + Name */}
                     <div className="flex items-center gap-2 min-w-0">
-                        <Users className="w-5 h-5 text-white/90 flex-shrink-0" />
+                        <div className={`p-1 rounded-full ${isNightShift ? 'bg-indigo-500/20 text-indigo-300' : 'bg-white/10 text-white/90'}`}>
+                            {isNightShift ? '🌙' : '☀️'}
+                        </div>
                         <h3 className="font-bold text-white text-base truncate tracking-tight">
                             {cuadrilla.nombre || cuadrilla.codigo || 'Sin nombre'}
                         </h3>
@@ -134,7 +145,7 @@ export default function CuadrillaColumn({
                         min-h-[100px]
                         border-2 border-dashed border-white/10 rounded-lg p-2
                         transition-colors duration-200
-                        hover:border-white/30 hover:bg-white/5
+                        ${activeBorderClass}
                     `}
                 >
                     {/* Supervisor Section */}

@@ -40,6 +40,9 @@ export async function GET(
             nombre: c.nombre,
             codigo: c.codigo,
             tipo: c.tipo,
+            shift_id: c.shift_id,
+            shift_name: c.shift_name,
+            shift_start_time: c.shift_start_time,
             supervisor: c.supervisor_rut ? {
                 rut: c.supervisor_rut,
                 nombre: c.supervisor_nombre,

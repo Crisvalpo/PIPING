@@ -43,7 +43,7 @@ export async function GET(request: Request) {
                 // Verificar si es supervisor
                 const { data: esSupervisor } = await supabase
                     .from('cuadrillas')
-                    .select('id, nombre')
+                    .select('id, nombre, project_shifts(shift_name)')
                     .eq('supervisor_rut', p.rut)
                     .eq('proyecto_id', proyectoId)
                     .limit(1)
@@ -52,7 +52,7 @@ export async function GET(request: Request) {
                 // Verificar si es capataz
                 const { data: esCapataz } = await supabase
                     .from('cuadrillas')
-                    .select('id, nombre')
+                    .select('id, nombre, project_shifts(shift_name)')
                     .eq('capataz_rut', p.rut)
                     .eq('proyecto_id', proyectoId)
                     .limit(1)
@@ -61,7 +61,7 @@ export async function GET(request: Request) {
                 // Verificar si es maestro asignado
                 const { data: esMaestro } = await supabase
                     .from('maestros_asignaciones')
-                    .select('cuadrilla_id, cuadrillas(nombre)')
+                    .select('cuadrilla_id, cuadrillas(nombre, project_shifts(shift_name))')
                     .eq('maestro_rut', p.rut)
                     .eq('activo', true)
                     .limit(1)
@@ -70,7 +70,7 @@ export async function GET(request: Request) {
                 // Verificar si es soldador asignado
                 const { data: esSoldador } = await supabase
                     .from('soldadores_asignaciones')
-                    .select('cuadrilla_id, cuadrillas(nombre)')
+                    .select('cuadrilla_id, cuadrillas(nombre, project_shifts(shift_name))')
                     .eq('soldador_rut', p.rut)
                     .eq('activo', true)
                     .limit(1)
@@ -79,23 +79,25 @@ export async function GET(request: Request) {
                 let rol = p.cargo?.toUpperCase() || 'SIN CARGO'
                 let asignado = false
                 let cuadrilla = null
+                let shift_name = null
 
                 if (esSupervisor) {
-                    rol = 'SUPERVISOR'
+                    // Keep original cargo as rol - just mark as assigned
                     asignado = true
                     cuadrilla = esSupervisor.nombre
+                    shift_name = (esSupervisor as any).project_shifts?.shift_name
                 } else if (esCapataz) {
-                    rol = 'CAPATAZ'
                     asignado = true
                     cuadrilla = esCapataz.nombre
+                    shift_name = (esCapataz as any).project_shifts?.shift_name
                 } else if (esMaestro) {
-                    rol = 'MAESTRO'
                     asignado = true
                     cuadrilla = (esMaestro as any).cuadrillas?.nombre
+                    shift_name = (esMaestro as any).cuadrillas?.project_shifts?.shift_name
                 } else if (esSoldador) {
-                    rol = 'SOLDADOR'
                     asignado = true
                     cuadrilla = (esSoldador as any).cuadrillas?.nombre
+                    shift_name = (esSoldador as any).cuadrillas?.project_shifts?.shift_name
                 }
 
                 return {
@@ -103,6 +105,7 @@ export async function GET(request: Request) {
                     rol,
                     asignado,
                     cuadrilla,
+                    shift_name,
                     activo: true
                 }
             })

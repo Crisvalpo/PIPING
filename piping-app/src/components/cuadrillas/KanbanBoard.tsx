@@ -22,7 +22,9 @@ interface Cuadrilla {
     capataz?: { rut: string; nombre: string; email?: string } | null;
     trabajadores_actuales: any[];
     total_members: number;
-    shift_id?: string; // Added for multi-shift
+    shift_id?: string;
+    shift_name?: string; // From View
+    shift_start_time?: string; // From View
 }
 
 interface Personal {
@@ -219,7 +221,7 @@ export default function KanbanBoard({
     };
 
     return (
-        <div className="flex flex-col h-[calc(100vh-6rem)]">
+        <div className="flex flex-col min-h-[calc(100vh-6rem)]">
             {/* Header - Collapsible */}
             <div className={`flex-shrink-0 transition-all duration-300 ease-in-out overflow-hidden ${headerCollapsed ? 'h-0 opacity-0' : 'h-auto opacity-100'}`}>
                 <div className="bg-gradient-to-r from-blue-900/50 to-purple-900/50 backdrop-blur-md border-b border-white/10 p-4">
@@ -306,10 +308,10 @@ export default function KanbanBoard({
             </div>
 
             {/* Kanban Board - Split Layout */}
-            <div className="flex-1 flex gap-2 items-start px-3 py-2 overflow-hidden">
+            <div className="flex-1 flex gap-2 items-start px-3 py-2 min-h-0">
                 {/* LEFT PANEL: First selected cuadrilla */}
                 {leftCuadrilla && (
-                    <div className="w-80 flex-shrink-0 h-full overflow-y-auto custom-scrollbar">
+                    <div className="w-80 flex-shrink-0">
                         <div className="relative">
                             <button
                                 onClick={() => setLeftCuadrilla(null)}
@@ -334,7 +336,7 @@ export default function KanbanBoard({
 
                 {/* MIDDLE PANEL: Second selected cuadrilla */}
                 {rightCuadrilla && (
-                    <div className="w-80 flex-shrink-0 h-full overflow-y-auto custom-scrollbar">
+                    <div className="w-80 flex-shrink-0">
                         <div className="relative">
                             <button
                                 onClick={() => setRightCuadrilla(null)}
@@ -358,7 +360,7 @@ export default function KanbanBoard({
                 )}
 
                 {/* RIGHT PANEL: Grid of remaining cuadrillas */}
-                <div className="flex-1 pr-1 h-full overflow-y-auto custom-scrollbar">
+                <div className="flex-1 pr-1">
                     {(leftCuadrilla || rightCuadrilla) && (
                         <div className="text-xs text-white/50 mb-2 px-1 sticky top-0 bg-[#0f172a] z-10 py-1">
                             {!leftCuadrilla || !rightCuadrilla
@@ -374,38 +376,60 @@ export default function KanbanBoard({
                     )}
 
                     {/* RESPONSIVE GRID - UP TO 5 COLUMNS */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 pb-20">
-                        {cuadrillas
+                    {/* GROUPED BY SHIFT */}
+                    {(() => {
+                        // Group cuadrillas by shift
+                        const groups: { [key: string]: Cuadrilla[] } = {};
+
+                        cuadrillas
                             .filter(c => c.id !== leftCuadrilla?.id && c.id !== rightCuadrilla?.id)
-                            .map((cuadrilla) => (
-                                <div
-                                    key={cuadrilla.id}
-                                    onClick={() => {
-                                        // Smart selection: fill left first, then right
-                                        if (!leftCuadrilla) {
-                                            setLeftCuadrilla(cuadrilla);
-                                        } else if (!rightCuadrilla) {
-                                            setRightCuadrilla(cuadrilla);
-                                        } else {
-                                            // Both filled, replace the left one
-                                            setLeftCuadrilla(cuadrilla);
-                                        }
-                                    }}
-                                    className="cursor-pointer hover:scale-[1.02] transition-transform"
-                                >
-                                    <CuadrillaColumn
-                                        cuadrilla={cuadrilla}
-                                        onDragOver={handleDragOver}
-                                        onDrop={handleDropOnCuadrilla}
-                                        onDragStart={handleDragStart}
-                                        onEdit={handleEdit}
-                                        onDelete={handleDelete}
-                                        absentWorkers={absentWorkers}
-                                        compact={true} // New prop to make cards more compact in grid
-                                    />
+                            .forEach(c => {
+                                const key = c.shift_name || 'Sin Turno';
+                                if (!groups[key]) groups[key] = [];
+                                groups[key].push(c);
+                            });
+
+                        const sortedGroups = Object.keys(groups).sort();
+
+                        return sortedGroups.map(groupName => (
+                            <div key={groupName} className="mb-8">
+                                <h3 className="text-white/60 text-xs font-bold uppercase tracking-wider mb-3 flex items-center gap-2 pl-1 border-b border-white/5 pb-1">
+                                    {groupName.includes('Noche') ? '🌙' : '☀️'} {groupName}
+                                    <span className="bg-white/10 text-white/50 px-1.5 rounded-full text-[10px] ml-auto">
+                                        {groups[groupName].length}
+                                    </span>
+                                </h3>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+                                    {groups[groupName].map((cuadrilla) => (
+                                        <div
+                                            key={cuadrilla.id}
+                                            onClick={() => {
+                                                if (!leftCuadrilla) {
+                                                    setLeftCuadrilla(cuadrilla);
+                                                } else if (!rightCuadrilla) {
+                                                    setRightCuadrilla(cuadrilla);
+                                                } else {
+                                                    setLeftCuadrilla(cuadrilla);
+                                                }
+                                            }}
+                                            className="cursor-pointer hover:scale-[1.02] transition-transform"
+                                        >
+                                            <CuadrillaColumn
+                                                cuadrilla={cuadrilla}
+                                                onDragOver={handleDragOver}
+                                                onDrop={handleDropOnCuadrilla}
+                                                onDragStart={handleDragStart}
+                                                onEdit={handleEdit}
+                                                onDelete={handleDelete}
+                                                absentWorkers={absentWorkers}
+                                                compact={true}
+                                            />
+                                        </div>
+                                    ))}
                                 </div>
-                            ))}
-                    </div>
+                            </div>
+                        ));
+                    })()}
 
                     {cuadrillas.length === 0 && (
                         <div className="text-center py-12 text-white/40">
@@ -440,7 +464,11 @@ export default function KanbanBoard({
             {/* Edit Cuadrilla Modal */}
             {editingCuadrilla && (
                 <EditCuadrillaModal
-                    cuadrilla={editingCuadrilla}
+                    cuadrilla={{
+                        ...editingCuadrilla,
+                        proyecto_id: proyectoId,
+                        shift_id: editingCuadrilla.shift_id // Explicitly pass shift
+                    }}
                     onClose={() => setEditingCuadrilla(null)}
                     onSuccess={() => {
                         refreshData();
