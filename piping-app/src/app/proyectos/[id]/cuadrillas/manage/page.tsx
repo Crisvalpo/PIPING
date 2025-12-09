@@ -133,6 +133,7 @@ export default function CuadrillasManagePage({ params }: PageProps) {
             {/* Kanban Board - Full Flex */}
             <KanbanBoard
                 proyectoId={proyectoId}
+                projectName={proyecto.nombre}
                 initialCuadrillas={filteredCuadrillas}
                 initialPersonalDisponible={personalDisponible}
                 fecha={fecha}

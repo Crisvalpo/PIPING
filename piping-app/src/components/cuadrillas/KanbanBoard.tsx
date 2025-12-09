@@ -6,13 +6,16 @@
 'use client';
 
 import React from 'react';
+import dynamic from 'next/dynamic';
 import CuadrillaColumn from './CuadrillaColumn';
 import UnassignedPanel from './UnassignedPanel';
 import CreateCuadrillaModal from './CreateCuadrillaModal';
 import EditCuadrillaModal from './EditCuadrillaModal';
 import AttendanceModal from './AttendanceModal';
-import { RefreshCw, Calendar, Plus, ChevronUp, ChevronDown, Info, Users, ClipboardList, Filter } from 'lucide-react';
+import { RefreshCw, Calendar, Plus, ChevronUp, ChevronDown, Info, Users, ClipboardList, Filter, FileDown } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { pdf } from '@react-pdf/renderer';
+import CuadrillasReportDocument from './CuadrillasReportDocument';
 
 interface Cuadrilla {
     id: string;
@@ -38,6 +41,7 @@ interface Personal {
 
 interface KanbanBoardProps {
     proyectoId: string;
+    projectName?: string;
     initialCuadrillas: Cuadrilla[];
     initialPersonalDisponible: Personal[];
     fecha: string;
@@ -47,6 +51,7 @@ interface KanbanBoardProps {
 
 export default function KanbanBoard({
     proyectoId,
+    projectName = 'Proyecto',
     initialCuadrillas,
     initialPersonalDisponible,
     fecha,
@@ -118,6 +123,33 @@ export default function KanbanBoard({
             console.error('Error refreshing data:', error);
         } finally {
             setLoading(false);
+        }
+    };
+
+    // Handle PDF Export
+    const handleExportPDF = async () => {
+        try {
+            const date = new Date().toLocaleDateString('es-CL');
+
+            const blob = await pdf(
+                <CuadrillasReportDocument
+                    cuadrillas={cuadrillas}
+                    projectName={projectName}
+                    date={date}
+                />
+            ).toBlob();
+
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `Distribucion_Cuadrillas_${new Date().toISOString().split('T')[0]}.pdf`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        } catch (error) {
+            console.error('Error generating PDF:', error);
+            alert('Error al generar el PDF');
         }
     };
 
@@ -337,6 +369,15 @@ export default function KanbanBoard({
                                 </select>
                             </div>
                         )}
+
+                        {/* PDF Export Button */}
+                        <button
+                            onClick={handleExportPDF}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium text-sm transition-colors"
+                        >
+                            <FileDown className="w-3.5 h-3.5" />
+                            <span className="hidden sm:inline">Exportar PDF</span>
+                        </button>
                     </div>
 
                     <div className="text-white/50 text-xs">
