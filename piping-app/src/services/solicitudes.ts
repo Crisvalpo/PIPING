@@ -51,7 +51,7 @@ export async function getPendingSolicitudes(): Promise<SolicitudAcceso[]> {
 /**
  * Aprobar una solicitud de acceso (Vía API)
  */
-export async function approveSolicitud(solicitudId: string): Promise<ApiResponse> {
+export async function approveSolicitud(solicitudId: string, rol?: string): Promise<ApiResponse> {
     try {
         const { data: { session } } = await supabase.auth.getSession()
         if (!session) return { success: false, message: 'No hay sesión activa' }
@@ -62,7 +62,7 @@ export async function approveSolicitud(solicitudId: string): Promise<ApiResponse
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${session.access_token}`
             },
-            body: JSON.stringify({ solicitudId })
+            body: JSON.stringify({ solicitudId, rol: rol || 'USUARIO' })
         })
 
         const data = await response.json()

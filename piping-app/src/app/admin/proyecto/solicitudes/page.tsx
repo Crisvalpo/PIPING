@@ -5,12 +5,18 @@ import { useRouter } from 'next/navigation'
 import { getCurrentUser } from '@/services/auth'
 import { getPendingSolicitudes, approveSolicitud, rejectSolicitud, type SolicitudAcceso } from '@/services/solicitudes'
 import ProtectedRoute from '@/components/ProtectedRoute'
+import { ROLES_LIST } from '@/config/roles'
 
 function SolicitudesContent() {
     const router = useRouter()
     const [solicitudes, setSolicitudes] = useState<SolicitudAcceso[]>([])
     const [loading, setLoading] = useState(true)
     const [processing, setProcessing] = useState<string | null>(null)
+
+    // Modal de selección de rol
+    const [showRoleModal, setShowRoleModal] = useState(false)
+    const [pendingApproval, setPendingApproval] = useState<SolicitudAcceso | null>(null)
+    const [selectedRole, setSelectedRole] = useState('USUARIO')
 
     useEffect(() => {
         loadData()
@@ -22,11 +28,21 @@ function SolicitudesContent() {
         setLoading(false)
     }
 
-    async function handleApprove(solicitudId: string) {
-        if (!confirm('¿Aprobar esta solicitud de acceso?')) return
+    // Iniciar proceso de aprobación - muestra modal de rol
+    function handleApproveClick(solicitud: SolicitudAcceso) {
+        setPendingApproval(solicitud)
+        setSelectedRole('USUARIO') // Default
+        setShowRoleModal(true)
+    }
 
-        setProcessing(solicitudId)
-        const result = await approveSolicitud(solicitudId)
+    // Confirmar aprobación con rol seleccionado
+    async function confirmApprove() {
+        if (!pendingApproval) return
+
+        setShowRoleModal(false)
+        setProcessing(pendingApproval.id)
+
+        const result = await approveSolicitud(pendingApproval.id, selectedRole)
 
         if (result.success) {
             alert('✅ ' + result.message)
@@ -36,6 +52,7 @@ function SolicitudesContent() {
         }
 
         setProcessing(null)
+        setPendingApproval(null)
     }
 
     async function handleReject(solicitudId: string) {
@@ -135,7 +152,7 @@ function SolicitudesContent() {
                                         {/* Acciones */}
                                         <div className="flex flex-col gap-2 md:w-48">
                                             <button
-                                                onClick={() => handleApprove(solicitud.id)}
+                                                onClick={() => handleApproveClick(solicitud)}
                                                 disabled={processing === solicitud.id}
                                                 className="px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                                             >
@@ -169,6 +186,57 @@ function SolicitudesContent() {
                     </div>
                 </div>
             </div>
+
+            {/* Modal de Selección de Rol */}
+            {showRoleModal && pendingApproval && (
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl">
+                        <div className="p-6 border-b border-gray-200">
+                            <h3 className="text-xl font-bold text-gray-900">Asignar Rol al Usuario</h3>
+                            <p className="text-gray-600 text-sm mt-1">
+                                Selecciona el rol para <strong>{pendingApproval.usuario.nombre}</strong>
+                            </p>
+                        </div>
+
+                        <div className="p-6">
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Rol del Usuario</label>
+                            <select
+                                value={selectedRole}
+                                onChange={(e) => setSelectedRole(e.target.value)}
+                                className="w-full px-4 py-3 border border-gray-300 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                            >
+                                <option value="USUARIO">Usuario (Predeterminado)</option>
+                                {ROLES_LIST.map((role) => (
+                                    <option key={role.id} value={role.id}>
+                                        {role.nombre} - {role.descripcion}
+                                    </option>
+                                ))}
+                            </select>
+                            <p className="mt-2 text-xs text-gray-500">
+                                💡 El rol define qué puede ver y hacer el usuario en el sistema.
+                            </p>
+                        </div>
+
+                        <div className="p-6 border-t border-gray-200 flex gap-3">
+                            <button
+                                onClick={() => setShowRoleModal(false)}
+                                className="flex-1 px-4 py-3 border border-gray-300 text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition-colors"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                onClick={confirmApprove}
+                                className="flex-1 px-4 py-3 bg-green-500 hover:bg-green-600 text-white rounded-xl font-medium transition-colors flex items-center justify-center gap-2"
+                            >
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                </svg>
+                                Aprobar con Rol
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     )
 }

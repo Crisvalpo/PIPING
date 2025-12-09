@@ -21,7 +21,7 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Token inválido' }, { status: 401 })
         }
 
-        const { solicitudId } = await request.json()
+        const { solicitudId, rol } = await request.json()
         if (!solicitudId) {
             return NextResponse.json({ error: 'ID de solicitud requerido' }, { status: 400 })
         }
@@ -56,6 +56,9 @@ export async function POST(request: Request) {
         // Si el admin tiene proyecto, se lo asignamos al usuario
         const proyectoAsignar = adminUser?.proyecto_id || null
 
+        // Rol a asignar (recibido del admin o default)
+        const roleToAssign = rol || 'USUARIO'
+
         // 4. Actualizar el usuario solicitante
         const { error: userUpdateError } = await supabase
             .from('users')
@@ -63,7 +66,7 @@ export async function POST(request: Request) {
                 empresa_id: solicitud.empresa_id,
                 proyecto_id: proyectoAsignar, // Asignar proyecto del admin
                 estado_usuario: 'ACTIVO',
-                rol: 'USUARIO' // Rol inicial por defecto
+                rol: roleToAssign // Rol seleccionado por el admin
             })
             .eq('id', solicitud.usuario_id)
 
