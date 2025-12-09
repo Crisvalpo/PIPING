@@ -63,12 +63,12 @@ function WeldDetailModal({ weld, onClose, onUpdate }: WeldDetailModal) {
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={onClose}>
             <div className="bg-white rounded-xl w-full max-w-lg shadow-2xl" onClick={(e) => e.stopPropagation()}>
                 {/* Header */}
-                <div className="p-4 border-b border-gray-200 flex justify-between items-center bg-gradient-to-r from-blue-50 to-indigo-50">
+                <div className="p-4 border-b border-gray-300 flex justify-between items-center bg-gradient-to-r from-blue-50 to-indigo-50">
                     <div>
                         <h3 className="text-lg font-bold text-gray-900">Detalle de Unión</h3>
                         <p className="text-sm text-gray-600">{formData.weld_number}</p>
                     </div>
-                    <button onClick={onClose} className="text-gray-500 hover:text-gray-700 text-2xl font-bold">
+                    <button onClick={onClose} className="text-gray-700 hover:text-gray-700 text-2xl font-bold">
                         ×
                     </button>
                 </div>
@@ -170,7 +170,7 @@ function WeldDetailModal({ weld, onClose, onUpdate }: WeldDetailModal) {
                 </div>
 
                 {/* Footer */}
-                <div className="p-4 border-t border-gray-200 bg-gray-50 flex justify-between gap-3">
+                <div className="p-4 border-t border-gray-300 bg-gray-50 flex justify-between gap-3">
                     {editMode ? (
                         <>
                             <button
@@ -371,7 +371,7 @@ function ExecutionReportModal({ weld, projectId, onClose, onSubmit }: ExecutionR
     return (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={onClose}>
             <div className="bg-white rounded-xl w-full max-w-md shadow-2xl" onClick={(e) => e.stopPropagation()}>
-                <div className="p-4 border-b border-gray-200 bg-gradient-to-r from-green-50 to-emerald-50">
+                <div className="p-4 border-b border-gray-300 bg-gradient-to-r from-green-50 to-emerald-50">
                     <h3 className="text-lg font-bold text-gray-900">Reportar Ejecución</h3>
                     <p className="text-sm text-gray-700 font-medium">{weld.weld_number}</p>
                 </div>
@@ -436,7 +436,7 @@ function ExecutionReportModal({ weld, projectId, onClose, onSubmit }: ExecutionR
                                     </label>
 
                                     {loadingSoldadores ? (
-                                        <div className="flex items-center gap-2 py-2 text-sm text-gray-500">
+                                        <div className="flex items-center gap-2 py-2 text-sm text-gray-700">
                                             <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-green-600"></div>
                                             Cargando soldadores...
                                         </div>
@@ -475,7 +475,7 @@ function ExecutionReportModal({ weld, projectId, onClose, onSubmit }: ExecutionR
 
                                             {/* Info and toggle */}
                                             <div className="flex items-center justify-between mt-1">
-                                                <p className="text-xs text-gray-500">
+                                                <p className="text-xs text-gray-700">
                                                     {showAllSoldadores
                                                         ? `${allSoldadores.length} soldadores en el proyecto`
                                                         : `${soldadores.length} soldadores en esta cuadrilla`
@@ -524,7 +524,7 @@ function ExecutionReportModal({ weld, projectId, onClose, onSubmit }: ExecutionR
                     )}
                 </div>
 
-                <div className="p-4 border-t border-gray-200 bg-gray-50 flex justify-end gap-3">
+                <div className="p-4 border-t border-gray-300 bg-gray-50 flex justify-end gap-3">
                     <button
                         onClick={onClose}
                         disabled={savingEstampa}
@@ -888,22 +888,22 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
     return (
         <div className="relative min-h-screen pb-20">
             {/* Search Bar */}
-            <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 sticky top-0 z-10 mb-6">
+            <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-300 sticky top-0 z-10 mb-6">
                 <input
                     type="text"
                     placeholder="Buscar isométrico..."
                     value={searchTerm}
                     onChange={e => setSearchTerm(e.target.value)}
-                    className="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                    className="w-full bg-gray-50 border border-gray-300 rounded-lg px-4 py-3 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
                 />
             </div>
 
             {/* Isometric List */}
             <div className="grid grid-cols-1 gap-4">
                 {loading ? (
-                    <div className="text-center py-8 text-gray-500">Cargando...</div>
+                    <div className="text-center py-8 text-gray-700">Cargando...</div>
                 ) : isometrics.length === 0 ? (
-                    <div className="text-center py-8 text-gray-500">No se encontraron isométricos.</div>
+                    <div className="text-center py-8 text-gray-700">No se encontraron isométricos.</div>
                 ) : (
                     isometrics.map(iso => {
                         const activeRev = iso.revisions?.find((r: any) => r.estado === 'VIGENTE') || iso.revisions?.[0]
@@ -913,7 +913,7 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
                         return (
                             <div
                                 key={iso.id}
-                                className={`bg-white rounded-xl shadow-sm border transition-all overflow-hidden ${isSelected ? 'ring-2 ring-blue-500 border-transparent' : 'border-gray-200 hover:border-blue-300'
+                                className={`bg-white rounded-xl shadow-sm border transition-all overflow-hidden ${isSelected ? 'ring-2 ring-blue-500 border-transparent' : 'border-gray-300 hover:border-blue-300'
                                     }`}
                             >
                                 {/* Header Card */}
@@ -921,10 +921,10 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
                                     <div className="flex-1">
                                         <h3 className="text-lg font-bold text-gray-900">{iso.codigo}</h3>
                                         <div className="flex items-center gap-2 mt-1 flex-wrap">
-                                            <span className="text-sm text-gray-500">{iso.area}</span>
+                                            <span className="text-sm text-gray-700">{iso.area}</span>
                                             {activeRev && (
                                                 <span
-                                                    className={`px-2 py-0.5 rounded text-xs font-bold ${activeRev.estado === 'VIGENTE' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
+                                                    className={`px-2 py-0.5 rounded text-xs font-bold ${activeRev.estado === 'VIGENTE' ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-600'
                                                         }`}
                                                 >
                                                     Rev {activeRev.codigo}
@@ -946,12 +946,12 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
                                             )}
                                         </div>
                                     </div>
-                                    <div className="text-gray-400">{isSelected ? '▲' : '▼'}</div>
+                                    <div className="text-gray-600">{isSelected ? '▲' : '▼'}</div>
                                 </div>
 
                                 {/* Revision History Panel */}
                                 {showRevisionHistory && isSelected && (
-                                    <div className="border-t border-gray-200 bg-gradient-to-br from-blue-50 to-indigo-50 p-4">
+                                    <div className="border-t border-gray-300 bg-gradient-to-br from-blue-50 to-indigo-50 p-4">
                                         <h4 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
                                             <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -968,7 +968,7 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
                                                         key={rev.id}
                                                         className={`bg-white rounded-lg border-2 transition-all shadow-sm overflow-hidden ${isActiveRevision
                                                             ? 'border-blue-500 ring-2 ring-blue-200'
-                                                            : 'border-gray-200 hover:border-blue-300'
+                                                            : 'border-gray-300 hover:border-blue-300'
                                                             }`}
                                                     >
                                                         {/* Revision Header */}
@@ -982,7 +982,7 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
                                                                     <span
                                                                         className={`px-2 py-0.5 rounded-full text-xs font-bold ${rev.estado === 'VIGENTE'
                                                                             ? 'bg-green-100 text-green-700 border border-green-200'
-                                                                            : 'bg-gray-100 text-gray-600 border border-gray-200'
+                                                                            : 'bg-gray-200 text-gray-600 border border-gray-300'
                                                                             }`}
                                                                     >
                                                                         {rev.estado}
@@ -996,7 +996,7 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
                                                                         </span>
                                                                     )}
                                                                 </div>
-                                                                <span className="text-xs text-gray-500">
+                                                                <span className="text-xs text-gray-700">
                                                                     {rev.fecha_emision ? new Date(rev.fecha_emision).toLocaleDateString('es-ES') : 'Sin fecha'}
                                                                 </span>
                                                             </div>
@@ -1015,7 +1015,7 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
                                                                     {revFiles.map(file => (
                                                                         <div
                                                                             key={file.id}
-                                                                            className="flex items-center justify-between bg-white rounded border border-gray-200 px-2 py-1.5 hover:border-blue-300 transition-colors"
+                                                                            className="flex items-center justify-between bg-white rounded border border-gray-300 px-2 py-1.5 hover:border-blue-300 transition-colors"
                                                                         >
                                                                             <div className="flex items-center gap-2 flex-1 min-w-0">
                                                                                 <svg className="w-4 h-4 text-red-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
@@ -1072,31 +1072,31 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
                                         ) : details ? (
                                             <div>
                                                 {/* Tabs */}
-                                                <div className="flex overflow-x-auto border-b border-gray-200 bg-white sticky top-0">
+                                                <div className="flex overflow-x-auto border-b border-gray-300 bg-white sticky top-0">
                                                     <button
                                                         onClick={() => setActiveTab('MATERIALS')}
-                                                        className={`flex-1 py-3 px-4 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${activeTab === 'MATERIALS' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'
+                                                        className={`flex-1 py-3 px-4 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${activeTab === 'MATERIALS' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-700 hover:text-gray-700'
                                                             }`}
                                                     >
                                                         Materiales ({details.materials.length})
                                                     </button>
                                                     <button
                                                         onClick={() => setActiveTab('UNIONS')}
-                                                        className={`flex-1 py-3 px-4 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${activeTab === 'UNIONS' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'
+                                                        className={`flex-1 py-3 px-4 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${activeTab === 'UNIONS' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-700 hover:text-gray-700'
                                                             }`}
                                                     >
                                                         Uniones ({details.welds.length})
                                                     </button>
                                                     <button
                                                         onClick={() => setActiveTab('SPOOLS')}
-                                                        className={`flex-1 py-3 px-4 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${activeTab === 'SPOOLS' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'
+                                                        className={`flex-1 py-3 px-4 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${activeTab === 'SPOOLS' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-700 hover:text-gray-700'
                                                             }`}
                                                     >
                                                         Spools ({details.spools.length})
                                                     </button>
                                                     <button
                                                         onClick={() => setActiveTab('TORQUES')}
-                                                        className={`flex-1 py-3 px-4 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${activeTab === 'TORQUES' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'
+                                                        className={`flex-1 py-3 px-4 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${activeTab === 'TORQUES' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-700 hover:text-gray-700'
                                                             }`}
                                                     >
                                                         Torques ({details.joints.length})
@@ -1108,10 +1108,10 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
                                                     {activeTab === 'MATERIALS' && (
                                                         <div className="space-y-3">
                                                             {details.materials.map(mat => (
-                                                                <div key={mat.id} className="bg-white p-3 rounded-lg border border-gray-200 shadow-sm text-sm">
+                                                                <div key={mat.id} className="bg-white p-3 rounded-lg border border-gray-300 shadow-sm text-sm">
                                                                     <div className="font-bold text-gray-800 mb-1">{mat.item_code}</div>
                                                                     <div className="text-gray-600 mb-1">{mat.description || 'Sin descripción'}</div>
-                                                                    <div className="flex justify-between items-center text-xs text-gray-500">
+                                                                    <div className="flex justify-between items-center text-xs text-gray-700">
                                                                         <span>Cant: {mat.qty} {mat.qty_unit}</span>
                                                                         <button className="text-blue-600 hover:text-blue-800 font-medium">+ Solicitar</button>
                                                                     </div>
@@ -1125,7 +1125,7 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
                                                             {weldsBySpool.map(spool => {
                                                                 const isExpanded = expandedSpools.has(spool.spool_number)
                                                                 return (
-                                                                    <div key={spool.spool_number} className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+                                                                    <div key={spool.spool_number} className="bg-white rounded-lg border border-gray-300 shadow-sm overflow-hidden">
                                                                         {/* Spool Header */}
                                                                         <div
                                                                             onClick={() => toggleSpoolExpanded(spool.spool_number)}
@@ -1140,30 +1140,30 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
                                                                                             : spool.fabrication_status === 'EN PROCESO'
                                                                                                 ? 'bg-yellow-100 text-yellow-700'
                                                                                                 : spool.fabrication_status === 'N/A'
-                                                                                                    ? 'bg-gray-100 text-gray-500'
+                                                                                                    ? 'bg-gray-200 text-gray-700'
                                                                                                     : 'bg-orange-100 text-orange-700'
                                                                                             }`}
                                                                                     >
                                                                                         {spool.fabrication_status}
                                                                                     </span>
                                                                                 </div>
-                                                                                <div className="text-xs text-gray-500 mt-1">
+                                                                                <div className="text-xs text-gray-700 mt-1">
                                                                                     Taller: {spool.shop_welds_executed}/{spool.shop_welds_total} •
                                                                                     Campo: {spool.field_welds_executed}/{spool.field_welds_total} •
                                                                                     Total: {spool.welds.length} uniones
                                                                                 </div>
                                                                             </div>
-                                                                            <div className="text-gray-400">{isExpanded ? '▲' : '▼'}</div>
+                                                                            <div className="text-gray-600">{isExpanded ? '▲' : '▼'}</div>
                                                                         </div>
 
                                                                         {/* Welds List */}
                                                                         {isExpanded && (
-                                                                            <div className="border-t border-gray-200 bg-gray-50 p-2 space-y-2">
+                                                                            <div className="border-t border-gray-300 bg-gray-50 p-2 space-y-2">
                                                                                 {spool.welds.map(weld => (
                                                                                     <div
                                                                                         key={weld.id}
                                                                                         onClick={() => setSelectedWeld(weld)}
-                                                                                        className="bg-white p-3 rounded-lg border border-gray-200 flex justify-between items-center shadow-sm cursor-pointer hover:border-blue-300 hover:shadow-md transition-all"
+                                                                                        className="bg-white p-3 rounded-lg border border-gray-300 flex justify-between items-center shadow-sm cursor-pointer hover:border-blue-300 hover:shadow-md transition-all"
                                                                                     >
                                                                                         <div>
                                                                                             <div className="font-bold text-gray-800 flex items-center gap-2">
@@ -1173,11 +1173,11 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
                                                                                                     {weld.destination === 'S' ? 'Taller' : 'Campo'}
                                                                                                 </span>
                                                                                             </div>
-                                                                                            <div className="text-xs text-gray-400">{weld.type_weld} - {weld.nps}"</div>
+                                                                                            <div className="text-xs text-gray-600">{weld.type_weld} - {weld.nps}"</div>
                                                                                         </div>
                                                                                         <div className="flex flex-col items-end gap-2">
                                                                                             <span
-                                                                                                className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all ${weld.executed ? 'bg-green-100 text-green-700 border border-green-200' : 'bg-gray-100 text-gray-500 border border-gray-200'
+                                                                                                className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all ${weld.executed ? 'bg-green-100 text-green-700 border border-green-200' : 'bg-gray-200 text-gray-700 border border-gray-300'
                                                                                                     }`}
                                                                                             >
                                                                                                 {weld.executed ? 'EJECUTADO' : 'PENDIENTE'}
@@ -1211,7 +1211,7 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
                                                     {activeTab === 'SPOOLS' && (
                                                         <div className="space-y-3">
                                                             {details.spools.map(spool => (
-                                                                <div key={spool.spool_number} className="bg-white p-3 rounded-lg border border-gray-200 shadow-sm">
+                                                                <div key={spool.spool_number} className="bg-white p-3 rounded-lg border border-gray-300 shadow-sm">
                                                                     <div className="flex justify-between items-center mb-2">
                                                                         <span className="font-bold text-gray-800">{spool.spool_number}</span>
                                                                         <span
@@ -1219,7 +1219,7 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
                                                                                 ? 'bg-green-100 text-green-700'
                                                                                 : spool.status === 'PARTIAL'
                                                                                     ? 'bg-yellow-100 text-yellow-700'
-                                                                                    : 'bg-gray-100 text-gray-500'
+                                                                                    : 'bg-gray-200 text-gray-700'
                                                                                 }`}
                                                                         >
                                                                             {spool.status === 'COMPLETE'
@@ -1229,13 +1229,13 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
                                                                                     : 'PENDIENTE'}
                                                                         </span>
                                                                     </div>
-                                                                    <div className="w-full bg-gray-100 rounded-full h-2">
+                                                                    <div className="w-full bg-gray-200 rounded-full h-2">
                                                                         <div
                                                                             className="bg-blue-600 h-2 rounded-full transition-all"
                                                                             style={{ width: `${(spool.welds_executed / spool.welds_count) * 100}%` }}
                                                                         ></div>
                                                                     </div>
-                                                                    <div className="flex justify-between mt-1 text-xs text-gray-500">
+                                                                    <div className="flex justify-between mt-1 text-xs text-gray-700">
                                                                         <span>Progreso</span>
                                                                         <span>{spool.welds_executed} / {spool.welds_count} soldaduras</span>
                                                                     </div>
@@ -1247,14 +1247,14 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
                                                     {activeTab === 'TORQUES' && (
                                                         <div className="space-y-3">
                                                             {details.joints.map(joint => (
-                                                                <div key={joint.id} className="bg-white p-3 rounded-lg border border-gray-200 flex justify-between items-center shadow-sm">
+                                                                <div key={joint.id} className="bg-white p-3 rounded-lg border border-gray-300 flex justify-between items-center shadow-sm">
                                                                     <div>
                                                                         <div className="font-bold text-gray-800">{joint.flanged_joint_number}</div>
-                                                                        <div className="text-xs text-gray-500">Rating: {joint.rating}</div>
+                                                                        <div className="text-xs text-gray-700">Rating: {joint.rating}</div>
                                                                     </div>
                                                                     <button
                                                                         onClick={() => handleJointToggle(joint.id, joint.executed)}
-                                                                        className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all ${joint.executed ? 'bg-green-100 text-green-700 border border-green-200' : 'bg-gray-100 text-gray-500 border border-gray-200 hover:bg-gray-200'
+                                                                        className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all ${joint.executed ? 'bg-green-100 text-green-700 border border-green-200' : 'bg-gray-200 text-gray-700 border border-gray-300 hover:bg-gray-200'
                                                                             }`}
                                                                     >
                                                                         {joint.executed ? 'TORQUEADO' : 'PENDIENTE'}
@@ -1266,7 +1266,7 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
                                                 </div>
                                             </div>
                                         ) : (
-                                            <div className="p-8 text-center text-gray-500">No hay detalles cargados para esta revisión.</div>
+                                            <div className="p-8 text-center text-gray-700">No hay detalles cargados para esta revisión.</div>
                                         )}
                                     </div>
                                 )}
@@ -1309,7 +1309,7 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
                                     setShowPdfViewer(false)
                                     setSelectedPdfUrl(null)
                                 }}
-                                className="text-gray-500 hover:text-gray-700 text-2xl font-bold"
+                                className="text-gray-700 hover:text-gray-700 text-2xl font-bold"
                             >
                                 ×
                             </button>
@@ -1327,11 +1327,11 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
 
             {/* Bottom Navigation Bar */}
             <div className="fixed bottom-0 left-0 right-0 z-40">
-                <div className="flex items-center justify-around border-t border-gray-200/80 bg-white/90 px-2 pb-4 pt-2 backdrop-blur-lg dark:border-gray-800/80 dark:bg-gray-900/90">
+                <div className="flex items-center justify-around border-t border-gray-300/80 bg-white/90 px-2 pb-4 pt-2 backdrop-blur-lg dark:border-gray-800/80 dark:bg-gray-900/90">
                     {/* Home Button */}
                     <a
                         href="/dashboard/master-views"
-                        className={`flex flex-1 flex-col items-center justify-end gap-1.5 pt-1 transition-all ${bottomNavTab === 'home' ? 'text-blue-600' : 'text-gray-500 dark:text-gray-400'}`}
+                        className={`flex flex-1 flex-col items-center justify-end gap-1.5 pt-1 transition-all ${bottomNavTab === 'home' ? 'text-blue-600' : 'text-gray-700 dark:text-gray-600'}`}
                     >
                         <svg
                             className="w-6 h-6"
@@ -1348,7 +1348,7 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
                     {/* Stats Button */}
                     <button
                         onClick={() => setBottomNavTab('stats')}
-                        className={`flex flex-1 flex-col items-center justify-end gap-1.5 pt-1 transition-all ${bottomNavTab === 'stats' ? 'text-blue-600' : 'text-gray-500 dark:text-gray-400'}`}
+                        className={`flex flex-1 flex-col items-center justify-end gap-1.5 pt-1 transition-all ${bottomNavTab === 'stats' ? 'text-blue-600' : 'text-gray-700 dark:text-gray-600'}`}
                     >
                         <svg
                             className="w-6 h-6"
@@ -1366,7 +1366,7 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
                     <div className="relative flex flex-1">
                         <button
                             onClick={() => setShowSettingsMenu(!showSettingsMenu)}
-                            className={`flex flex-1 flex-col items-center justify-end gap-1.5 pt-1 transition-all ${bottomNavTab === 'settings' || showSettingsMenu ? 'text-blue-600' : 'text-gray-500 dark:text-gray-400'}`}
+                            className={`flex flex-1 flex-col items-center justify-end gap-1.5 pt-1 transition-all ${bottomNavTab === 'settings' || showSettingsMenu ? 'text-blue-600' : 'text-gray-700 dark:text-gray-600'}`}
                         >
                             <svg
                                 className="w-6 h-6"
@@ -1383,7 +1383,7 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
 
                         {/* Settings Dropdown Menu */}
                         {showSettingsMenu && (
-                            <div className="absolute bottom-full right-0 mb-2 bg-white rounded-lg shadow-xl border border-gray-200 overflow-hidden min-w-[200px]">
+                            <div className="absolute bottom-full right-0 mb-2 bg-white rounded-lg shadow-xl border border-gray-300 overflow-hidden min-w-[200px]">
                                 <a
                                     href={`/proyectos/${projectId}/cuadrillas/manage`}
                                     className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors"

@@ -23,16 +23,15 @@ export default function MasterViewsPage() {
 
     return (
         <ProtectedRoute requireAuth requireActive>
-            <div className="min-h-screen bg-gray-50 p-4 md:p-6">
-                <div className="max-w-7xl mx-auto">
-                    {proyecto ? (
-                        <MasterViewsManager projectId={proyecto.id} />
-                    ) : (
-                        <div className="flex justify-center py-12">
-                            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-600"></div>
-                        </div>
-                    )}
-                </div>
+            {/* Full-screen white background for mobile field use - no padding/margins */}
+            <div className="fixed inset-0 bg-white overflow-auto">
+                {proyecto ? (
+                    <MasterViewsManager projectId={proyecto.id} />
+                ) : (
+                    <div className="flex justify-center items-center h-full">
+                        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-600"></div>
+                    </div>
+                )}
             </div>
         </ProtectedRoute>
     )
