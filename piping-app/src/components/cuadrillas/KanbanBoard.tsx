@@ -11,7 +11,7 @@ import UnassignedPanel from './UnassignedPanel';
 import CreateCuadrillaModal from './CreateCuadrillaModal';
 import EditCuadrillaModal from './EditCuadrillaModal';
 import AttendanceModal from './AttendanceModal';
-import { RefreshCw, Calendar, Plus, ChevronUp, ChevronDown, Info, Users, ClipboardList } from 'lucide-react';
+import { RefreshCw, Calendar, Plus, ChevronUp, ChevronDown, Info, Users, ClipboardList, Filter } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
 interface Cuadrilla {
@@ -41,13 +41,17 @@ interface KanbanBoardProps {
     initialCuadrillas: Cuadrilla[];
     initialPersonalDisponible: Personal[];
     fecha: string;
+    selectedSupervisor?: string;
+    onSupervisorChange?: (value: string) => void;
 }
 
 export default function KanbanBoard({
     proyectoId,
     initialCuadrillas,
     initialPersonalDisponible,
-    fecha
+    fecha,
+    selectedSupervisor = 'all',
+    onSupervisorChange
 }: KanbanBoardProps) {
     const [cuadrillas, setCuadrillas] = React.useState<Cuadrilla[]>(initialCuadrillas);
     const [personalDisponible, setPersonalDisponible] = React.useState<Personal[]>(initialPersonalDisponible);
@@ -65,6 +69,22 @@ export default function KanbanBoard({
     const [leftCuadrilla, setLeftCuadrilla] = React.useState<Cuadrilla | null>(null);
     const [rightCuadrilla, setRightCuadrilla] = React.useState<Cuadrilla | null>(null);
     const [absentWorkers, setAbsentWorkers] = React.useState<Set<string>>(new Set());
+
+    // Sync cuadrillas when filtered props change (for supervisor filter)
+    React.useEffect(() => {
+        setCuadrillas(initialCuadrillas);
+    }, [initialCuadrillas]);
+
+    // Extract unique supervisors from internal cuadrillas state (updates when drag-drop changes)
+    const supervisors = React.useMemo(() => {
+        const uniqueSupervisors = new Map();
+        cuadrillas.forEach((c: Cuadrilla) => {
+            if (c.supervisor?.rut && c.supervisor?.nombre) {
+                uniqueSupervisors.set(c.supervisor.rut, c.supervisor.nombre);
+            }
+        });
+        return Array.from(uniqueSupervisors.entries()).map(([rut, nombre]) => ({ rut, nombre }));
+    }, [cuadrillas]);
 
     // Refresh data
     const refreshData = async () => {
@@ -298,6 +318,25 @@ export default function KanbanBoard({
                             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
                             <span>Actualizar</span>
                         </button>
+
+                        {/* Supervisor Filter */}
+                        {onSupervisorChange && supervisors.length > 0 && (
+                            <div className="flex items-center bg-white/10 rounded-lg px-3 py-1.5 border border-white/10 hover:border-white/30 transition-colors">
+                                <Filter className="w-3.5 h-3.5 text-white/60 mr-2" />
+                                <select
+                                    value={selectedSupervisor}
+                                    onChange={(e) => onSupervisorChange(e.target.value)}
+                                    className="bg-transparent text-white text-sm focus:outline-none cursor-pointer appearance-none min-w-[140px]"
+                                >
+                                    <option value="all" className="bg-gray-800 text-white">Todos</option>
+                                    {supervisors.map(sup => (
+                                        <option key={sup.rut} value={sup.rut} className="bg-gray-800 text-white">
+                                            {sup.nombre}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                        )}
                     </div>
 
                     <div className="text-white/50 text-xs">

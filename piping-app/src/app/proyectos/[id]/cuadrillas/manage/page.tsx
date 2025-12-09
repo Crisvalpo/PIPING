@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, use } from 'react'
+import { useEffect, useState, use, useMemo } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Users, ArrowLeft } from 'lucide-react'
@@ -23,6 +23,7 @@ export default function CuadrillasManagePage({ params }: PageProps) {
     const [personalDisponible, setPersonalDisponible] = useState<any[]>([])
     const [fecha, setFecha] = useState<string>(new Date().toISOString().split('T')[0])
     const [isSuperAdminUser, setIsSuperAdminUser] = useState(false)
+    const [selectedSupervisor, setSelectedSupervisor] = useState<string>('all')
 
     useEffect(() => {
         loadData()
@@ -80,6 +81,23 @@ export default function CuadrillasManagePage({ params }: PageProps) {
         }
     }
 
+    // Extract unique supervisors from cuadrillas
+    const supervisors = useMemo(() => {
+        const uniqueSupervisors = new Map()
+        cuadrillas.forEach((c: any) => {
+            if (c.supervisor?.rut && c.supervisor?.nombre) {
+                uniqueSupervisors.set(c.supervisor.rut, c.supervisor.nombre)
+            }
+        })
+        return Array.from(uniqueSupervisors.entries()).map(([rut, nombre]) => ({ rut, nombre }))
+    }, [cuadrillas])
+
+    // Filter cuadrillas based on selected supervisor
+    const filteredCuadrillas = useMemo(() => {
+        if (selectedSupervisor === 'all') return cuadrillas
+        return cuadrillas.filter((c: any) => c.supervisor?.rut === selectedSupervisor)
+    }, [cuadrillas, selectedSupervisor])
+
     if (loading) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900">
@@ -112,31 +130,14 @@ export default function CuadrillasManagePage({ params }: PageProps) {
 
     return (
         <div className="min-h-screen flex flex-col bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900">
-            {/* Minimal Top Nav */}
-            <div className="flex-shrink-0 bg-white/5 backdrop-blur-md border-b border-white/10 px-4 py-2">
-                <div className="flex items-center justify-between">
-                    <button
-                        onClick={() => {
-                            if (isSuperAdminUser) {
-                                router.push('/admin/cuadrillas')
-                            } else {
-                                router.push('/dashboard')
-                            }
-                        }}
-                        className="text-white/60 hover:text-white transition-colors"
-                        title="Volver"
-                    >
-                        <ArrowLeft className="w-5 h-5" />
-                    </button>
-                </div>
-            </div>
-
             {/* Kanban Board - Full Flex */}
             <KanbanBoard
                 proyectoId={proyectoId}
-                initialCuadrillas={cuadrillas}
+                initialCuadrillas={filteredCuadrillas}
                 initialPersonalDisponible={personalDisponible}
                 fecha={fecha}
+                selectedSupervisor={selectedSupervisor}
+                onSupervisorChange={setSelectedSupervisor}
             />
         </div>
     )
