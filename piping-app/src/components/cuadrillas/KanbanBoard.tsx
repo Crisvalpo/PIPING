@@ -80,6 +80,23 @@ export default function KanbanBoard({
         setCuadrillas(initialCuadrillas);
     }, [initialCuadrillas]);
 
+    // Load absent workers on mount and when date changes
+    React.useEffect(() => {
+        const loadAbsentWorkers = async () => {
+            const { data: attendance } = await supabase
+                .from('asistencia_diaria')
+                .select('personal_rut, presente')
+                .eq('proyecto_id', proyectoId)
+                .eq('fecha', fecha)
+                .eq('presente', false);
+
+            if (attendance) {
+                setAbsentWorkers(new Set(attendance.map(a => a.personal_rut)));
+            }
+        };
+        loadAbsentWorkers();
+    }, [proyectoId, fecha]);
+
     // Extract unique supervisors from internal cuadrillas state (updates when drag-drop changes)
     const supervisors = React.useMemo(() => {
         const uniqueSupervisors = new Map();

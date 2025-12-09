@@ -10,11 +10,12 @@ import { NextRequest, NextResponse } from 'next/server'
 // GET - Retrieve welder stamp
 export async function GET(
     request: NextRequest,
-    { params }: { params: { rut: string } }
+    { params }: { params: Promise<{ rut: string }> }
 ) {
     try {
         const supabase = await createClient()
-        const rut = decodeURIComponent(params.rut)
+        const { rut: rutParam } = await params
+        const rut = decodeURIComponent(rutParam)
 
         const { data, error } = await supabase
             .from('soldadores')
@@ -53,11 +54,12 @@ export async function GET(
 // PUT - Create or update welder stamp
 export async function PUT(
     request: NextRequest,
-    { params }: { params: { rut: string } }
+    { params }: { params: Promise<{ rut: string }> }
 ) {
     try {
         const supabase = await createClient()
-        const rut = decodeURIComponent(params.rut)
+        const { rut: rutParam } = await params
+        const rut = decodeURIComponent(rutParam)
         const body = await request.json()
         const { estampa } = body
 
