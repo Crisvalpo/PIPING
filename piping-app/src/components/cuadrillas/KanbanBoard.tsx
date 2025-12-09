@@ -131,11 +131,15 @@ export default function KanbanBoard({
         try {
             const date = new Date().toLocaleDateString('es-CL');
 
+            // Convert Set to array for PDF
+            const absentRuts = Array.from(absentWorkers);
+
             const blob = await pdf(
                 <CuadrillasReportDocument
                     cuadrillas={cuadrillas}
                     projectName={projectName}
                     date={date}
+                    absentWorkers={absentRuts}
                 />
             ).toBlob();
 

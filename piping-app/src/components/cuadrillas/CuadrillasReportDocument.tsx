@@ -175,9 +175,37 @@ const styles = StyleSheet.create({
         color: '#475569',
     },
     memberName: {
-        width: '80%',
+        width: '60%',
         fontSize: 9,
         color: '#1e293b',
+    },
+    memberAbsent: {
+        color: '#991b1b',
+        textDecoration: 'line-through',
+    },
+    absentTag: {
+        fontSize: 7,
+        color: '#ffffff',
+        backgroundColor: '#dc2626',
+        paddingHorizontal: 4,
+        paddingVertical: 2,
+        borderRadius: 3,
+        marginLeft: 4,
+    },
+    absentRow: {
+        backgroundColor: '#fef2f2',
+        borderLeftWidth: 3,
+        borderLeftColor: '#dc2626',
+    },
+    absentSummary: {
+        marginTop: 8,
+        flexDirection: 'row',
+        justifyContent: 'center',
+    },
+    absentCount: {
+        fontSize: 10,
+        color: '#dc2626',
+        fontWeight: 'bold',
     },
     footer: {
         marginTop: 30,
@@ -220,6 +248,7 @@ interface CuadrillasReportProps {
     cuadrillas: Cuadrilla[];
     projectName: string;
     date: string;
+    absentWorkers?: string[]; // Array of RUTs that are absent
 }
 
 // Group cuadrillas by supervisor
@@ -241,18 +270,23 @@ function groupBySupervisor(cuadrillas: Cuadrilla[]): Map<string, { supervisor: s
     return groups;
 }
 
-// Count members by cargo (global summary)
-function countByCargo(cuadrillas: Cuadrilla[]): Map<string, number> {
+// Count members by cargo (global summary) - excludes absents
+function countByCargo(cuadrillas: Cuadrilla[], absentSet: Set<string>): { counts: Map<string, number>; totalAbsent: number } {
     const counts = new Map<string, number>();
+    let totalAbsent = 0;
 
     cuadrillas.forEach(c => {
         c.trabajadores_actuales?.forEach(member => {
+            if (absentSet.has(member.rut)) {
+                totalAbsent++;
+                return; // Don't count absents
+            }
             const cargo = member.cargo || member.rol || 'Sin Cargo';
             counts.set(cargo, (counts.get(cargo) || 0) + 1);
         });
     });
 
-    return counts;
+    return { counts, totalAbsent };
 }
 
 // Group members by cargo within a cuadrilla
@@ -270,18 +304,23 @@ function groupMembersByCargo(members: Member[]): Map<string, Member[]> {
     return groups;
 }
 
-// Get subtotals string for cuadrilla header
-function getCuadrillaSubtotals(members: Member[]): string {
-    const cargoGroups = groupMembersByCargo(members);
+// Get subtotals string for cuadrilla header - excludes absents
+function getCuadrillaSubtotals(members: Member[], absentSet: Set<string>): { subtotals: string; presentCount: number; absentCount: number } {
+    const presentMembers = members.filter(m => !absentSet.has(m.rut));
+    const absentCount = members.length - presentMembers.length;
+    const cargoGroups = groupMembersByCargo(presentMembers);
     const parts: string[] = [];
 
     cargoGroups.forEach((memberList, cargo) => {
-        // Shorten cargo name for display
         const shortCargo = cargo.replace('PIPING', '').trim();
         parts.push(`${memberList.length} ${shortCargo}`);
     });
 
-    return parts.join(' | ');
+    return {
+        subtotals: parts.join(' | '),
+        presentCount: presentMembers.length,
+        absentCount
+    };
 }
 
 // Get member code - prioritize estampa for soldadores, then codigo, fallback to RUT prefix
@@ -292,10 +331,13 @@ function getMemberCode(member: Member): string {
     return member.rut.replace(/\./g, '').replace(/-/g, '').substring(0, 8);
 }
 
-export default function CuadrillasReportDocument({ cuadrillas, projectName, date }: CuadrillasReportProps) {
+export default function CuadrillasReportDocument({ cuadrillas, projectName, date, absentWorkers = [] }: CuadrillasReportProps) {
+    // Create a Set for quick lookup of absent workers
+    const absentSet = new Set(absentWorkers);
+
     const supervisorGroups = groupBySupervisor(cuadrillas);
-    const cargoCounts = countByCargo(cuadrillas);
-    const totalMembers = Array.from(cargoCounts.values()).reduce((a, b) => a + b, 0);
+    const { counts: cargoCounts, totalAbsent } = countByCargo(cuadrillas, absentSet);
+    const totalMembers = Array.from(cargoCounts.values()).reduce((a: number, b: number) => a + b, 0);
 
     // Sort cargo counts for display
     const sortedCargos = Array.from(cargoCounts.entries()).sort((a, b) => b[1] - a[1]);
@@ -346,9 +388,14 @@ export default function CuadrillasReportDocument({ cuadrillas, projectName, date
                         ))}
                     </View>
                     <View style={styles.totalRow}>
-                        <Text style={styles.totalLabel}>TOTAL PERSONAL:</Text>
+                        <Text style={styles.totalLabel}>TOTAL PRESENTES:</Text>
                         <Text style={styles.totalCount}>{totalMembers}</Text>
                     </View>
+                    {totalAbsent > 0 && (
+                        <View style={styles.absentSummary}>
+                            <Text style={styles.absentCount}>⚠ {totalAbsent} AUSENTE(S) HOY</Text>
+                        </View>
+                    )}
                 </View>
 
                 {/* Content by Supervisor */}
@@ -366,14 +413,17 @@ export default function CuadrillasReportDocument({ cuadrillas, projectName, date
                         {group.cuadrillas.map((cuadrilla) => {
                             const members = cuadrilla.trabajadores_actuales || [];
                             const cargoGroups = groupMembersByCargo(members);
-                            const subtotals = getCuadrillaSubtotals(members);
+                            const { subtotals, absentCount } = getCuadrillaSubtotals(members, absentSet);
 
                             return (
                                 <View key={cuadrilla.id} style={styles.cuadrillaCard} minPresenceAhead={100}>
                                     {/* Cuadrilla Header with Subtotals */}
                                     <View style={styles.cuadrillaHeader}>
                                         <View style={styles.cuadrillaHeaderLeft}>
-                                            <Text style={styles.cuadrillaName}>{cuadrilla.nombre}</Text>
+                                            <Text style={styles.cuadrillaName}>
+                                                {cuadrilla.nombre}
+                                                {absentCount > 0 ? ` (${absentCount} ausente${absentCount > 1 ? 's' : ''})` : ''}
+                                            </Text>
                                             {subtotals && (
                                                 <Text style={styles.cuadrillaSubtotals}>{subtotals}</Text>
                                             )}
@@ -393,15 +443,23 @@ export default function CuadrillasReportDocument({ cuadrillas, projectName, date
                                                 </View>
 
                                                 {/* Members in this cargo */}
-                                                {cargoMembers.map((member, mIdx) => (
-                                                    <View
-                                                        key={member.rut}
-                                                        style={mIdx % 2 === 1 ? [styles.memberRow, styles.memberRowAlt] : styles.memberRow}
-                                                    >
-                                                        <Text style={styles.memberCode}>{getMemberCode(member)}</Text>
-                                                        <Text style={styles.memberName}>{member.nombre}</Text>
-                                                    </View>
-                                                ))}
+                                                {cargoMembers.map((member, mIdx) => {
+                                                    const isAbsent = absentSet.has(member.rut);
+                                                    const baseStyle = mIdx % 2 === 1 ? [styles.memberRow, styles.memberRowAlt] : [styles.memberRow];
+                                                    const rowStyle = isAbsent ? [...baseStyle, styles.absentRow] : baseStyle;
+
+                                                    return (
+                                                        <View key={member.rut} style={rowStyle}>
+                                                            <Text style={styles.memberCode}>{getMemberCode(member)}</Text>
+                                                            <Text style={isAbsent ? [styles.memberName, styles.memberAbsent] : styles.memberName}>
+                                                                {member.nombre}
+                                                            </Text>
+                                                            {isAbsent && (
+                                                                <Text style={styles.absentTag}>AUSENTE</Text>
+                                                            )}
+                                                        </View>
+                                                    );
+                                                })}
                                             </View>
                                         ))
                                     ) : (
