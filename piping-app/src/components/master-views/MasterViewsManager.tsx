@@ -237,7 +237,7 @@ function WeldDetailModal({ weld, onClose, onUpdate }: WeldDetailModal) {
                                             value={welderInfo ? `[${welderInfo.estampa}] ${welderInfo.nombre}` : 'Cargando...'}
                                         />
                                         <DetailRow
-                                            label="Supervisor"
+                                            label="Capataz"
                                             value={foremanInfo?.nombre || 'Cargando...'}
                                         />
                                     </div>
