@@ -155,16 +155,53 @@ function WeldDetailModal({ weld, onClose, onUpdate }: WeldDetailModal) {
                             </div>
                         </>
                     ) : (
-                        <div className="space-y-3">
-                            <DetailRow label="Spool" value={formData.spool_number} />
-                            <DetailRow label="Tipo de Soldadura" value={formData.type_weld} />
-                            <div className="grid grid-cols-2 gap-4">
-                                <DetailRow label="NPS" value={formData.nps} />
-                                <DetailRow label="SCH" value={formData.sch} />
+                        <div className="space-y-4">
+                            {/* Engineering Data Section */}
+                            <div className="space-y-3">
+                                <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Datos Ingeniería</h4>
+                                <DetailRow label="Spool" value={formData.spool_number} />
+                                <DetailRow label="Tipo de Soldadura" value={formData.type_weld} />
+                                <div className="grid grid-cols-2 gap-4">
+                                    <DetailRow label="NPS" value={formData.nps} />
+                                    <DetailRow label="SCH" value={formData.sch} />
+                                </div>
+                                <DetailRow label="Espesor" value={formData.thickness} />
+                                <DetailRow label="Material" value={formData.material} />
+                                <DetailRow label="Destino" value={getDestinationText(formData.destination)} />
                             </div>
-                            <DetailRow label="Espesor" value={formData.thickness} />
-                            <DetailRow label="Material" value={formData.material} />
-                            <DetailRow label="Destino" value={getDestinationText(formData.destination)} />
+
+                            {/* Field Execution Data Section - Only show if executed */}
+                            {weld.executed && (
+                                <div className="mt-4 pt-4 border-t border-gray-300 space-y-3">
+                                    <h4 className="text-xs font-semibold text-green-600 uppercase tracking-wider flex items-center gap-2">
+                                        <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+                                        Datos Terreno
+                                    </h4>
+                                    <div className="bg-green-50 border border-green-200 rounded-lg p-3 space-y-2">
+                                        <DetailRow
+                                            label="Fecha Ejecución"
+                                            value={weld.execution_date ? new Date(weld.execution_date).toLocaleDateString('es-CL') : '-'}
+                                        />
+                                        <DetailRow
+                                            label="Soldador (Estampa)"
+                                            value={weld.welder_id || weld.executed_by || '-'}
+                                        />
+                                        <DetailRow
+                                            label="Supervisor"
+                                            value={weld.foreman_id || weld.supervised_by || '-'}
+                                        />
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Not Executed Badge */}
+                            {!weld.executed && (
+                                <div className="mt-4 pt-4 border-t border-gray-300">
+                                    <div className="bg-gray-100 border border-gray-300 rounded-lg p-3 text-center">
+                                        <span className="text-sm text-gray-600 font-medium">⏳ Pendiente de Ejecución</span>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>

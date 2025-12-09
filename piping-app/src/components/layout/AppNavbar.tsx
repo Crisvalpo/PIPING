@@ -15,6 +15,12 @@ export default function AppNavbar() {
         { name: 'Configuración', href: '/settings/personal', icon: Settings },
     ]
 
+    // Hide Proyectos and Configuración on mobile field views
+    const isMobileFieldView = pathname.includes('/master-views')
+    const filteredNavigation = isMobileFieldView
+        ? navigation.filter(item => item.name === 'Dashboard')
+        : navigation
+
     const isActive = (path: string) => pathname.startsWith(path)
 
     return (
@@ -33,7 +39,7 @@ export default function AppNavbar() {
 
                     {/* Navegación desktop */}
                     <div className="hidden md:flex md:items-center md:gap-1">
-                        {navigation.map((item) => {
+                        {filteredNavigation.map((item) => {
                             const Icon = item.icon
                             const active = isActive(item.href)
                             return (
@@ -86,7 +92,7 @@ export default function AppNavbar() {
             {mobileMenuOpen && (
                 <div className="md:hidden border-t border-gray-200 bg-white">
                     <div className="px-2 pt-2 pb-3 space-y-1">
-                        {navigation.map((item) => {
+                        {filteredNavigation.map((item) => {
                             const Icon = item.icon
                             const active = isActive(item.href)
                             return (
