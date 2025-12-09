@@ -76,7 +76,7 @@ export async function createInvitacion(
                 proyecto_id: finalProyectoId,
                 rol: finalRol,
                 estado: 'PENDIENTE',
-                creado_por: user?.id // Guardar quién creó la invitación
+                created_by: user?.id // Guardar quién creó la invitación
             })
             .select()
             .single()
@@ -136,6 +136,7 @@ export async function validateToken(token: string): Promise<ApiResponse<Invitaci
     }
 }
 
+
 /**
  * Marcar invitación como usada
  */
@@ -144,10 +145,38 @@ export async function markInvitacionAsUsed(token: string, userId: string): Promi
         .from('invitaciones')
         .update({
             estado: 'USADA',
-            usado_por: userId
+            used_by: userId,
+            used_at: new Date().toISOString()
         })
         .eq('token', token)
 
     if (error) return { success: false, message: error.message }
     return { success: true, message: 'Invitación marcada como usada' }
+}
+
+/**
+ * Obtener invitaciones pendientes de un proyecto
+ */
+export async function getPendingInvitations(proyectoId: string): Promise<Invitacion[]> {
+    const { data } = await supabase
+        .from('invitaciones')
+        .select('*')
+        .eq('proyecto_id', proyectoId)
+        .eq('estado', 'PENDIENTE')
+        .order('created_at', { ascending: false })
+
+    return (data as Invitacion[]) || []
+}
+
+/**
+ * Revocar (eliminar) una invitación
+ */
+export async function deleteInvitacion(id: string): Promise<ApiResponse> {
+    const { error } = await supabase
+        .from('invitaciones')
+        .delete()
+        .eq('id', id)
+
+    if (error) return { success: false, message: error.message }
+    return { success: true, message: 'Invitación eliminada' }
 }

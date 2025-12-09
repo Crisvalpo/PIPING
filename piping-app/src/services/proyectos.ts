@@ -306,7 +306,7 @@ export async function getProyectoStats(proyectoId: string) {
             .from('invitaciones')
             .select('*', { count: 'exact', head: true })
             .eq('proyecto_id', proyectoId)
-            .eq('usado', false)
+            .eq('estado', 'PENDIENTE')
 
         return {
             totalUsuarios: totalUsuarios || 0,

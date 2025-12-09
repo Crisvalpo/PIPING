@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { getCurrentUser } from '@/services/auth'
 import { getMyProyecto } from '@/services/proyectos'
-import { createInvitacion, generarLinkInvitacion } from '@/services/invitaciones'
+import { createInvitacion, generarLinkInvitacion, getPendingInvitations, deleteInvitacion, type Invitacion } from '@/services/invitaciones'
 import ProtectedRoute from '@/components/ProtectedRoute'
 import type { ProyectoWithEmpresa } from '@/types'
 
@@ -17,10 +17,32 @@ function InvitarUsuarioContent() {
     const [success, setSuccess] = useState(false)
     const [invitacionLink, setInvitacionLink] = useState('')
 
+    // Lista de invitaciones
+    const [invitaciones, setInvitaciones] = useState<Invitacion[]>([])
+    const [loadingInvitaciones, setLoadingInvitaciones] = useState(true)
+
     const [formData, setFormData] = useState({
         email: '',
         rol: 'SOLO LECTURA',
     })
+
+    const loadInvitaciones = async (proyectoId: string) => {
+        setLoadingInvitaciones(true)
+        const data = await getPendingInvitations(proyectoId)
+        setInvitaciones(data)
+        setLoadingInvitaciones(false)
+    }
+
+    const handleDelete = async (id: string) => {
+        if (!confirm('¿Estás seguro de que quieres eliminar esta invitación? El link dejará de funcionar.')) return
+
+        const result = await deleteInvitacion(id)
+        if (result.success) {
+            setInvitaciones(prev => prev.filter(inv => inv.id !== id))
+        } else {
+            alert('Error al eliminar invitación')
+        }
+    }
 
     useEffect(() => {
         async function loadData() {
@@ -33,6 +55,10 @@ function InvitarUsuarioContent() {
             const proyectoData = await getMyProyecto()
             if (proyectoData) {
                 setProyecto(proyectoData)
+                // Cargar invitaciones
+                if (proyectoData.id) {
+                    loadInvitaciones(proyectoData.id)
+                }
             }
 
             setLoading(false)
@@ -69,6 +95,9 @@ function InvitarUsuarioContent() {
                 email: '',
                 rol: 'SOLO LECTURA',
             })
+
+            // Recargar lista
+            loadInvitaciones(proyecto.id)
         } else {
             setError(result.message)
         }
@@ -91,8 +120,8 @@ function InvitarUsuarioContent() {
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-purple-900 via-indigo-900 to-blue-900 p-4">
-            <div className="max-w-3xl mx-auto py-12">
-                <div className="backdrop-blur-xl bg-white/10 rounded-3xl shadow-2xl border border-white/20 p-8">
+            <div className="max-w-4xl mx-auto py-12">
+                <div className="backdrop-blur-xl bg-white/10 rounded-3xl shadow-2xl border border-white/20 p-8 mb-8">
                     {/* Header */}
                     <div className="mb-8">
                         <button
@@ -268,10 +297,81 @@ function InvitarUsuarioContent() {
                         </button>
                     </form>
                 </div>
+
+                {/* Lista de Invitaciones Pendientes */}
+                <div className="backdrop-blur-xl bg-white/10 rounded-3xl shadow-2xl border border-white/20 p-8">
+                    <h2 className="text-2xl font-bold text-white mb-6">Invitaciones Pendientes</h2>
+
+                    {loadingInvitaciones ? (
+                        <div className="text-center py-8">
+                            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-white mx-auto"></div>
+                            <p className="text-purple-200 mt-2">Cargando invitaciones...</p>
+                        </div>
+                    ) : invitaciones.length === 0 ? (
+                        <div className="text-center py-8 bg-white/5 rounded-xl border border-white/10">
+                            <p className="text-purple-200">No hay invitaciones pendientes</p>
+                        </div>
+                    ) : (
+                        <div className="overflow-x-auto">
+                            <table className="w-full">
+                                <thead>
+                                    <tr className="border-b border-white/10">
+                                        <th className="text-left py-3 px-4 text-purple-200 font-medium">Email</th>
+                                        <th className="text-left py-3 px-4 text-purple-200 font-medium">Rol</th>
+                                        <th className="text-left py-3 px-4 text-purple-200 font-medium">Fecha</th>
+                                        <th className="text-right py-3 px-4 text-purple-200 font-medium">Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {invitaciones.map((inv) => (
+                                        <tr key={inv.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                                            <td className="py-3 px-4 text-white">{inv.email}</td>
+                                            <td className="py-3 px-4 text-white">
+                                                <span className="px-2 py-1 bg-purple-500/20 text-purple-200 text-xs rounded-full border border-purple-500/30">
+                                                    {inv.rol}
+                                                </span>
+                                            </td>
+                                            <td className="py-3 px-4 text-purple-200 text-sm">
+                                                {new Date(inv.created_at).toLocaleDateString()}
+                                            </td>
+                                            <td className="py-3 px-4 text-right">
+                                                <div className="flex items-center justify-end gap-2">
+                                                    <button
+                                                        onClick={() => {
+                                                            const link = generarLinkInvitacion(inv.token)
+                                                            navigator.clipboard.writeText(link)
+                                                            alert('Link copiado al portapapeles')
+                                                        }}
+                                                        className="p-2 bg-blue-500/20 text-blue-300 hover:bg-blue-500/30 rounded-lg transition-colors"
+                                                        title="Copiar Link"
+                                                    >
+                                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                                                        </svg>
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleDelete(inv.id)}
+                                                        className="p-2 bg-red-500/20 text-red-300 hover:bg-red-500/30 rounded-lg transition-colors"
+                                                        title="Revocar Invitación"
+                                                    >
+                                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                        </svg>
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+                </div>
             </div>
         </div>
     )
 }
+
 
 export default function InvitarUsuarioPage() {
     return (

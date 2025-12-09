@@ -168,26 +168,7 @@ function DashboardContent() {
                 </div>
             )}
 
-            {/* Módulos Operativos */}
-            {proyecto && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                    <div
-                        onClick={() => router.push('/dashboard/master-views')}
-                        className="cursor-pointer backdrop-blur-xl bg-gradient-to-br from-indigo-600/20 to-blue-600/20 rounded-3xl shadow-xl border border-indigo-400/30 p-6 transform transition-all duration-200 hover:scale-[1.02] group"
-                    >
-                        <div className="flex items-center justify-between mb-4">
-                            <div className="p-3 bg-indigo-500 rounded-xl group-hover:bg-indigo-400 transition-colors shadow-lg shadow-indigo-500/30">
-                                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
-                                </svg>
-                            </div>
-                            <span className="px-3 py-1 bg-indigo-500/20 border border-indigo-400/30 text-indigo-200 rounded-full text-xs font-medium">Ingeniería & Producción</span>
-                        </div>
-                        <h3 className="text-2xl font-bold text-white mb-2">Vistas Maestras</h3>
-                        <p className="text-indigo-100">Gestión de isométricos, soldaduras, spools y materiales.</p>
-                    </div>
-                </div>
-            )}
+
 
             {/* Acciones Rápidas para Admin de Proyecto */}
             {esAdminProyecto && !esSuperAdmin && (
