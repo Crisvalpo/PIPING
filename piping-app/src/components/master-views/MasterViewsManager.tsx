@@ -208,46 +208,82 @@ function WeldDetailModal({ weld, onClose, onUpdate }: WeldDetailModal) {
     )
 }
 
-// Modal de Reporte de Ejecución
+// Modal de Reporte de Ejecución - Con selección en cascada Capataz -> Soldadores
 function ExecutionReportModal({ weld, projectId, onClose, onSubmit }: ExecutionReportModal) {
     const [fecha, setFecha] = useState(new Date().toISOString().split('T')[0])
     const [ejecutadoPor, setEjecutadoPor] = useState('')
     const [supervisadoPor, setSupervisadoPor] = useState('')
+    const [selectedCapataz, setSelectedCapataz] = useState<any | null>(null)
+
     const [soldadores, setSoldadores] = useState<any[]>([])
+    const [allSoldadores, setAllSoldadores] = useState<any[]>([])
     const [capataces, setCapataces] = useState<any[]>([])
+
     const [loading, setLoading] = useState(true)
+    const [loadingSoldadores, setLoadingSoldadores] = useState(false)
+    const [showAllSoldadores, setShowAllSoldadores] = useState(false)
     const [errors, setErrors] = useState({ ejecutadoPor: '', supervisadoPor: '' })
 
-    // Cargar soldadores y capataces del proyecto
+    // Load capataces on mount
     useEffect(() => {
         if (projectId) {
-            loadPersonnel()
+            loadCapataces()
         }
     }, [projectId])
 
-    const loadPersonnel = async () => {
+    // Load soldadores when capataz changes
+    useEffect(() => {
+        if (selectedCapataz?.cuadrilla_id) {
+            loadSoldadoresByCuadrilla(selectedCapataz.cuadrilla_id)
+        } else {
+            setSoldadores([])
+        }
+    }, [selectedCapataz])
+
+    const loadCapataces = async () => {
         try {
             setLoading(true)
-
-            // Cargar soldadores
-            const soldadoresRes = await fetch(`/api/proyectos/${projectId}/personnel?role=SOLDADOR`)
-            const soldadoresData = await soldadoresRes.json()
-            if (soldadoresData.success) {
-                setSoldadores(soldadoresData.data)
+            const res = await fetch(`/api/proyectos/${projectId}/personnel?role=CAPATAZ`)
+            const data = await res.json()
+            if (data.success) {
+                setCapataces(data.data || [])
             }
 
-            // Cargar capataces
-            const capatacesRes = await fetch(`/api/proyectos/${projectId}/personnel?role=CAPATAZ`)
-            const capatacesData = await capatacesRes.json()
-            if (capatacesData.success) {
-                setCapataces(capatacesData.data)
+            // Also preload all soldadores for "show all" option
+            const allRes = await fetch(`/api/proyectos/${projectId}/personnel?role=SOLDADOR&all=true`)
+            const allData = await allRes.json()
+            if (allData.success) {
+                setAllSoldadores(allData.data || [])
             }
-
-            setLoading(false)
         } catch (error) {
-            console.error('Error loading personnel:', error)
+            console.error('Error loading capataces:', error)
+        } finally {
             setLoading(false)
         }
+    }
+
+    const loadSoldadoresByCuadrilla = async (cuadrillaId: string) => {
+        try {
+            setLoadingSoldadores(true)
+            const res = await fetch(`/api/proyectos/${projectId}/personnel?role=SOLDADOR&cuadrilla_id=${cuadrillaId}`)
+            const data = await res.json()
+            if (data.success) {
+                setSoldadores(data.data || [])
+            }
+        } catch (error) {
+            console.error('Error loading soldadores:', error)
+        } finally {
+            setLoadingSoldadores(false)
+        }
+    }
+
+    const handleCapatazChange = (rut: string) => {
+        setSupervisadoPor(rut)
+        setEjecutadoPor('') // Reset soldador selection
+        setShowAllSoldadores(false)
+
+        const capataz = capataces.find(c => c.rut === rut)
+        setSelectedCapataz(capataz || null)
     }
 
     const handleSubmit = () => {
@@ -262,6 +298,19 @@ function ExecutionReportModal({ weld, projectId, onClose, onSubmit }: ExecutionR
         onClose()
     }
 
+    // Group soldadores for display
+    const displaySoldadores = showAllSoldadores ? allSoldadores : soldadores
+
+    // Group all soldadores by cuadrilla for better visualization
+    const groupedSoldadores = showAllSoldadores
+        ? allSoldadores.reduce((acc, s) => {
+            const key = s.cuadrilla_nombre || 'Sin Cuadrilla'
+            if (!acc[key]) acc[key] = []
+            acc[key].push(s)
+            return acc
+        }, {} as Record<string, any[]>)
+        : null
+
     return (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={onClose}>
             <div className="bg-white rounded-xl w-full max-w-md shadow-2xl" onClick={(e) => e.stopPropagation()}>
@@ -270,7 +319,7 @@ function ExecutionReportModal({ weld, projectId, onClose, onSubmit }: ExecutionR
                     <p className="text-sm text-gray-700 font-medium">{weld.weld_number}</p>
                 </div>
 
-                <div className="p-6 space-y-4">
+                <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
                     {loading ? (
                         <div className="text-center py-8">
                             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mx-auto"></div>
@@ -278,6 +327,7 @@ function ExecutionReportModal({ weld, projectId, onClose, onSubmit }: ExecutionR
                         </div>
                     ) : (
                         <>
+                            {/* Fecha */}
                             <div>
                                 <label className="block text-sm font-bold text-gray-800 mb-1">Fecha de Ejecución *</label>
                                 <input
@@ -288,57 +338,114 @@ function ExecutionReportModal({ weld, projectId, onClose, onSubmit }: ExecutionR
                                 />
                             </div>
 
+                            {/* PASO 1: Seleccionar Capataz */}
                             <div>
-                                <label className="block text-sm font-bold text-gray-800 mb-1">Ejecutado Por (Soldador) *</label>
-                                <select
-                                    value={ejecutadoPor}
-                                    onChange={(e) => {
-                                        setEjecutadoPor(e.target.value)
-                                        setErrors({ ...errors, ejecutadoPor: '' })
-                                    }}
-                                    className={`w-full border rounded-lg px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-green-500 focus:outline-none ${errors.ejecutadoPor ? 'border-red-500' : 'border-gray-300'
-                                        }`}
-                                >
-                                    <option value="">Seleccionar soldador</option>
-                                    {soldadores.map((s) => (
-                                        <option key={s.user_id} value={s.user_id}>
-                                            {s.nombre_completo || s.email}
-                                            {s.cuadrilla_nombre && ` (${s.cuadrilla_codigo})`}
-                                        </option>
-                                    ))}
-                                </select>
-                                {soldadores.length === 0 && (
-                                    <p className="text-xs text-orange-600 font-medium mt-1">
-                                        ⚠️ No hay soldadores. Cree una cuadrilla primero.
-                                    </p>
-                                )}
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-bold text-gray-800 mb-1">Supervisado Por (Capataz) *</label>
+                                <label className="block text-sm font-bold text-gray-800 mb-1">
+                                    <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-xs mr-2">PASO 1</span>
+                                    Supervisado Por (Capataz) *
+                                </label>
                                 <select
                                     value={supervisadoPor}
-                                    onChange={(e) => {
-                                        setSupervisadoPor(e.target.value)
-                                        setErrors({ ...errors, supervisadoPor: '' })
-                                    }}
+                                    onChange={(e) => handleCapatazChange(e.target.value)}
                                     className={`w-full border rounded-lg px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-green-500 focus:outline-none ${errors.supervisadoPor ? 'border-red-500' : 'border-gray-300'
                                         }`}
                                 >
                                     <option value="">Seleccionar capataz</option>
                                     {capataces.map((c) => (
-                                        <option key={c.user_id} value={c.user_id}>
-                                            {c.nombre_completo || c.email}
-                                            {c.cuadrilla_nombre && ` (${c.cuadrilla_codigo})`}
+                                        <option key={c.rut} value={c.rut}>
+                                            {c.nombre}
+                                            {c.cuadrilla_codigo && ` [${c.cuadrilla_codigo}]`}
                                         </option>
                                     ))}
                                 </select>
                                 {capataces.length === 0 && (
                                     <p className="text-xs text-orange-600 font-medium mt-1">
-                                        ⚠️ No hay capataces. Cree una cuadrilla primero.
+                                        ⚠️ No hay capataces asignados a cuadrillas activas.
+                                    </p>
+                                )}
+                                {selectedCapataz && (
+                                    <p className="text-xs text-blue-600 mt-1">
+                                        📋 Cuadrilla: {selectedCapataz.cuadrilla_nombre}
                                     </p>
                                 )}
                             </div>
+
+                            {/* PASO 2: Seleccionar Soldador (Solo si hay capataz seleccionado) */}
+                            {supervisadoPor && (
+                                <div>
+                                    <label className="block text-sm font-bold text-gray-800 mb-1">
+                                        <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded text-xs mr-2">PASO 2</span>
+                                        Ejecutado Por (Soldador) *
+                                    </label>
+
+                                    {loadingSoldadores ? (
+                                        <div className="flex items-center gap-2 py-2 text-sm text-gray-500">
+                                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-green-600"></div>
+                                            Cargando soldadores...
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <select
+                                                value={ejecutadoPor}
+                                                onChange={(e) => {
+                                                    setEjecutadoPor(e.target.value)
+                                                    setErrors({ ...errors, ejecutadoPor: '' })
+                                                }}
+                                                className={`w-full border rounded-lg px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-green-500 focus:outline-none ${errors.ejecutadoPor ? 'border-red-500' : 'border-gray-300'
+                                                    }`}
+                                            >
+                                                <option value="">Seleccionar soldador</option>
+
+                                                {showAllSoldadores && groupedSoldadores ? (
+                                                    // Grouped display when showing all
+                                                    Object.entries(groupedSoldadores).map(([cuadrillaName, cuadrillaSoldadores]) => (
+                                                        <optgroup key={cuadrillaName} label={`── ${cuadrillaName} ──`}>
+                                                            {cuadrillaSoldadores.map((s: any) => (
+                                                                <option key={s.rut} value={s.rut}>
+                                                                    {s.codigo_trabajador || s.estampa ? `[${s.codigo_trabajador || s.estampa}] ` : ''}
+                                                                    {s.nombre}
+                                                                </option>
+                                                            ))}
+                                                        </optgroup>
+                                                    ))
+                                                ) : (
+                                                    // Simple list for cuadrilla soldadores
+                                                    displaySoldadores.map((s) => (
+                                                        <option key={s.rut} value={s.rut}>
+                                                            {s.codigo_trabajador || s.estampa ? `[${s.codigo_trabajador || s.estampa}] ` : ''}
+                                                            {s.nombre}
+                                                        </option>
+                                                    ))
+                                                )}
+                                            </select>
+
+                                            {/* Info and toggle */}
+                                            <div className="flex items-center justify-between mt-1">
+                                                <p className="text-xs text-gray-500">
+                                                    {showAllSoldadores
+                                                        ? `${allSoldadores.length} soldadores en el proyecto`
+                                                        : `${soldadores.length} soldadores en esta cuadrilla`
+                                                    }
+                                                </p>
+
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setShowAllSoldadores(!showAllSoldadores)}
+                                                    className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                                                >
+                                                    {showAllSoldadores ? '← Solo cuadrilla' : 'Ver todos →'}
+                                                </button>
+                                            </div>
+
+                                            {soldadores.length === 0 && !showAllSoldadores && (
+                                                <p className="text-xs text-orange-600 font-medium mt-1">
+                                                    ⚠️ Esta cuadrilla no tiene soldadores asignados hoy.
+                                                </p>
+                                            )}
+                                        </>
+                                    )}
+                                </div>
+                            )}
                         </>
                     )}
                 </div>
@@ -352,7 +459,7 @@ function ExecutionReportModal({ weld, projectId, onClose, onSubmit }: ExecutionR
                     </button>
                     <button
                         onClick={handleSubmit}
-                        disabled={loading || (soldadores.length === 0 && capataces.length === 0)}
+                        disabled={loading || !ejecutadoPor || !supervisadoPor}
                         className="px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -543,8 +650,8 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
                 .update({
                     executed: true,
                     execution_date: data.fecha,
-                    executed_by: data.ejecutadoPor,
-                    supervised_by: data.supervisadoPor
+                    welder_id: data.ejecutadoPor,      // RUT del soldador
+                    foreman_id: data.supervisadoPor   // RUT del capataz
                 })
                 .eq('id', weldForExecution.id)
 
@@ -556,7 +663,7 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
                     ...prev,
                     welds: prev.welds.map(w =>
                         w.id === weldForExecution.id
-                            ? { ...w, executed: true, execution_date: data.fecha, executed_by: data.ejecutadoPor, supervised_by: data.supervisadoPor }
+                            ? { ...w, executed: true, execution_date: data.fecha, welder_id: data.ejecutadoPor, foreman_id: data.supervisadoPor }
                             : w
                     )
                 }
