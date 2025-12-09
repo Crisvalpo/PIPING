@@ -48,6 +48,56 @@ function WeldDetailModal({ weld, onClose, onUpdate }: WeldDetailModal) {
         destination: weld.destination || ''
     })
 
+    // Personnel names for executed welds
+    const [welderInfo, setWelderInfo] = useState<{ nombre: string; estampa: string } | null>(null)
+    const [foremanInfo, setForemanInfo] = useState<{ nombre: string } | null>(null)
+
+    // Load personnel names when modal opens (if executed)
+    useEffect(() => {
+        const loadPersonnelNames = async () => {
+            if (!weld.executed) return
+
+            const welderRut = weld.welder_id || weld.executed_by
+            const foremanRut = weld.foreman_id || weld.supervised_by
+
+            if (welderRut) {
+                const { data: welder } = await supabase
+                    .from('personal')
+                    .select('rut, nombre')
+                    .eq('rut', welderRut)
+                    .single()
+
+                if (welder) {
+                    // Also get estampa from soldadores table
+                    const { data: soldador } = await supabase
+                        .from('soldadores')
+                        .select('estampa')
+                        .eq('rut', welderRut)
+                        .single()
+
+                    setWelderInfo({
+                        nombre: welder.nombre,
+                        estampa: soldador?.estampa || '-'
+                    })
+                }
+            }
+
+            if (foremanRut) {
+                const { data: foreman } = await supabase
+                    .from('personal')
+                    .select('nombre')
+                    .eq('rut', foremanRut)
+                    .single()
+
+                if (foreman) {
+                    setForemanInfo({ nombre: foreman.nombre })
+                }
+            }
+        }
+
+        loadPersonnelNames()
+    }, [weld])
+
     const handleSave = async () => {
         onUpdate(weld.id, formData)
         setEditMode(false)
@@ -173,22 +223,22 @@ function WeldDetailModal({ weld, onClose, onUpdate }: WeldDetailModal) {
                             {/* Field Execution Data Section - Only show if executed */}
                             {weld.executed && (
                                 <div className="mt-4 pt-4 border-t border-gray-300 space-y-3">
-                                    <h4 className="text-xs font-semibold text-green-600 uppercase tracking-wider flex items-center gap-2">
-                                        <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+                                    <h4 className="text-xs font-bold text-green-700 uppercase tracking-wider flex items-center gap-2">
+                                        <span className="w-2 h-2 bg-green-600 rounded-full"></span>
                                         Datos Terreno
                                     </h4>
-                                    <div className="bg-green-50 border border-green-200 rounded-lg p-3 space-y-2">
+                                    <div className="bg-green-100 border border-green-300 rounded-lg p-3 space-y-2">
                                         <DetailRow
                                             label="Fecha Ejecución"
                                             value={weld.execution_date ? new Date(weld.execution_date).toLocaleDateString('es-CL') : '-'}
                                         />
                                         <DetailRow
-                                            label="Soldador (Estampa)"
-                                            value={weld.welder_id || weld.executed_by || '-'}
+                                            label="Soldador"
+                                            value={welderInfo ? `[${welderInfo.estampa}] ${welderInfo.nombre}` : 'Cargando...'}
                                         />
                                         <DetailRow
                                             label="Supervisor"
-                                            value={weld.foreman_id || weld.supervised_by || '-'}
+                                            value={foremanInfo?.nombre || 'Cargando...'}
                                         />
                                     </div>
                                 </div>
