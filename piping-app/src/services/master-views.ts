@@ -109,3 +109,144 @@ export async function updateJointExecution(
 
     if (error) throw error;
 }
+
+// ============================================
+// REWORK (RETRABAJO) FUNCTIONS
+// ============================================
+
+export type ReworkResponsibility = 'TERRENO' | 'INGENIERIA' | 'RECHAZO_END';
+
+export interface WeldExecution {
+    id: string;
+    weld_id: string;
+    version: number;
+    execution_date: string;
+    welder_id: string | null;
+    foreman_id: string | null;
+    status: 'VIGENTE' | 'RETRABAJO';
+    is_rework: boolean;
+    rework_reason: string | null;
+    rework_responsibility: ReworkResponsibility | null;
+    created_at: string;
+}
+
+/**
+ * Get execution history for a weld
+ */
+export async function getWeldExecutions(weldId: string): Promise<WeldExecution[]> {
+    const { data, error } = await supabase
+        .from('weld_executions')
+        .select('*')
+        .eq('weld_id', weldId)
+        .order('version', { ascending: false });
+
+    if (error) throw error;
+    return data || [];
+}
+
+/**
+ * Mark a weld for rework - sets current execution to RETRABAJO and resets weld to pending
+ */
+export async function markWeldForRework(
+    weldId: string,
+    responsibility: ReworkResponsibility,
+    reason?: string
+) {
+    // 1. Get current execution
+    const { data: currentExecution } = await supabase
+        .from('weld_executions')
+        .select('*')
+        .eq('weld_id', weldId)
+        .eq('status', 'VIGENTE')
+        .single();
+
+    // 2. If there's a current execution, mark it as RETRABAJO
+    if (currentExecution) {
+        await supabase
+            .from('weld_executions')
+            .update({
+                status: 'RETRABAJO',
+                rework_reason: reason,
+                rework_responsibility: responsibility
+            })
+            .eq('id', currentExecution.id);
+    }
+
+    // 3. Increment rework count and reset weld to pending
+    const { data: weld } = await supabase
+        .from('spools_welds')
+        .select('rework_count')
+        .eq('id', weldId)
+        .single();
+
+    const newCount = (weld?.rework_count || 0) + 1;
+
+    const { error } = await supabase
+        .from('spools_welds')
+        .update({
+            executed: false,
+            execution_date: null,
+            welder_id: null,
+            foreman_id: null,
+            rework_count: newCount,
+            current_execution_id: null
+        })
+        .eq('id', weldId);
+
+    if (error) throw error;
+}
+
+/**
+ * Register a new weld execution (handles versioning automatically)
+ */
+export async function registerWeldExecution(
+    weldId: string,
+    welderId: string,
+    foremanId: string,
+    executionDate?: string
+) {
+    // 1. Get the latest version for this weld
+    const { data: latestExecution } = await supabase
+        .from('weld_executions')
+        .select('version')
+        .eq('weld_id', weldId)
+        .order('version', { ascending: false })
+        .limit(1)
+        .single();
+
+    const newVersion = (latestExecution?.version || 0) + 1;
+    const isRework = newVersion > 1;
+
+    // 2. Create new execution record
+    const { data: newExecution, error: insertError } = await supabase
+        .from('weld_executions')
+        .insert({
+            weld_id: weldId,
+            version: newVersion,
+            execution_date: executionDate || new Date().toISOString(),
+            welder_id: welderId,
+            foreman_id: foremanId,
+            status: 'VIGENTE',
+            is_rework: isRework
+        })
+        .select()
+        .single();
+
+    if (insertError) throw insertError;
+
+    // 3. Update the main weld record
+    const { error: updateError } = await supabase
+        .from('spools_welds')
+        .update({
+            executed: true,
+            execution_date: executionDate || new Date().toISOString(),
+            welder_id: welderId,
+            foreman_id: foremanId,
+            current_execution_id: newExecution.id
+        })
+        .eq('id', weldId);
+
+    if (updateError) throw updateError;
+
+    return newExecution;
+}

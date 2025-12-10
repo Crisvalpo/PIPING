@@ -2,7 +2,16 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { searchIsometrics } from '@/services/engineering'
-import { getIsometricDetails, updateWeldExecution, updateJointExecution } from '@/services/master-views'
+import {
+    getIsometricDetails,
+    updateWeldExecution,
+    updateJointExecution,
+    getWeldExecutions,
+    markWeldForRework,
+    registerWeldExecution,
+    type ReworkResponsibility,
+    type WeldExecution
+} from '@/services/master-views'
 import type { IsometricDetails } from '@/services/master-views'
 import { supabase } from '@/lib/supabase'
 
@@ -654,6 +663,134 @@ function DetailRow({ label, value }: { label: string; value: string }) {
     )
 }
 
+// Modal de Retrabajo
+interface ReworkModalProps {
+    weld: any
+    onClose: () => void
+    onSubmit: (responsibility: ReworkResponsibility, reason: string) => Promise<void>
+}
+
+const REWORK_OPTIONS: { value: ReworkResponsibility; label: string; description: string }[] = [
+    { value: 'TERRENO', label: 'Terreno', description: 'Error al construir' },
+    { value: 'INGENIERIA', label: 'Ingeniería', description: 'Interferencias / Cambios de revisión' },
+    { value: 'RECHAZO_END', label: 'Rechazo END', description: 'Rechazo por parte de Calidad' },
+]
+
+function ReworkModal({ weld, onClose, onSubmit }: ReworkModalProps) {
+    const [responsibility, setResponsibility] = useState<ReworkResponsibility>('TERRENO')
+    const [reason, setReason] = useState('')
+    const [submitting, setSubmitting] = useState(false)
+
+    const handleSubmit = async () => {
+        setSubmitting(true)
+        try {
+            await onSubmit(responsibility, reason)
+            onClose()
+        } catch (error) {
+            console.error('Error marking rework:', error)
+            alert('Error al marcar retrabajo')
+        } finally {
+            setSubmitting(false)
+        }
+    }
+
+    return (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl">
+                {/* Header */}
+                <div className="p-6 border-b border-gray-200">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 bg-orange-100 rounded-lg">
+                            <svg className="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            </svg>
+                        </div>
+                        <div>
+                            <h3 className="text-xl font-bold text-gray-900">Marcar Retrabajo</h3>
+                            <p className="text-gray-600 text-sm">Unión: <strong>{weld.weld_number}</strong></p>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Body */}
+                <div className="p-6 space-y-4">
+                    {/* Responsabilidad */}
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Responsabilidad del Retrabajo *
+                        </label>
+                        <div className="space-y-2">
+                            {REWORK_OPTIONS.map((option) => (
+                                <label
+                                    key={option.value}
+                                    className={`flex items-start gap-3 p-3 border rounded-lg cursor-pointer transition-all ${responsibility === option.value
+                                        ? 'border-orange-500 bg-orange-50'
+                                        : 'border-gray-200 hover:border-gray-300'
+                                        }`}
+                                >
+                                    <input
+                                        type="radio"
+                                        name="responsibility"
+                                        value={option.value}
+                                        checked={responsibility === option.value}
+                                        onChange={(e) => setResponsibility(e.target.value as ReworkResponsibility)}
+                                        className="mt-0.5"
+                                    />
+                                    <div>
+                                        <div className="font-medium text-gray-900">{option.label}</div>
+                                        <div className="text-sm text-gray-500">{option.description}</div>
+                                    </div>
+                                </label>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Motivo */}
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Motivo / Observación (opcional)
+                        </label>
+                        <textarea
+                            value={reason}
+                            onChange={(e) => setReason(e.target.value)}
+                            placeholder="Describe el motivo del retrabajo..."
+                            rows={3}
+                            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-orange-500 focus:outline-none"
+                        />
+                    </div>
+                </div>
+
+                {/* Footer */}
+                <div className="p-6 border-t border-gray-200 flex gap-3">
+                    <button
+                        onClick={onClose}
+                        disabled={submitting}
+                        className="flex-1 px-4 py-3 border border-gray-300 text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition-colors disabled:opacity-50"
+                    >
+                        Cancelar
+                    </button>
+                    <button
+                        onClick={handleSubmit}
+                        disabled={submitting}
+                        className="flex-1 px-4 py-3 bg-orange-500 hover:bg-orange-600 text-white rounded-xl font-medium transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                    >
+                        {submitting ? (
+                            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                        ) : (
+                            <>
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                </svg>
+                                Confirmar Retrabajo
+                            </>
+                        )}
+                    </button>
+                </div>
+            </div>
+        </div>
+    )
+}
+
 // Función para agrupar soldaduras por spool y calcular estado de fabricación
 function groupWeldsBySpool(welds: any[]): WeldsBySpool[] {
     const spoolMap = new Map<string, WeldsBySpool>()
@@ -733,6 +870,10 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
     const [selectedWeld, setSelectedWeld] = useState<any | null>(null)
     const [showExecutionModal, setShowExecutionModal] = useState(false)
     const [weldForExecution, setWeldForExecution] = useState<any | null>(null)
+
+    // Rework modal state
+    const [showReworkModal, setShowReworkModal] = useState(false)
+    const [weldForRework, setWeldForRework] = useState<any | null>(null)
 
     // Estado para spools agrupados
     const [weldsBySpool, setWeldsBySpool] = useState<WeldsBySpool[]>([])
@@ -863,6 +1004,42 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
         } catch (error) {
             console.error('Error reporting execution:', error)
             alert('❌ Error al reportar la ejecución')
+        }
+    }
+
+    // Handle marking a weld for rework
+    const handleRework = async (responsibility: ReworkResponsibility, reason: string) => {
+        if (!weldForRework) return
+
+        try {
+            await markWeldForRework(weldForRework.id, responsibility, reason)
+
+            // Update local state to reflect the rework
+            setDetails(prev => {
+                if (!prev) return null
+                return {
+                    ...prev,
+                    welds: prev.welds.map(w =>
+                        w.id === weldForRework.id
+                            ? {
+                                ...w,
+                                executed: false,
+                                execution_date: null,
+                                welder_id: null,
+                                foreman_id: null,
+                                rework_count: (w.rework_count || 0) + 1
+                            }
+                            : w
+                    )
+                }
+            })
+
+            setShowReworkModal(false)
+            setWeldForRework(null)
+            alert('✅ Retrabajo registrado. La unión vuelve a estado PENDIENTE.')
+        } catch (error) {
+            console.error('Error marking rework:', error)
+            throw error
         }
     }
 
@@ -1278,6 +1455,12 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
                                                                                                     }`}>
                                                                                                     {weld.destination === 'S' ? 'Taller' : 'Campo'}
                                                                                                 </span>
+                                                                                                {/* Rework Badge */}
+                                                                                                {weld.rework_count > 0 && (
+                                                                                                    <span className="px-1.5 py-0.5 rounded text-xs font-bold bg-orange-100 text-orange-700 border border-orange-200">
+                                                                                                        R{weld.rework_count}
+                                                                                                    </span>
+                                                                                                )}
                                                                                             </div>
                                                                                             <div className="text-xs text-gray-600">{weld.type_weld} - {weld.nps}"</div>
                                                                                         </div>
@@ -1288,6 +1471,7 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
                                                                                             >
                                                                                                 {weld.executed ? 'EJECUTADO' : 'PENDIENTE'}
                                                                                             </span>
+                                                                                            {/* Reportar button for pending welds */}
                                                                                             {!weld.executed && (
                                                                                                 <button
                                                                                                     onClick={(e) => {
@@ -1301,6 +1485,22 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
                                                                                                         <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                                                                                     </svg>
                                                                                                     Reportar
+                                                                                                </button>
+                                                                                            )}
+                                                                                            {/* Retrabajo button for executed welds */}
+                                                                                            {weld.executed && (
+                                                                                                <button
+                                                                                                    onClick={(e) => {
+                                                                                                        e.stopPropagation()
+                                                                                                        setWeldForRework(weld)
+                                                                                                        setShowReworkModal(true)
+                                                                                                    }}
+                                                                                                    className="px-3 py-1 bg-orange-500 text-white rounded-lg text-xs font-medium hover:bg-orange-600 transition-colors flex items-center gap-1"
+                                                                                                >
+                                                                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                                                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                                                                                    </svg>
+                                                                                                    Retrabajo
                                                                                                 </button>
                                                                                             )}
                                                                                         </div>
@@ -1403,6 +1603,17 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
                 />
             )}
 
+            {/* Rework Modal */}
+            {showReworkModal && weldForRework && (
+                <ReworkModal
+                    weld={weldForRework}
+                    onClose={() => {
+                        setShowReworkModal(false)
+                        setWeldForRework(null)
+                    }}
+                    onSubmit={handleRework}
+                />
+            )}
 
             {/* PDF Viewer Modal */}
             {showPdfViewer && selectedPdfUrl && (
