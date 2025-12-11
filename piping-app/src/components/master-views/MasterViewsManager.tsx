@@ -14,6 +14,7 @@ import {
     undoWeldExecution,
     createFieldWeld,
     checkWeldNumberExists,
+    reorderWelds,
     type ReworkResponsibility,
     type WeldExecution
 } from '@/services/master-views'
@@ -2008,6 +2009,10 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
     const [bottomNavTab, setBottomNavTab] = useState<'home' | 'stats' | 'settings'>('home')
     const [showSettingsMenu, setShowSettingsMenu] = useState(false)
 
+    // Drag & drop ordering states
+    const [isDragDropEnabled, setIsDragDropEnabled] = useState(false)
+    const [draggedWeldId, setDraggedWeldId] = useState<string | null>(null)
+
     // Estados para modales
     const [selectedWeld, setSelectedWeld] = useState<any | null>(null)
     const [showExecutionModal, setShowExecutionModal] = useState(false)
@@ -2354,6 +2359,58 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
         setAddWeldContext(null)
     }
 
+    // Drag & drop handlers for weld reordering
+    const handleWeldDragStart = (e: React.DragEvent, weldId: string) => {
+        if (!isDragDropEnabled) return
+        setDraggedWeldId(weldId)
+        e.dataTransfer.effectAllowed = 'move'
+    }
+
+    const handleWeldDragOver = (e: React.DragEvent) => {
+        if (!isDragDropEnabled || !draggedWeldId) return
+        e.preventDefault()
+        e.dataTransfer.dropEffect = 'move'
+    }
+
+    const handleWeldDrop = async (e: React.DragEvent, targetWeldId: string, spoolWelds: any[]) => {
+        e.preventDefault()
+        if (!isDragDropEnabled || !draggedWeldId || draggedWeldId === targetWeldId) {
+            setDraggedWeldId(null)
+            return
+        }
+
+        try {
+            // Find indices
+            const draggedIndex = spoolWelds.findIndex(w => w.id === draggedWeldId)
+            const targetIndex = spoolWelds.findIndex(w => w.id === targetWeldId)
+
+            if (draggedIndex === -1 || targetIndex === -1) return
+
+            // Reorder array
+            const reordered = [...spoolWelds]
+            const [removed] = reordered.splice(draggedIndex, 1)
+            reordered.splice(targetIndex, 0, removed)
+
+            // Get weld IDs in new order
+            const weldIds = reordered.map(w => w.id)
+
+            // Update backend
+            const revisionId = spoolWelds[0]?.revision_id
+            if (revisionId) {
+                await reorderWelds(revisionId, weldIds)
+
+                // Refresh details
+                const refreshedDetails = await getIsometricDetails(revisionId)
+                setDetails(refreshedDetails)
+            }
+        } catch (error) {
+            console.error('Error reordering welds:', error)
+            alert('Error al reordenar las uniones')
+        } finally {
+            setDraggedWeldId(null)
+        }
+    }
+
     const handleJointToggle = async (jointId: string, currentStatus: boolean) => {
         try {
             setDetails(prev => {
@@ -2483,13 +2540,26 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
         <div className="relative min-h-screen pb-20">
             {/* Search Bar */}
             <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-300 sticky top-0 z-10 mb-6">
-                <input
-                    type="text"
-                    placeholder="Buscar isométrico..."
-                    value={searchTerm}
-                    onChange={e => setSearchTerm(e.target.value)}
-                    className="w-full bg-gray-50 border border-gray-300 rounded-lg px-4 py-3 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
-                />
+                <div className="flex items-center gap-3">
+                    <input
+                        type="text"
+                        placeholder="Buscar isométrico..."
+                        value={searchTerm}
+                        onChange={e => setSearchTerm(e.target.value)}
+                        className="flex-1 bg-gray-50 border border-gray-300 rounded-lg px-4 py-3 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                    />
+
+                    {/* Drag & Drop Toggle */}
+                    <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg">
+                        <span className="text-xs font-medium text-gray-700 whitespace-nowrap">Reordenar</span>
+                        <button
+                            onClick={() => setIsDragDropEnabled(!isDragDropEnabled)}
+                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${isDragDropEnabled ? 'bg-emerald-500' : 'bg-gray-300'}`}
+                        >
+                            <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-lg transition-transform ${isDragDropEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                        </button>
+                    </div>
+                </div>
             </div>
 
             {/* Isometric List */}
@@ -2788,58 +2858,73 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
 
                                                                                             {/* Weld Card */}
                                                                                             <div
-                                                                                                onClick={() => setSelectedWeld(weld)}
-                                                                                                className={`p-3 rounded-lg border flex justify-between items-center shadow-sm cursor-pointer hover:shadow-md transition-all ${getCardBgClass()}`}
+                                                                                                draggable={isDragDropEnabled}
+                                                                                                onDragStart={(e) => handleWeldDragStart(e, weld.id)}
+                                                                                                onDragOver={handleWeldDragOver}
+                                                                                                onDrop={(e) => handleWeldDrop(e, weld.id, spool.welds)}
+                                                                                                onClick={() => !isDragDropEnabled && setSelectedWeld(weld)}
+                                                                                                className={`p-3 rounded-lg border flex justify-between items-center shadow-sm transition-all ${getCardBgClass()} ${isDragDropEnabled
+                                                                                                    ? 'cursor-grab active:cursor-grabbing hover:scale-[1.02]'
+                                                                                                    : 'cursor-pointer hover:shadow-md'
+                                                                                                    } ${draggedWeldId === weld.id ? 'opacity-50' : ''}`}
                                                                                             >
-                                                                                                <div>
-                                                                                                    <div className="font-bold text-gray-800 flex items-center gap-2">
-                                                                                                        {weld.weld_number}
-                                                                                                        <span className={`px-1.5 py-0.5 rounded text-xs font-bold ${weld.destination === 'S' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'
-                                                                                                            }`}>
-                                                                                                            {weld.destination === 'S' ? 'Taller' : 'Campo'}
+                                                                                                <div className="flex items-center gap-2">
+                                                                                                    {/* Drag Handle - Only visible when draggable */}
+                                                                                                    {isDragDropEnabled && (
+                                                                                                        <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                                                                                            <path strokeLinecap="round" strokeLinejoin="round" d="M4 8h16M4 16h16" />
+                                                                                                        </svg>
+                                                                                                    )}
+                                                                                                    <div>
+                                                                                                        <div className="font-bold text-gray-800 flex items-center gap-2">
+                                                                                                            {weld.weld_number}
+                                                                                                            <span className={`px-1.5 py-0.5 rounded text-xs font-bold ${weld.destination === 'S' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'
+                                                                                                                }`}>
+                                                                                                                {weld.destination === 'S' ? 'Taller' : 'Campo'}
+                                                                                                            </span>
+                                                                                                            {/* Rework Badge */}
+                                                                                                            {weld.rework_count > 0 && (
+                                                                                                                <span className="px-1.5 py-0.5 rounded text-xs font-bold bg-orange-100 text-orange-700 border border-orange-200">
+                                                                                                                    R{weld.rework_count}
+                                                                                                                </span>
+                                                                                                            )}
+                                                                                                            {/* Deleted Badge */}
+                                                                                                            {weld.deleted && (
+                                                                                                                <span className="px-1.5 py-0.5 rounded text-xs font-bold bg-red-100 text-red-700 border border-red-200">
+                                                                                                                    ELIMINADA
+                                                                                                                </span>
+                                                                                                            )}
+                                                                                                        </div>
+                                                                                                        <div className="text-xs text-gray-600">{weld.type_weld} - {weld.nps}"</div>
+                                                                                                    </div>
+                                                                                                    <div className="flex flex-col items-end gap-2">
+                                                                                                        <span
+                                                                                                            className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all ${weld.deleted
+                                                                                                                ? 'bg-red-100 text-red-700 border border-red-200'
+                                                                                                                : weld.executed
+                                                                                                                    ? 'bg-green-100 text-green-700 border border-green-200'
+                                                                                                                    : 'bg-gray-200 text-gray-700 border border-gray-300'
+                                                                                                                }`}
+                                                                                                        >
+                                                                                                            {weld.deleted ? 'ELIMINADA' : weld.executed ? 'EJECUTADO' : 'PENDIENTE'}
                                                                                                         </span>
-                                                                                                        {/* Rework Badge */}
-                                                                                                        {weld.rework_count > 0 && (
-                                                                                                            <span className="px-1.5 py-0.5 rounded text-xs font-bold bg-orange-100 text-orange-700 border border-orange-200">
-                                                                                                                R{weld.rework_count}
-                                                                                                            </span>
-                                                                                                        )}
-                                                                                                        {/* Deleted Badge */}
-                                                                                                        {weld.deleted && (
-                                                                                                            <span className="px-1.5 py-0.5 rounded text-xs font-bold bg-red-100 text-red-700 border border-red-200">
-                                                                                                                ELIMINADA
-                                                                                                            </span>
+                                                                                                        {/* Reportar button for pending welds (not deleted) */}
+                                                                                                        {!weld.executed && !weld.deleted && (
+                                                                                                            <button
+                                                                                                                onClick={(e) => {
+                                                                                                                    e.stopPropagation()
+                                                                                                                    setWeldForExecution(weld)
+                                                                                                                    setShowExecutionModal(true)
+                                                                                                                }}
+                                                                                                                className="px-3 py-1 bg-green-600 text-white rounded-lg text-xs font-medium hover:bg-green-700 transition-colors flex items-center gap-1"
+                                                                                                            >
+                                                                                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                                                                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                                                                                                </svg>
+                                                                                                                Reportar
+                                                                                                            </button>
                                                                                                         )}
                                                                                                     </div>
-                                                                                                    <div className="text-xs text-gray-600">{weld.type_weld} - {weld.nps}"</div>
-                                                                                                </div>
-                                                                                                <div className="flex flex-col items-end gap-2">
-                                                                                                    <span
-                                                                                                        className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all ${weld.deleted
-                                                                                                            ? 'bg-red-100 text-red-700 border border-red-200'
-                                                                                                            : weld.executed
-                                                                                                                ? 'bg-green-100 text-green-700 border border-green-200'
-                                                                                                                : 'bg-gray-200 text-gray-700 border border-gray-300'
-                                                                                                            }`}
-                                                                                                    >
-                                                                                                        {weld.deleted ? 'ELIMINADA' : weld.executed ? 'EJECUTADO' : 'PENDIENTE'}
-                                                                                                    </span>
-                                                                                                    {/* Reportar button for pending welds (not deleted) */}
-                                                                                                    {!weld.executed && !weld.deleted && (
-                                                                                                        <button
-                                                                                                            onClick={(e) => {
-                                                                                                                e.stopPropagation()
-                                                                                                                setWeldForExecution(weld)
-                                                                                                                setShowExecutionModal(true)
-                                                                                                            }}
-                                                                                                            className="px-3 py-1 bg-green-600 text-white rounded-lg text-xs font-medium hover:bg-green-700 transition-colors flex items-center gap-1"
-                                                                                                        >
-                                                                                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                                                                                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                                                                                            </svg>
-                                                                                                            Reportar
-                                                                                                        </button>
-                                                                                                    )}
                                                                                                 </div>
                                                                                             </div>
                                                                                         </div>
@@ -2865,12 +2950,14 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
                                                                                     </button>
                                                                                 </div>
                                                                             </div>
-                                                                        )}
+                                                                        )
+                                                                        }
                                                                     </div>
                                                                 )
                                                             })}
                                                         </div>
-                                                    )}
+                                                    )
+                                                    }
 
                                                     {activeTab === 'SPOOLS' && (
                                                         <div className="space-y-3">
@@ -2941,129 +3028,143 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
             </div>
 
             {/* Modales */}
-            {selectedWeld && (
-                <WeldDetailModal
-                    weld={selectedWeld}
-                    projectId={projectId}
-                    onClose={() => setSelectedWeld(null)}
-                    onUpdate={handleWeldUpdate}
-                    onRework={(weld) => {
-                        setSelectedWeld(null) // Close detail modal
-                        setWeldForRework(weld)
-                        setShowReworkModal(true)
-                    }}
-                    onDelete={(weld) => {
-                        setSelectedWeld(null) // Close detail modal
-                        setWeldForDelete(weld)
-                        setShowDeleteModal(true)
-                    }}
-                    onRestore={handleRestoreWeld}
-                    onUndo={(weld) => {
-                        setSelectedWeld(null) // Close detail modal
-                        setWeldForUndo(weld)
-                        setShowUndoModal(true)
-                    }}
-                    onRefresh={async () => {
-                        // Reload isometric details
-                        if (selectedRevisionId) {
-                            const refreshedDetails = await getIsometricDetails(selectedRevisionId)
-                            setDetails(refreshedDetails)
-                        }
-                    }}
-                />
-            )}
+            {
+                selectedWeld && (
+                    <WeldDetailModal
+                        weld={selectedWeld}
+                        projectId={projectId}
+                        onClose={() => setSelectedWeld(null)}
+                        onUpdate={handleWeldUpdate}
+                        onRework={(weld) => {
+                            setSelectedWeld(null) // Close detail modal
+                            setWeldForRework(weld)
+                            setShowReworkModal(true)
+                        }}
+                        onDelete={(weld) => {
+                            setSelectedWeld(null) // Close detail modal
+                            setWeldForDelete(weld)
+                            setShowDeleteModal(true)
+                        }}
+                        onRestore={handleRestoreWeld}
+                        onUndo={(weld) => {
+                            setSelectedWeld(null) // Close detail modal
+                            setWeldForUndo(weld)
+                            setShowUndoModal(true)
+                        }}
+                        onRefresh={async () => {
+                            // Reload isometric details
+                            if (selectedRevisionId) {
+                                const refreshedDetails = await getIsometricDetails(selectedRevisionId)
+                                setDetails(refreshedDetails)
+                            }
+                        }}
+                    />
+                )
+            }
 
-            {showExecutionModal && weldForExecution && (
-                <ExecutionReportModal
-                    weld={weldForExecution}
-                    projectId={projectId}
-                    onClose={() => {
-                        setShowExecutionModal(false)
-                        setWeldForExecution(null)
-                    }}
-                    onSubmit={handleExecutionReport}
-                />
-            )}
+            {
+                showExecutionModal && weldForExecution && (
+                    <ExecutionReportModal
+                        weld={weldForExecution}
+                        projectId={projectId}
+                        onClose={() => {
+                            setShowExecutionModal(false)
+                            setWeldForExecution(null)
+                        }}
+                        onSubmit={handleExecutionReport}
+                    />
+                )
+            }
 
             {/* Rework Modal */}
-            {showReworkModal && weldForRework && (
-                <ReworkModal
-                    weld={weldForRework}
-                    projectId={projectId}
-                    onClose={() => {
-                        setShowReworkModal(false)
-                        setWeldForRework(null)
-                    }}
-                    onSubmit={handleRework}
-                />
-            )}
+            {
+                showReworkModal && weldForRework && (
+                    <ReworkModal
+                        weld={weldForRework}
+                        projectId={projectId}
+                        onClose={() => {
+                            setShowReworkModal(false)
+                            setWeldForRework(null)
+                        }}
+                        onSubmit={handleRework}
+                    />
+                )
+            }
 
             {/* Delete Weld Modal */}
-            {showDeleteModal && weldForDelete && (
-                <DeleteWeldModal
-                    weld={weldForDelete}
-                    onClose={() => {
-                        setShowDeleteModal(false)
-                        setWeldForDelete(null)
-                    }}
-                    onSubmit={handleDeleteWeld}
-                />
-            )}
+            {
+                showDeleteModal && weldForDelete && (
+                    <DeleteWeldModal
+                        weld={weldForDelete}
+                        onClose={() => {
+                            setShowDeleteModal(false)
+                            setWeldForDelete(null)
+                        }}
+                        onSubmit={handleDeleteWeld}
+                    />
+                )
+            }
 
             {/* Undo Execution Modal */}
-            {showUndoModal && weldForUndo && (
-                <UndoExecutionModal
-                    weld={weldForUndo}
-                    onClose={() => {
-                        setShowUndoModal(false)
-                        setWeldForUndo(null)
-                    }}
-                    onSubmit={handleUndoExecution}
-                />
-            )}
+            {
+                showUndoModal && weldForUndo && (
+                    <UndoExecutionModal
+                        weld={weldForUndo}
+                        onClose={() => {
+                            setShowUndoModal(false)
+                            setWeldForUndo(null)
+                        }}
+                        onSubmit={handleUndoExecution}
+                    />
+                )
+            }
 
             {/* Add Weld Modal */}
-            {showAddWeldModal && addWeldContext && (
-                <AddWeldModal
-                    adjacentWelds={addWeldAdjacentWelds}
-                    revisionId={addWeldContext.revisionId}
-                    projectId={addWeldContext.projectId}
-                    isoNumber={addWeldContext.isoNumber}
-                    rev={addWeldContext.rev}
-                    onClose={() => {
-                        setShowAddWeldModal(false)
-                        setAddWeldContext(null)
-                    }}
-                    onSubmit={handleNewWeldCreated}
-                />
-            )}
+            {
+                showAddWeldModal && addWeldContext && (
+                    <AddWeldModal
+                        adjacentWelds={addWeldAdjacentWelds}
+                        revisionId={addWeldContext.revisionId}
+                        projectId={addWeldContext.projectId}
+                        isoNumber={addWeldContext.isoNumber}
+                        rev={addWeldContext.rev}
+                        onClose={() => {
+                            setShowAddWeldModal(false)
+                            setAddWeldContext(null)
+                        }}
+                        onSubmit={handleNewWeldCreated}
+                    />
+                )
+            }
 
             {/* PDF Viewer Modal */}
-            {showPdfViewer && selectedPdfUrl && (
-                <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
-                    <div className="bg-white rounded-xl w-full max-w-4xl h-[90vh] flex flex-col">
-                        <div className="flex justify-between items-center p-4 border-b">
-                            <h3 className="text-lg font-bold text-gray-900">Visor de PDF</h3>
-                            <button
-                                onClick={() => {
-                                    setShowPdfViewer(false)
-                                    setSelectedPdfUrl(null)
-                                }}
-                                className="text-gray-700 hover:text-gray-700 text-2xl font-bold"
-                            >
-                                ×
-                            </button>
-                        </div>
-                        <div className="flex-1 overflow-hidden">
-                            <iframe
-                                src={selectedPdfUrl}
-                                className="w-full h-full"
-                                title="PDF Viewer"
-                            />
+            {
+                showPdfViewer && selectedPdfUrl && (
+                    <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
+                        <div className="bg-white rounded-xl w-full max-w-4xl h-[90vh] flex flex-col">
+                            <div className="flex justify-between items-center p-4 border-b">
+                                <h3 className="text-lg font-bold text-gray-900">Visor de PDF</h3>
+                                <button
+                                    onClick={() => {
+                                        setShowPdfViewer(false)
+                                        setSelectedPdfUrl(null)
+                                    }}
+                                    className="text-gray-700 hover:text-gray-700 text-2xl font-bold"
+                                >
+                                    ×
+                                </button>
+                            </div>
+                            <div className="flex-1 overflow-hidden">
+                                <iframe
+                                    src={selectedPdfUrl}
+                                    className="w-full h-full"
+                                    title="PDF Viewer"
+                                />
+                            </div>
                         </div>
                     </div>
-                </div>
-            )}
+                )
+            }
 
             {/* Bottom Navigation Bar */}
             <div className="fixed bottom-0 left-0 right-0 z-40">

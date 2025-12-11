@@ -16,7 +16,7 @@ export async function getIsometricDetails(revisionId: string): Promise<Isometric
         .from('spools_welds')
         .select('*')
         .eq('revision_id', revisionId)
-        .order('weld_number', { ascending: true });
+        .order('display_order', { ascending: true });
 
     if (weldsError) throw weldsError;
 
@@ -424,4 +424,40 @@ export async function createFieldWeld(
     }
 
     return newWeld;
+}
+
+/**
+ * Update weld display order
+ * Used for drag & drop reordering
+ */
+export async function updateWeldOrder(weldId: string, newOrder: number): Promise<void> {
+    const { error } = await supabase
+        .from('spools_welds')
+        .update({ display_order: newOrder })
+        .eq('id', weldId);
+
+    if (error) throw error;
+}
+
+/**
+ * Reorder welds in a revision
+ * Takes array of weld IDs in new order and updates display_order accordingly
+ */
+export async function reorderWelds(revisionId: string, weldIds: string[]): Promise<void> {
+    // Update each weld's display_order based on its position in the array
+    const updates = weldIds.map((weldId, index) =>
+        supabase
+            .from('spools_welds')
+            .update({ display_order: index + 1 })
+            .eq('id', weldId)
+            .eq('revision_id', revisionId)
+    );
+
+    const results = await Promise.all(updates);
+
+    // Check for errors
+    const errors = results.filter(r => r.error);
+    if (errors.length > 0) {
+        throw new Error(`Failed to reorder ${errors.length} welds`);
+    }
 }
