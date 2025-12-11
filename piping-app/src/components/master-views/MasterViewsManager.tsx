@@ -73,6 +73,7 @@ function WeldDetailModal({ weld, projectId, onClose, onUpdate, onRework, onDelet
     const [foremanInfo, setForemanInfo] = useState<{ nombre: string } | null>(null)
     const [reporterInfo, setReporterInfo] = useState<{ email: string } | null>(null)
     const [deletedByInfo, setDeletedByInfo] = useState<{ nombre: string } | null>(null)
+    const [createdByInfo, setCreatedByInfo] = useState<{ nombre: string } | null>(null)
 
     // Execution history
     const [executionHistory, setExecutionHistory] = useState<WeldExecution[]>([])
@@ -154,6 +155,19 @@ function WeldDetailModal({ weld, projectId, onClose, onUpdate, onRework, onDelet
 
                 if (deleter) {
                     setDeletedByInfo({ nombre: deleter.nombre })
+                }
+            }
+
+            // Load created_by info if weld has creation info
+            if (weld.created_by && weld.creation_type === 'TERRENO') {
+                const { data: creator } = await supabase
+                    .from('users')
+                    .select('nombre')
+                    .eq('id', weld.created_by)
+                    .single()
+
+                if (creator) {
+                    setCreatedByInfo({ nombre: creator.nombre })
                 }
             }
         }
@@ -299,6 +313,33 @@ function WeldDetailModal({ weld, projectId, onClose, onUpdate, onRework, onDelet
                                 <DetailRow label="Material" value={formData.material} />
                                 <DetailRow label="Destino" value={getDestinationText(formData.destination)} />
                             </div>
+
+                            {/* Created from Field Info Section - Only show for TERRENO created welds */}
+                            {weld.creation_type === 'TERRENO' && (
+                                <div className="mt-4 pt-4 border-t border-emerald-200 space-y-2">
+                                    <h4 className="text-xs font-bold text-emerald-700 uppercase tracking-wider flex items-center gap-2">
+                                        <span className="w-2 h-2 bg-emerald-600 rounded-full"></span>
+                                        Creada en Terreno
+                                    </h4>
+                                    <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 space-y-1">
+                                        {createdByInfo && (
+                                            <p className="text-sm text-emerald-700">
+                                                <strong>Creada por:</strong> {createdByInfo.nombre}
+                                            </p>
+                                        )}
+                                        {weld.creation_reason && (
+                                            <p className="text-sm text-emerald-700">
+                                                <strong>Motivo:</strong> {weld.creation_reason}
+                                            </p>
+                                        )}
+                                        {weld.created_at && (
+                                            <p className="text-sm text-emerald-700">
+                                                <strong>Fecha:</strong> {new Date(weld.created_at).toLocaleString('es-CL')}
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
 
                             {/* Deleted Weld Info Section - Only show if deleted */}
                             {weld.deleted && (
