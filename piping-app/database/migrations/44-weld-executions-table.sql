@@ -8,7 +8,11 @@ EXCEPTION
     WHEN duplicate_object THEN null;
 END $$;
 
--- 2. Create weld_executions table
+-- 2. Add rework_count to spools_welds FIRST (before creating table that references it)
+ALTER TABLE spools_welds 
+ADD COLUMN IF NOT EXISTS rework_count INT NOT NULL DEFAULT 0;
+
+-- 3. Create weld_executions table
 CREATE TABLE IF NOT EXISTS weld_executions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     weld_id UUID NOT NULL REFERENCES spools_welds(id) ON DELETE CASCADE,
@@ -35,11 +39,7 @@ CREATE TABLE IF NOT EXISTS weld_executions (
     UNIQUE(weld_id, version)
 );
 
--- 3. Add rework_count to spools_welds
-ALTER TABLE spools_welds 
-ADD COLUMN IF NOT EXISTS rework_count INT NOT NULL DEFAULT 0;
-
--- 4. Add current_execution_id to spools_welds
+-- 4. Add current_execution_id to spools_welds (after table creation)
 ALTER TABLE spools_welds 
 ADD COLUMN IF NOT EXISTS current_execution_id UUID REFERENCES weld_executions(id);
 
@@ -47,18 +47,18 @@ ADD COLUMN IF NOT EXISTS current_execution_id UUID REFERENCES weld_executions(id
 CREATE INDEX IF NOT EXISTS idx_weld_executions_weld_id ON weld_executions(weld_id);
 CREATE INDEX IF NOT EXISTS idx_weld_executions_status ON weld_executions(status);
 
--- 6. Add RLS policies
+-- 6. Add RLS policies (drop first if they exist)
 ALTER TABLE weld_executions ENABLE ROW LEVEL SECURITY;
 
--- Policy: Allow authenticated users to read all executions
+DROP POLICY IF EXISTS "weld_executions_select_policy" ON weld_executions;
 CREATE POLICY "weld_executions_select_policy" ON weld_executions
     FOR SELECT TO authenticated USING (true);
 
--- Policy: Allow authenticated users to insert executions
+DROP POLICY IF EXISTS "weld_executions_insert_policy" ON weld_executions;
 CREATE POLICY "weld_executions_insert_policy" ON weld_executions
     FOR INSERT TO authenticated WITH CHECK (true);
 
--- Policy: Allow authenticated users to update executions
+DROP POLICY IF EXISTS "weld_executions_update_policy" ON weld_executions;
 CREATE POLICY "weld_executions_update_policy" ON weld_executions
     FOR UPDATE TO authenticated USING (true);
 

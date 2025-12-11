@@ -21,8 +21,11 @@ interface MasterViewsManagerProps {
 
 interface WeldDetailModal {
     weld: any
+    projectId: string
     onClose: () => void
     onUpdate: (weldId: string, updates: any) => void
+    onRework: (weld: any) => void
+    onRefresh: () => void
 }
 
 interface ExecutionReportModal {
@@ -44,7 +47,7 @@ interface WeldsBySpool {
 }
 
 // Modal de Detalles de Soldadura con Edición
-function WeldDetailModal({ weld, onClose, onUpdate }: WeldDetailModal) {
+function WeldDetailModal({ weld, projectId, onClose, onUpdate, onRework, onRefresh }: WeldDetailModal) {
     const [editMode, setEditMode] = useState(false)
     const [formData, setFormData] = useState({
         weld_number: weld.weld_number,
@@ -61,9 +64,24 @@ function WeldDetailModal({ weld, onClose, onUpdate }: WeldDetailModal) {
     const [welderInfo, setWelderInfo] = useState<{ nombre: string; estampa: string } | null>(null)
     const [foremanInfo, setForemanInfo] = useState<{ nombre: string } | null>(null)
 
-    // Load personnel names when modal opens (if executed)
+    // Execution history
+    const [executionHistory, setExecutionHistory] = useState<WeldExecution[]>([])
+    const [loadingHistory, setLoadingHistory] = useState(false)
+
+    // Load personnel names and execution history when modal opens
     useEffect(() => {
-        const loadPersonnelNames = async () => {
+        const loadData = async () => {
+            // Load execution history
+            setLoadingHistory(true)
+            try {
+                const history = await getWeldExecutions(weld.id)
+                setExecutionHistory(history)
+            } catch (error) {
+                console.error('Error loading execution history:', error)
+            }
+            setLoadingHistory(false)
+
+            // Load personnel names if executed
             if (!weld.executed) return
 
             const welderRut = weld.welder_id || weld.executed_by
@@ -77,7 +95,6 @@ function WeldDetailModal({ weld, onClose, onUpdate }: WeldDetailModal) {
                     .single()
 
                 if (welder) {
-                    // Also get estampa from soldadores table
                     const { data: soldador } = await supabase
                         .from('soldadores')
                         .select('estampa')
@@ -104,7 +121,7 @@ function WeldDetailModal({ weld, onClose, onUpdate }: WeldDetailModal) {
             }
         }
 
-        loadPersonnelNames()
+        loadData()
     }, [weld])
 
     const handleSave = async () => {
@@ -118,14 +135,31 @@ function WeldDetailModal({ weld, onClose, onUpdate }: WeldDetailModal) {
         return dest || '-'
     }
 
+    const getResponsibilityLabel = (resp: string) => {
+        switch (resp) {
+            case 'TERRENO': return 'Terreno'
+            case 'INGENIERIA': return 'Ingeniería'
+            case 'RECHAZO_END': return 'Rechazo END'
+            default: return resp
+        }
+    }
+
     return (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={onClose}>
             <div className="bg-white rounded-xl w-full max-w-lg shadow-2xl" onClick={(e) => e.stopPropagation()}>
                 {/* Header */}
                 <div className="p-4 border-b border-gray-300 flex justify-between items-center bg-gradient-to-r from-blue-50 to-indigo-50">
-                    <div>
-                        <h3 className="text-lg font-bold text-gray-900">Detalle de Unión</h3>
-                        <p className="text-sm text-gray-600">{formData.weld_number}</p>
+                    <div className="flex items-center gap-3">
+                        <div>
+                            <h3 className="text-lg font-bold text-gray-900">Detalle de Unión</h3>
+                            <p className="text-sm text-gray-600">{formData.weld_number}</p>
+                        </div>
+                        {/* Rework count badge */}
+                        {weld.rework_count > 0 && (
+                            <span className="px-2 py-1 rounded text-xs font-bold bg-orange-100 text-orange-700 border border-orange-200">
+                                R{weld.rework_count}
+                            </span>
+                        )}
                     </div>
                     <button onClick={onClose} className="text-gray-700 hover:text-gray-700 text-2xl font-bold">
                         ×
@@ -229,32 +263,70 @@ function WeldDetailModal({ weld, onClose, onUpdate }: WeldDetailModal) {
                                 <DetailRow label="Destino" value={getDestinationText(formData.destination)} />
                             </div>
 
-                            {/* Field Execution Data Section - Only show if executed */}
-                            {weld.executed && (
+                            {/* Field Execution Data Section - Only show if executed OR has history */}
+                            {(weld.executed || executionHistory.length > 0) && (
                                 <div className="mt-4 pt-4 border-t border-gray-300 space-y-3">
                                     <h4 className="text-xs font-bold text-green-700 uppercase tracking-wider flex items-center gap-2">
                                         <span className="w-2 h-2 bg-green-600 rounded-full"></span>
                                         Datos Terreno
                                     </h4>
-                                    <div className="bg-green-100 border border-green-300 rounded-lg p-3 space-y-2">
-                                        <DetailRow
-                                            label="Fecha Ejecución"
-                                            value={weld.execution_date ? new Date(weld.execution_date).toLocaleDateString('es-CL') : '-'}
-                                        />
-                                        <DetailRow
-                                            label="Soldador"
-                                            value={welderInfo ? `[${welderInfo.estampa}] ${welderInfo.nombre}` : 'Cargando...'}
-                                        />
-                                        <DetailRow
-                                            label="Capataz"
-                                            value={foremanInfo?.nombre || 'Cargando...'}
-                                        />
-                                    </div>
+
+                                    {/* Current Execution (if executed) */}
+                                    {weld.executed && (
+                                        <div className="bg-green-100 border border-green-300 rounded-lg p-3 space-y-2">
+                                            <div className="flex justify-between items-center mb-2">
+                                                <span className="text-xs font-bold text-green-700">Ejecución Actual</span>
+                                                <span className="px-2 py-0.5 bg-green-600 text-white text-xs rounded font-bold">VIGENTE</span>
+                                            </div>
+                                            <DetailRow
+                                                label="Fecha Ejecución"
+                                                value={weld.execution_date ? new Date(weld.execution_date).toLocaleDateString('es-CL') : '-'}
+                                            />
+                                            <DetailRow
+                                                label="Soldador"
+                                                value={welderInfo ? `[${welderInfo.estampa}] ${welderInfo.nombre}` : 'Cargando...'}
+                                            />
+                                            <DetailRow
+                                                label="Capataz"
+                                                value={foremanInfo?.nombre || 'Cargando...'}
+                                            />
+                                        </div>
+                                    )}
+
+                                    {/* Execution History */}
+                                    {executionHistory.length > 0 && (
+                                        <div className="mt-3">
+                                            <p className="text-xs font-semibold text-gray-600 mb-2">Historial de Ejecuciones</p>
+                                            <div className="space-y-2">
+                                                {executionHistory.filter(e => e.status === 'RETRABAJO').map((execution) => (
+                                                    <div
+                                                        key={execution.id}
+                                                        className="bg-orange-50 border border-orange-200 rounded-lg p-2 text-sm"
+                                                    >
+                                                        <div className="flex justify-between items-center">
+                                                            <span className="font-medium text-orange-800">
+                                                                v{execution.version} - {new Date(execution.execution_date).toLocaleDateString('es-CL')}
+                                                            </span>
+                                                            <span className="px-2 py-0.5 bg-orange-200 text-orange-700 text-xs rounded font-bold">
+                                                                RETRABAJO
+                                                            </span>
+                                                        </div>
+                                                        {execution.rework_responsibility && (
+                                                            <p className="text-xs text-orange-600 mt-1">
+                                                                <strong>Motivo:</strong> {getResponsibilityLabel(execution.rework_responsibility)}
+                                                                {execution.rework_reason && ` - ${execution.rework_reason}`}
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             )}
 
                             {/* Not Executed Badge */}
-                            {!weld.executed && (
+                            {!weld.executed && executionHistory.length === 0 && (
                                 <div className="mt-4 pt-4 border-t border-gray-300">
                                     <div className="bg-gray-100 border border-gray-300 rounded-lg p-3 text-center">
                                         <span className="text-sm text-gray-600 font-medium">⏳ Pendiente de Ejecución</span>
@@ -284,12 +356,26 @@ function WeldDetailModal({ weld, onClose, onUpdate }: WeldDetailModal) {
                         </>
                     ) : (
                         <>
-                            <button
-                                onClick={() => setEditMode(true)}
-                                className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
-                            >
-                                ✏️ Editar
-                            </button>
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={() => setEditMode(true)}
+                                    className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
+                                >
+                                    ✏️ Editar
+                                </button>
+                                {/* Rework button - only for executed welds */}
+                                {weld.executed && (
+                                    <button
+                                        onClick={() => onRework(weld)}
+                                        className="px-4 py-2 bg-orange-500 text-white rounded-lg font-medium hover:bg-orange-600 transition-colors flex items-center gap-1"
+                                    >
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                        </svg>
+                                        Retrabajo
+                                    </button>
+                                )}
+                            </div>
                             <button
                                 onClick={onClose}
                                 className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300 transition-colors"
@@ -666,25 +752,87 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 // Modal de Retrabajo
 interface ReworkModalProps {
     weld: any
+    projectId: string
     onClose: () => void
-    onSubmit: (responsibility: ReworkResponsibility, reason: string) => Promise<void>
+    onSubmit: (responsibility: ReworkResponsibility, reason: string, executionData?: { fecha: string; welderId: string; foremanId: string }) => Promise<void>
 }
 
 const REWORK_OPTIONS: { value: ReworkResponsibility; label: string; description: string }[] = [
-    { value: 'TERRENO', label: 'Terreno', description: 'Error al construir' },
+    { value: 'TERRENO', label: 'Terreno', description: 'Error al construir (incluye nueva ejecución)' },
     { value: 'INGENIERIA', label: 'Ingeniería', description: 'Interferencias / Cambios de revisión' },
     { value: 'RECHAZO_END', label: 'Rechazo END', description: 'Rechazo por parte de Calidad' },
 ]
 
-function ReworkModal({ weld, onClose, onSubmit }: ReworkModalProps) {
+function ReworkModal({ weld, projectId, onClose, onSubmit }: ReworkModalProps) {
     const [responsibility, setResponsibility] = useState<ReworkResponsibility>('TERRENO')
     const [reason, setReason] = useState('')
     const [submitting, setSubmitting] = useState(false)
 
+    // Execution fields for TERRENO
+    const [fecha, setFecha] = useState(new Date().toISOString().split('T')[0])
+    const [capataces, setCapataces] = useState<any[]>([])
+    const [soldadores, setSoldadores] = useState<any[]>([])
+    const [selectedCapataz, setSelectedCapataz] = useState('')
+    const [selectedSoldador, setSelectedSoldador] = useState('')
+    const [loadingPersonnel, setLoadingPersonnel] = useState(false)
+
+    // Load personnel when TERRENO is selected
+    useEffect(() => {
+        if (responsibility === 'TERRENO') {
+            loadCapataces()
+        }
+    }, [responsibility])
+
+    const loadCapataces = async () => {
+        setLoadingPersonnel(true)
+        try {
+            const res = await fetch(`/api/proyectos/${projectId}/personnel?type=capataces`)
+            const data = await res.json()
+            setCapataces(data.capataces || [])
+        } catch (error) {
+            console.error('Error loading capataces:', error)
+        }
+        setLoadingPersonnel(false)
+    }
+
+    const loadSoldadores = async (cuadrillaId?: string) => {
+        try {
+            const url = cuadrillaId
+                ? `/api/proyectos/${projectId}/personnel?type=soldadores&cuadrillaId=${cuadrillaId}`
+                : `/api/proyectos/${projectId}/personnel?type=soldadores&all=true`
+            const res = await fetch(url)
+            const data = await res.json()
+            setSoldadores(data.soldadores || [])
+        } catch (error) {
+            console.error('Error loading soldadores:', error)
+        }
+    }
+
+    const handleCapatazChange = (capatazRut: string) => {
+        setSelectedCapataz(capatazRut)
+        setSelectedSoldador('')
+
+        const capataz = capataces.find(c => c.rut === capatazRut)
+        if (capataz?.cuadrilla_id) {
+            loadSoldadores(capataz.cuadrilla_id)
+        } else {
+            loadSoldadores()
+        }
+    }
+
     const handleSubmit = async () => {
+        // Validate execution fields if TERRENO
+        if (responsibility === 'TERRENO' && (!selectedSoldador || !selectedCapataz)) {
+            alert('Para Retrabajo por Terreno, debes seleccionar soldador y capataz')
+            return
+        }
+
         setSubmitting(true)
         try {
-            await onSubmit(responsibility, reason)
+            const executionData = responsibility === 'TERRENO'
+                ? { fecha, welderId: selectedSoldador, foremanId: selectedCapataz }
+                : undefined
+            await onSubmit(responsibility, reason, executionData)
             onClose()
         } catch (error) {
             console.error('Error marking rework:', error)
@@ -696,9 +844,9 @@ function ReworkModal({ weld, onClose, onSubmit }: ReworkModalProps) {
 
     return (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl">
+            <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl max-h-[90vh] overflow-y-auto">
                 {/* Header */}
-                <div className="p-6 border-b border-gray-200">
+                <div className="p-6 border-b border-gray-200 sticky top-0 bg-white">
                     <div className="flex items-center gap-3">
                         <div className="p-2 bg-orange-100 rounded-lg">
                             <svg className="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -745,6 +893,66 @@ function ReworkModal({ weld, onClose, onSubmit }: ReworkModalProps) {
                         </div>
                     </div>
 
+                    {/* Execution fields for TERRENO */}
+                    {responsibility === 'TERRENO' && (
+                        <div className="bg-green-50 border border-green-200 rounded-lg p-4 space-y-3">
+                            <p className="text-sm font-bold text-green-800 flex items-center gap-2">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                </svg>
+                                Nueva Ejecución
+                            </p>
+
+                            {/* Fecha */}
+                            <div>
+                                <label className="block text-xs font-medium text-green-800 mb-1">Fecha de Ejecución</label>
+                                <input
+                                    type="date"
+                                    value={fecha}
+                                    onChange={(e) => setFecha(e.target.value)}
+                                    className="w-full border border-green-300 rounded-lg px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-green-500 focus:outline-none"
+                                />
+                            </div>
+
+                            {/* Capataz */}
+                            <div>
+                                <label className="block text-xs font-medium text-green-800 mb-1">Capataz *</label>
+                                <select
+                                    value={selectedCapataz}
+                                    onChange={(e) => handleCapatazChange(e.target.value)}
+                                    disabled={loadingPersonnel}
+                                    className="w-full border border-green-300 rounded-lg px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-green-500 focus:outline-none"
+                                >
+                                    <option value="">Seleccionar capataz...</option>
+                                    {capataces.map((c) => (
+                                        <option key={c.rut} value={c.rut}>{c.nombre}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            {/* Soldador */}
+                            <div>
+                                <label className="block text-xs font-medium text-green-800 mb-1">Soldador *</label>
+                                <select
+                                    value={selectedSoldador}
+                                    onChange={(e) => setSelectedSoldador(e.target.value)}
+                                    disabled={!selectedCapataz}
+                                    className="w-full border border-green-300 rounded-lg px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-green-500 focus:outline-none"
+                                >
+                                    <option value="">Seleccionar soldador...</option>
+                                    {soldadores.map((s) => (
+                                        <option key={s.rut} value={s.rut}>
+                                            [{s.estampa}] {s.nombre}
+                                        </option>
+                                    ))}
+                                </select>
+                                {!selectedCapataz && (
+                                    <p className="text-xs text-green-600 mt-1">Selecciona un capataz primero</p>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
                     {/* Motivo */}
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -754,14 +962,14 @@ function ReworkModal({ weld, onClose, onSubmit }: ReworkModalProps) {
                             value={reason}
                             onChange={(e) => setReason(e.target.value)}
                             placeholder="Describe el motivo del retrabajo..."
-                            rows={3}
+                            rows={2}
                             className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-orange-500 focus:outline-none"
                         />
                     </div>
                 </div>
 
                 {/* Footer */}
-                <div className="p-6 border-t border-gray-200 flex gap-3">
+                <div className="p-6 border-t border-gray-200 flex gap-3 sticky bottom-0 bg-white">
                     <button
                         onClick={onClose}
                         disabled={submitting}
@@ -771,7 +979,7 @@ function ReworkModal({ weld, onClose, onSubmit }: ReworkModalProps) {
                     </button>
                     <button
                         onClick={handleSubmit}
-                        disabled={submitting}
+                        disabled={submitting || (responsibility === 'TERRENO' && (!selectedSoldador || !selectedCapataz))}
                         className="flex-1 px-4 py-3 bg-orange-500 hover:bg-orange-600 text-white rounded-xl font-medium transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
                     >
                         {submitting ? (
@@ -781,7 +989,7 @@ function ReworkModal({ weld, onClose, onSubmit }: ReworkModalProps) {
                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                                 </svg>
-                                Confirmar Retrabajo
+                                {responsibility === 'TERRENO' ? 'Registrar y Ejecutar' : 'Confirmar Retrabajo'}
                             </>
                         )}
                     </button>
@@ -1008,35 +1216,74 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
     }
 
     // Handle marking a weld for rework
-    const handleRework = async (responsibility: ReworkResponsibility, reason: string) => {
+    const handleRework = async (
+        responsibility: ReworkResponsibility,
+        reason: string,
+        executionData?: { fecha: string; welderId: string; foremanId: string }
+    ) => {
         if (!weldForRework) return
 
         try {
+            // First, mark the old execution as rework
             await markWeldForRework(weldForRework.id, responsibility, reason)
 
-            // Update local state to reflect the rework
-            setDetails(prev => {
-                if (!prev) return null
-                return {
-                    ...prev,
-                    welds: prev.welds.map(w =>
-                        w.id === weldForRework.id
-                            ? {
-                                ...w,
-                                executed: false,
-                                execution_date: null,
-                                welder_id: null,
-                                foreman_id: null,
-                                rework_count: (w.rework_count || 0) + 1
-                            }
-                            : w
-                    )
-                }
-            })
+            // If TERRENO, also register the new execution immediately
+            if (responsibility === 'TERRENO' && executionData) {
+                await registerWeldExecution(
+                    weldForRework.id,
+                    executionData.welderId,
+                    executionData.foremanId,
+                    executionData.fecha
+                )
 
-            setShowReworkModal(false)
-            setWeldForRework(null)
-            alert('✅ Retrabajo registrado. La unión vuelve a estado PENDIENTE.')
+                // Update local state - weld is now executed again
+                setDetails(prev => {
+                    if (!prev) return null
+                    return {
+                        ...prev,
+                        welds: prev.welds.map(w =>
+                            w.id === weldForRework.id
+                                ? {
+                                    ...w,
+                                    executed: true,
+                                    execution_date: executionData.fecha,
+                                    welder_id: executionData.welderId,
+                                    foreman_id: executionData.foremanId,
+                                    rework_count: (w.rework_count || 0) + 1
+                                }
+                                : w
+                        )
+                    }
+                })
+
+                setShowReworkModal(false)
+                setWeldForRework(null)
+                alert('✅ Retrabajo registrado y nueva ejecución guardada.')
+            } else {
+                // For INGENIERIA and RECHAZO_END, weld goes back to pending
+                setDetails(prev => {
+                    if (!prev) return null
+                    return {
+                        ...prev,
+                        welds: prev.welds.map(w =>
+                            w.id === weldForRework.id
+                                ? {
+                                    ...w,
+                                    executed: false,
+                                    execution_date: null,
+                                    welder_id: null,
+                                    foreman_id: null,
+                                    rework_count: (w.rework_count || 0) + 1
+                                }
+                                : w
+                        )
+                    }
+                })
+
+                setShowReworkModal(false)
+                setWeldForRework(null)
+                alert('✅ Retrabajo registrado. La unión vuelve a estado PENDIENTE.')
+            }
         } catch (error) {
             console.error('Error marking rework:', error)
             throw error
@@ -1487,22 +1734,6 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
                                                                                                     Reportar
                                                                                                 </button>
                                                                                             )}
-                                                                                            {/* Retrabajo button for executed welds */}
-                                                                                            {weld.executed && (
-                                                                                                <button
-                                                                                                    onClick={(e) => {
-                                                                                                        e.stopPropagation()
-                                                                                                        setWeldForRework(weld)
-                                                                                                        setShowReworkModal(true)
-                                                                                                    }}
-                                                                                                    className="px-3 py-1 bg-orange-500 text-white rounded-lg text-xs font-medium hover:bg-orange-600 transition-colors flex items-center gap-1"
-                                                                                                >
-                                                                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                                                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                                                                                                    </svg>
-                                                                                                    Retrabajo
-                                                                                                </button>
-                                                                                            )}
                                                                                         </div>
                                                                                     </div>
                                                                                 ))}
@@ -1586,8 +1817,21 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
             {selectedWeld && (
                 <WeldDetailModal
                     weld={selectedWeld}
+                    projectId={projectId}
                     onClose={() => setSelectedWeld(null)}
                     onUpdate={handleWeldUpdate}
+                    onRework={(weld) => {
+                        setSelectedWeld(null) // Close detail modal
+                        setWeldForRework(weld)
+                        setShowReworkModal(true)
+                    }}
+                    onRefresh={async () => {
+                        // Reload isometric details
+                        if (selectedRevisionId) {
+                            const refreshedDetails = await getIsometricDetails(selectedRevisionId)
+                            setDetails(refreshedDetails)
+                        }
+                    }}
                 />
             )}
 
@@ -1607,6 +1851,7 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
             {showReworkModal && weldForRework && (
                 <ReworkModal
                     weld={weldForRework}
+                    projectId={projectId}
                     onClose={() => {
                         setShowReworkModal(false)
                         setWeldForRework(null)
