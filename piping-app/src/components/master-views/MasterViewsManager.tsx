@@ -1182,6 +1182,9 @@ function groupWeldsBySpool(welds: any[]): WeldsBySpool[] {
         const spool = spoolMap.get(spoolNumber)!
         spool.welds.push(weld)
 
+        // Skip deleted welds from counts
+        if (weld.deleted) return
+
         // Contar soldaduras de taller (S = Shop)
         if (weld.destination === 'S') {
             spool.shop_welds_total++
