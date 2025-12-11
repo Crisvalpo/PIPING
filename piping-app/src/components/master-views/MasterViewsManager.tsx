@@ -772,14 +772,17 @@ function ReworkModal({ weld, projectId, onClose, onSubmit }: ReworkModalProps) {
     const [fecha, setFecha] = useState(new Date().toISOString().split('T')[0])
     const [capataces, setCapataces] = useState<any[]>([])
     const [soldadores, setSoldadores] = useState<any[]>([])
+    const [allSoldadores, setAllSoldadores] = useState<any[]>([])
     const [selectedCapataz, setSelectedCapataz] = useState('')
     const [selectedSoldador, setSelectedSoldador] = useState('')
     const [loadingPersonnel, setLoadingPersonnel] = useState(false)
+    const [showAllSoldadores, setShowAllSoldadores] = useState(false)
 
     // Load personnel when modal opens (TERRENO is default)
     useEffect(() => {
         if (responsibility === 'TERRENO') {
             loadCapataces()
+            loadAllSoldadores()
         }
     }, [responsibility, projectId])
 
@@ -793,6 +796,16 @@ function ReworkModal({ weld, projectId, onClose, onSubmit }: ReworkModalProps) {
             console.error('Error loading capataces:', error)
         }
         setLoadingPersonnel(false)
+    }
+
+    const loadAllSoldadores = async () => {
+        try {
+            const res = await fetch(`/api/proyectos/${projectId}/personnel?role=SOLDADOR`)
+            const data = await res.json()
+            setAllSoldadores(data.data || [])
+        } catch (error) {
+            console.error('Error loading all soldadores:', error)
+        }
     }
 
     const loadSoldadores = async (cuadrillaId?: string) => {
@@ -811,6 +824,7 @@ function ReworkModal({ weld, projectId, onClose, onSubmit }: ReworkModalProps) {
     const handleCapatazChange = (capatazRut: string) => {
         setSelectedCapataz(capatazRut)
         setSelectedSoldador('')
+        setShowAllSoldadores(false)
 
         const capataz = capataces.find(c => c.rut === capatazRut)
         if (capataz?.cuadrilla_id) {
@@ -940,12 +954,34 @@ function ReworkModal({ weld, projectId, onClose, onSubmit }: ReworkModalProps) {
                                     className="w-full border border-green-400 rounded-lg px-3 py-2 text-sm text-gray-900 bg-white focus:ring-2 focus:ring-green-500 focus:outline-none"
                                 >
                                     <option value="">Seleccionar soldador...</option>
-                                    {soldadores.map((s) => (
+                                    {(showAllSoldadores ? allSoldadores : soldadores).map((s) => (
                                         <option key={s.rut} value={s.rut}>
-                                            [{s.estampa}] {s.nombre}
+                                            {s.estampa ? `[${s.estampa}] ` : ''}
+                                            {s.nombre}
+                                            {showAllSoldadores && s.cuadrilla_codigo ? ` (${s.cuadrilla_codigo})` : ''}
                                         </option>
                                     ))}
                                 </select>
+
+                                {/* Toggle and info */}
+                                {selectedCapataz && (
+                                    <div className="flex items-center justify-between mt-1">
+                                        <p className="text-xs text-green-700">
+                                            {showAllSoldadores
+                                                ? `${allSoldadores.length} soldadores en proyecto`
+                                                : `${soldadores.length} soldadores en cuadrilla`
+                                            }
+                                        </p>
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowAllSoldadores(!showAllSoldadores)}
+                                            className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                                        >
+                                            {showAllSoldadores ? '← Solo cuadrilla' : 'Ver todos →'}
+                                        </button>
+                                    </div>
+                                )}
+
                                 {!selectedCapataz && (
                                     <p className="text-xs text-green-600 mt-1">Selecciona un capataz primero</p>
                                 )}
