@@ -254,13 +254,14 @@ export async function registerWeldExecution(
 /**
  * Soft delete a weld (marks as deleted but keeps all history)
  */
-export async function deleteWeld(weldId: string, reason: string) {
+export async function deleteWeld(weldId: string, reason: string, userId?: string) {
     const { error } = await supabase
         .from('spools_welds')
         .update({
             deleted: true,
             deletion_reason: reason,
-            deleted_at: new Date().toISOString()
+            deleted_at: new Date().toISOString(),
+            deleted_by: userId || null
         })
         .eq('id', weldId);
 
@@ -276,7 +277,49 @@ export async function restoreWeld(weldId: string) {
         .update({
             deleted: false,
             deletion_reason: null,
-            deleted_at: null
+            deleted_at: null,
+            deleted_by: null
+        })
+        .eq('id', weldId);
+
+    if (error) throw error;
+}
+
+/**
+ * Undo a false execution report - removes the execution and resets weld to pending
+ */
+export async function undoWeldExecution(weldId: string, reason: string, userId?: string) {
+    // 1. Get current execution
+    const { data: currentExecution } = await supabase
+        .from('weld_executions')
+        .select('*')
+        .eq('weld_id', weldId)
+        .eq('status', 'VIGENTE')
+        .single();
+
+    // 2. If there's a current execution, mark it as ANULADO (voided)
+    if (currentExecution) {
+        await supabase
+            .from('weld_executions')
+            .update({
+                status: 'ANULADO',
+                rework_reason: reason
+            })
+            .eq('id', currentExecution.id);
+    }
+
+    // 3. Reset weld to pending state
+    const { error } = await supabase
+        .from('spools_welds')
+        .update({
+            executed: false,
+            execution_date: null,
+            welder_id: null,
+            foreman_id: null,
+            current_execution_id: null,
+            undone_by: userId || null,
+            undone_at: new Date().toISOString(),
+            undo_reason: reason
         })
         .eq('id', weldId);
 

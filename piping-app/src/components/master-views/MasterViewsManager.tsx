@@ -11,6 +11,7 @@ import {
     registerWeldExecution,
     deleteWeld,
     restoreWeld,
+    undoWeldExecution,
     type ReworkResponsibility,
     type WeldExecution
 } from '@/services/master-views'
@@ -29,6 +30,7 @@ interface WeldDetailModal {
     onRework: (weld: any) => void
     onDelete: (weld: any) => void
     onRestore: (weld: any) => void
+    onUndo: (weld: any) => void
     onRefresh: () => void
 }
 
@@ -51,7 +53,7 @@ interface WeldsBySpool {
 }
 
 // Modal de Detalles de Soldadura con Edición
-function WeldDetailModal({ weld, projectId, onClose, onUpdate, onRework, onDelete, onRestore, onRefresh }: WeldDetailModal) {
+function WeldDetailModal({ weld, projectId, onClose, onUpdate, onRework, onDelete, onRestore, onUndo, onRefresh }: WeldDetailModal) {
     const [editMode, setEditMode] = useState(false)
     const [formData, setFormData] = useState({
         weld_number: weld.weld_number,
@@ -401,6 +403,18 @@ function WeldDetailModal({ weld, projectId, onClose, onUpdate, onRework, onDelet
                                             <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                                         </svg>
                                         Restaurar
+                                    </button>
+                                )}
+                                {/* Undo execution button - only for executed welds (not deleted) */}
+                                {weld.executed && !weld.deleted && (
+                                    <button
+                                        onClick={() => onUndo(weld)}
+                                        className="px-4 py-2 bg-amber-500 text-white rounded-lg font-medium hover:bg-amber-600 transition-colors flex items-center gap-1"
+                                    >
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M12.066 11.2a1 1 0 000 1.6l5.334 4A1 1 0 0019 16V8a1 1 0 00-1.6-.8l-5.333 4zM4.066 11.2a1 1 0 000 1.6l5.334 4A1 1 0 0011 16V8a1 1 0 00-1.6-.8l-5.334 4z" />
+                                        </svg>
+                                        Deshacer
                                     </button>
                                 )}
                             </div>
@@ -1160,6 +1174,112 @@ function DeleteWeldModal({ weld, onClose, onSubmit }: DeleteWeldModalProps) {
     )
 }
 
+// Undo Execution Modal (for false reports)
+interface UndoExecutionModalProps {
+    weld: any
+    onClose: () => void
+    onSubmit: (reason: string) => Promise<void>
+}
+
+function UndoExecutionModal({ weld, onClose, onSubmit }: UndoExecutionModalProps) {
+    const [reason, setReason] = useState('')
+    const [submitting, setSubmitting] = useState(false)
+
+    const handleSubmit = async () => {
+        if (!reason.trim()) {
+            alert('Por favor ingresa un motivo para deshacer el reporte')
+            return
+        }
+
+        setSubmitting(true)
+        try {
+            await onSubmit(reason)
+            onClose()
+        } catch (error) {
+            console.error('Error undoing execution:', error)
+            alert('❌ Error al deshacer el reporte')
+        }
+        setSubmitting(false)
+    }
+
+    return (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={onClose}>
+            <div className="bg-white rounded-xl w-full max-w-md shadow-2xl" onClick={(e) => e.stopPropagation()}>
+                {/* Header */}
+                <div className="p-4 border-b border-gray-300 bg-gradient-to-r from-amber-50 to-yellow-50">
+                    <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                        <svg className="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M12.066 11.2a1 1 0 000 1.6l5.334 4A1 1 0 0019 16V8a1 1 0 00-1.6-.8l-5.333 4zM4.066 11.2a1 1 0 000 1.6l5.334 4A1 1 0 0011 16V8a1 1 0 00-1.6-.8l-5.334 4z" />
+                        </svg>
+                        Deshacer Reporte
+                    </h3>
+                    <p className="text-sm text-gray-700 font-medium">{weld.weld_number}</p>
+                </div>
+
+                <div className="p-6 space-y-4">
+                    {/* Warning */}
+                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                        <p className="text-sm text-amber-800">
+                            <strong>⚠️ Atención:</strong> Esta acción anulará el reporte de ejecución actual y la unión
+                            volverá a estado PENDIENTE. El historial de ejecuciones se conservará marcado como ANULADO.
+                        </p>
+                    </div>
+
+                    {/* Current execution info */}
+                    {weld.execution_date && (
+                        <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                            <p className="text-sm text-gray-700">
+                                <strong>Ejecución actual:</strong> {new Date(weld.execution_date).toLocaleDateString('es-CL')}
+                            </p>
+                        </div>
+                    )}
+
+                    {/* Reason */}
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Motivo del error *
+                        </label>
+                        <textarea
+                            value={reason}
+                            onChange={(e) => setReason(e.target.value)}
+                            placeholder="Describe por qué este reporte fue un error..."
+                            rows={3}
+                            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                        />
+                    </div>
+                </div>
+
+                {/* Footer */}
+                <div className="p-6 border-t border-gray-200 flex gap-3 sticky bottom-0 bg-white">
+                    <button
+                        onClick={onClose}
+                        disabled={submitting}
+                        className="flex-1 px-4 py-3 border border-gray-300 text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition-colors disabled:opacity-50"
+                    >
+                        Cancelar
+                    </button>
+                    <button
+                        onClick={handleSubmit}
+                        disabled={submitting || !reason.trim()}
+                        className="flex-1 px-4 py-3 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-medium transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                    >
+                        {submitting ? (
+                            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                        ) : (
+                            <>
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M12.066 11.2a1 1 0 000 1.6l5.334 4A1 1 0 0019 16V8a1 1 0 00-1.6-.8l-5.333 4zM4.066 11.2a1 1 0 000 1.6l5.334 4A1 1 0 0011 16V8a1 1 0 00-1.6-.8l-5.334 4z" />
+                                </svg>
+                                Deshacer Reporte
+                            </>
+                        )}
+                    </button>
+                </div>
+            </div>
+        </div>
+    )
+}
+
 // Función para agrupar soldaduras por spool y calcular estado de fabricación
 function groupWeldsBySpool(welds: any[]): WeldsBySpool[] {
     const spoolMap = new Map<string, WeldsBySpool>()
@@ -1250,6 +1370,10 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
     // Delete modal state
     const [showDeleteModal, setShowDeleteModal] = useState(false)
     const [weldForDelete, setWeldForDelete] = useState<any | null>(null)
+
+    // Undo execution modal state
+    const [showUndoModal, setShowUndoModal] = useState(false)
+    const [weldForUndo, setWeldForUndo] = useState<any | null>(null)
 
     // Estado para spools agrupados
     const [weldsBySpool, setWeldsBySpool] = useState<WeldsBySpool[]>([])
@@ -1510,6 +1634,42 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
         } catch (error) {
             console.error('Error restoring weld:', error)
             alert('❌ Error al restaurar la unión')
+        }
+    }
+
+    // Handle undo false execution report
+    const handleUndoExecution = async (reason: string) => {
+        if (!weldForUndo) return
+
+        try {
+            await undoWeldExecution(weldForUndo.id, reason)
+
+            // Update local state
+            setDetails(prev => {
+                if (!prev) return null
+                return {
+                    ...prev,
+                    welds: prev.welds.map(w =>
+                        w.id === weldForUndo.id
+                            ? {
+                                ...w,
+                                executed: false,
+                                execution_date: null,
+                                welder_id: null,
+                                foreman_id: null
+                            }
+                            : w
+                    )
+                }
+            })
+
+            setShowUndoModal(false)
+            setWeldForUndo(null)
+            setSelectedWeld(null)
+            alert('✅ Reporte deshecho. La unión vuelve a estado PENDIENTE.')
+        } catch (error) {
+            console.error('Error undoing execution:', error)
+            throw error
         }
     }
 
@@ -2074,6 +2234,11 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
                         setShowDeleteModal(true)
                     }}
                     onRestore={handleRestoreWeld}
+                    onUndo={(weld) => {
+                        setSelectedWeld(null) // Close detail modal
+                        setWeldForUndo(weld)
+                        setShowUndoModal(true)
+                    }}
                     onRefresh={async () => {
                         // Reload isometric details
                         if (selectedRevisionId) {
@@ -2118,6 +2283,18 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
                         setWeldForDelete(null)
                     }}
                     onSubmit={handleDeleteWeld}
+                />
+            )}
+
+            {/* Undo Execution Modal */}
+            {showUndoModal && weldForUndo && (
+                <UndoExecutionModal
+                    weld={weldForUndo}
+                    onClose={() => {
+                        setShowUndoModal(false)
+                        setWeldForUndo(null)
+                    }}
+                    onSubmit={handleUndoExecution}
                 />
             )}
 
