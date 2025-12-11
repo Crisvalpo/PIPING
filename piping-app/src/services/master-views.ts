@@ -250,3 +250,35 @@ export async function registerWeldExecution(
 
     return newExecution;
 }
+
+/**
+ * Soft delete a weld (marks as deleted but keeps all history)
+ */
+export async function deleteWeld(weldId: string, reason: string) {
+    const { error } = await supabase
+        .from('spools_welds')
+        .update({
+            deleted: true,
+            deletion_reason: reason,
+            deleted_at: new Date().toISOString()
+        })
+        .eq('id', weldId);
+
+    if (error) throw error;
+}
+
+/**
+ * Restore a deleted weld
+ */
+export async function restoreWeld(weldId: string) {
+    const { error } = await supabase
+        .from('spools_welds')
+        .update({
+            deleted: false,
+            deletion_reason: null,
+            deleted_at: null
+        })
+        .eq('id', weldId);
+
+    if (error) throw error;
+}

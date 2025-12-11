@@ -9,6 +9,8 @@ import {
     getWeldExecutions,
     markWeldForRework,
     registerWeldExecution,
+    deleteWeld,
+    restoreWeld,
     type ReworkResponsibility,
     type WeldExecution
 } from '@/services/master-views'
@@ -25,6 +27,8 @@ interface WeldDetailModal {
     onClose: () => void
     onUpdate: (weldId: string, updates: any) => void
     onRework: (weld: any) => void
+    onDelete: (weld: any) => void
+    onRestore: (weld: any) => void
     onRefresh: () => void
 }
 
@@ -47,7 +51,7 @@ interface WeldsBySpool {
 }
 
 // Modal de Detalles de Soldadura con Edición
-function WeldDetailModal({ weld, projectId, onClose, onUpdate, onRework, onRefresh }: WeldDetailModal) {
+function WeldDetailModal({ weld, projectId, onClose, onUpdate, onRework, onDelete, onRestore, onRefresh }: WeldDetailModal) {
     const [editMode, setEditMode] = useState(false)
     const [formData, setFormData] = useState({
         weld_number: weld.weld_number,
@@ -139,7 +143,7 @@ function WeldDetailModal({ weld, projectId, onClose, onUpdate, onRework, onRefre
         switch (resp) {
             case 'TERRENO': return 'Terreno'
             case 'INGENIERIA': return 'Ingeniería'
-            case 'RECHAZO_END': return 'Rechazo END'
+            case 'RECHAZO_END': return 'Rechazo'
             default: return resp
         }
     }
@@ -363,8 +367,8 @@ function WeldDetailModal({ weld, projectId, onClose, onUpdate, onRework, onRefre
                                 >
                                     ✏️ Editar
                                 </button>
-                                {/* Rework button - only for executed welds */}
-                                {weld.executed && (
+                                {/* Rework button - only for executed welds (not deleted) */}
+                                {weld.executed && !weld.deleted && (
                                     <button
                                         onClick={() => onRework(weld)}
                                         className="px-4 py-2 bg-orange-500 text-white rounded-lg font-medium hover:bg-orange-600 transition-colors flex items-center gap-1"
@@ -373,6 +377,30 @@ function WeldDetailModal({ weld, projectId, onClose, onUpdate, onRework, onRefre
                                             <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                                         </svg>
                                         Retrabajo
+                                    </button>
+                                )}
+                                {/* Delete button - only for non-deleted welds */}
+                                {!weld.deleted && (
+                                    <button
+                                        onClick={() => onDelete(weld)}
+                                        className="px-4 py-2 bg-red-500 text-white rounded-lg font-medium hover:bg-red-600 transition-colors flex items-center gap-1"
+                                    >
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                        </svg>
+                                        Eliminar
+                                    </button>
+                                )}
+                                {/* Restore button - only for deleted welds */}
+                                {weld.deleted && (
+                                    <button
+                                        onClick={() => onRestore(weld)}
+                                        className="px-4 py-2 bg-green-500 text-white rounded-lg font-medium hover:bg-green-600 transition-colors flex items-center gap-1"
+                                    >
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                        </svg>
+                                        Restaurar
                                     </button>
                                 )}
                             </div>
@@ -760,7 +788,7 @@ interface ReworkModalProps {
 const REWORK_OPTIONS: { value: ReworkResponsibility; label: string; description: string }[] = [
     { value: 'TERRENO', label: 'Terreno', description: 'Error al construir (incluye nueva ejecución)' },
     { value: 'INGENIERIA', label: 'Ingeniería', description: 'Interferencias / Cambios de revisión' },
-    { value: 'RECHAZO_END', label: 'Rechazo END', description: 'Rechazo por parte de Calidad' },
+    { value: 'RECHAZO_END', label: 'Rechazo', description: 'Rechazo por parte de Calidad' },
 ]
 
 function ReworkModal({ weld, projectId, onClose, onSubmit }: ReworkModalProps) {
@@ -1035,6 +1063,103 @@ function ReworkModal({ weld, projectId, onClose, onSubmit }: ReworkModalProps) {
     )
 }
 
+// Delete Weld Modal (soft delete with reason)
+interface DeleteWeldModalProps {
+    weld: any
+    onClose: () => void
+    onSubmit: (reason: string) => Promise<void>
+}
+
+function DeleteWeldModal({ weld, onClose, onSubmit }: DeleteWeldModalProps) {
+    const [reason, setReason] = useState('')
+    const [submitting, setSubmitting] = useState(false)
+
+    const handleSubmit = async () => {
+        if (!reason.trim()) {
+            alert('Por favor ingresa un motivo para la eliminación')
+            return
+        }
+
+        setSubmitting(true)
+        try {
+            await onSubmit(reason)
+            onClose()
+        } catch (error) {
+            console.error('Error deleting weld:', error)
+            alert('❌ Error al eliminar la unión')
+        }
+        setSubmitting(false)
+    }
+
+    return (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={onClose}>
+            <div className="bg-white rounded-xl w-full max-w-md shadow-2xl" onClick={(e) => e.stopPropagation()}>
+                {/* Header */}
+                <div className="p-4 border-b border-gray-300 bg-gradient-to-r from-red-50 to-rose-50">
+                    <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                        <svg className="w-5 h-5 text-red-500" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                        Eliminar Unión
+                    </h3>
+                    <p className="text-sm text-gray-700 font-medium">{weld.weld_number}</p>
+                </div>
+
+                <div className="p-6 space-y-4">
+                    {/* Warning */}
+                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                        <p className="text-sm text-yellow-800">
+                            <strong>⚠️ Nota:</strong> La unión será marcada como eliminada pero no se borrará permanentemente.
+                            El historial de ejecuciones se conservará y podrás restaurarla si fue un error.
+                        </p>
+                    </div>
+
+                    {/* Reason */}
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Motivo de eliminación *
+                        </label>
+                        <textarea
+                            value={reason}
+                            onChange={(e) => setReason(e.target.value)}
+                            placeholder="Describe por qué se elimina esta unión..."
+                            rows={3}
+                            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-red-500 focus:outline-none"
+                        />
+                    </div>
+                </div>
+
+                {/* Footer */}
+                <div className="p-6 border-t border-gray-200 flex gap-3 sticky bottom-0 bg-white">
+                    <button
+                        onClick={onClose}
+                        disabled={submitting}
+                        className="flex-1 px-4 py-3 border border-gray-300 text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition-colors disabled:opacity-50"
+                    >
+                        Cancelar
+                    </button>
+                    <button
+                        onClick={handleSubmit}
+                        disabled={submitting || !reason.trim()}
+                        className="flex-1 px-4 py-3 bg-red-500 hover:bg-red-600 text-white rounded-xl font-medium transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                    >
+                        {submitting ? (
+                            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                        ) : (
+                            <>
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                                Eliminar Unión
+                            </>
+                        )}
+                    </button>
+                </div>
+            </div>
+        </div>
+    )
+}
+
 // Función para agrupar soldaduras por spool y calcular estado de fabricación
 function groupWeldsBySpool(welds: any[]): WeldsBySpool[] {
     const spoolMap = new Map<string, WeldsBySpool>()
@@ -1118,6 +1243,10 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
     // Rework modal state
     const [showReworkModal, setShowReworkModal] = useState(false)
     const [weldForRework, setWeldForRework] = useState<any | null>(null)
+
+    // Delete modal state
+    const [showDeleteModal, setShowDeleteModal] = useState(false)
+    const [weldForDelete, setWeldForDelete] = useState<any | null>(null)
 
     // Estado para spools agrupados
     const [weldsBySpool, setWeldsBySpool] = useState<WeldsBySpool[]>([])
@@ -1323,6 +1452,61 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
         } catch (error) {
             console.error('Error marking rework:', error)
             throw error
+        }
+    }
+
+    // Handle soft delete of a weld
+    const handleDeleteWeld = async (reason: string) => {
+        if (!weldForDelete) return
+
+        try {
+            await deleteWeld(weldForDelete.id, reason)
+
+            // Update local state
+            setDetails(prev => {
+                if (!prev) return null
+                return {
+                    ...prev,
+                    welds: prev.welds.map(w =>
+                        w.id === weldForDelete.id
+                            ? { ...w, deleted: true, deletion_reason: reason }
+                            : w
+                    )
+                }
+            })
+
+            setShowDeleteModal(false)
+            setWeldForDelete(null)
+            setSelectedWeld(null)
+            alert('✅ Unión eliminada correctamente.')
+        } catch (error) {
+            console.error('Error deleting weld:', error)
+            throw error
+        }
+    }
+
+    // Handle restore of a deleted weld
+    const handleRestoreWeld = async (weld: any) => {
+        try {
+            await restoreWeld(weld.id)
+
+            // Update local state
+            setDetails(prev => {
+                if (!prev) return null
+                return {
+                    ...prev,
+                    welds: prev.welds.map(w =>
+                        w.id === weld.id
+                            ? { ...w, deleted: false, deletion_reason: null }
+                            : w
+                    )
+                }
+            })
+
+            alert('✅ Unión restaurada correctamente.')
+        } catch (error) {
+            console.error('Error restoring weld:', error)
+            alert('❌ Error al restaurar la unión')
         }
     }
 
@@ -1725,54 +1909,74 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
                                                                         {/* Welds List */}
                                                                         {isExpanded && (
                                                                             <div className="border-t border-gray-300 bg-gray-50 p-2 space-y-2">
-                                                                                {spool.welds.map(weld => (
-                                                                                    <div
-                                                                                        key={weld.id}
-                                                                                        onClick={() => setSelectedWeld(weld)}
-                                                                                        className="bg-white p-3 rounded-lg border border-gray-300 flex justify-between items-center shadow-sm cursor-pointer hover:border-blue-300 hover:shadow-md transition-all"
-                                                                                    >
-                                                                                        <div>
-                                                                                            <div className="font-bold text-gray-800 flex items-center gap-2">
-                                                                                                {weld.weld_number}
-                                                                                                <span className={`px-1.5 py-0.5 rounded text-xs font-bold ${weld.destination === 'S' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'
-                                                                                                    }`}>
-                                                                                                    {weld.destination === 'S' ? 'Taller' : 'Campo'}
-                                                                                                </span>
-                                                                                                {/* Rework Badge */}
-                                                                                                {weld.rework_count > 0 && (
-                                                                                                    <span className="px-1.5 py-0.5 rounded text-xs font-bold bg-orange-100 text-orange-700 border border-orange-200">
-                                                                                                        R{weld.rework_count}
+                                                                                {spool.welds.map(weld => {
+                                                                                    // Determine card background color
+                                                                                    const getCardBgClass = () => {
+                                                                                        if (weld.deleted) return 'bg-red-50 border-red-200'
+                                                                                        if (weld.executed) return 'bg-green-50 border-green-200'
+                                                                                        if (weld.rework_count > 0) return 'bg-orange-50 border-orange-200'
+                                                                                        return 'bg-white border-gray-300'
+                                                                                    }
+
+                                                                                    return (
+                                                                                        <div
+                                                                                            key={weld.id}
+                                                                                            onClick={() => setSelectedWeld(weld)}
+                                                                                            className={`p-3 rounded-lg border flex justify-between items-center shadow-sm cursor-pointer hover:shadow-md transition-all ${getCardBgClass()}`}
+                                                                                        >
+                                                                                            <div>
+                                                                                                <div className="font-bold text-gray-800 flex items-center gap-2">
+                                                                                                    {weld.weld_number}
+                                                                                                    <span className={`px-1.5 py-0.5 rounded text-xs font-bold ${weld.destination === 'S' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'
+                                                                                                        }`}>
+                                                                                                        {weld.destination === 'S' ? 'Taller' : 'Campo'}
                                                                                                     </span>
+                                                                                                    {/* Rework Badge */}
+                                                                                                    {weld.rework_count > 0 && (
+                                                                                                        <span className="px-1.5 py-0.5 rounded text-xs font-bold bg-orange-100 text-orange-700 border border-orange-200">
+                                                                                                            R{weld.rework_count}
+                                                                                                        </span>
+                                                                                                    )}
+                                                                                                    {/* Deleted Badge */}
+                                                                                                    {weld.deleted && (
+                                                                                                        <span className="px-1.5 py-0.5 rounded text-xs font-bold bg-red-100 text-red-700 border border-red-200">
+                                                                                                            ELIMINADA
+                                                                                                        </span>
+                                                                                                    )}
+                                                                                                </div>
+                                                                                                <div className="text-xs text-gray-600">{weld.type_weld} - {weld.nps}"</div>
+                                                                                            </div>
+                                                                                            <div className="flex flex-col items-end gap-2">
+                                                                                                <span
+                                                                                                    className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all ${weld.deleted
+                                                                                                        ? 'bg-red-100 text-red-700 border border-red-200'
+                                                                                                        : weld.executed
+                                                                                                            ? 'bg-green-100 text-green-700 border border-green-200'
+                                                                                                            : 'bg-gray-200 text-gray-700 border border-gray-300'
+                                                                                                        }`}
+                                                                                                >
+                                                                                                    {weld.deleted ? 'ELIMINADA' : weld.executed ? 'EJECUTADO' : 'PENDIENTE'}
+                                                                                                </span>
+                                                                                                {/* Reportar button for pending welds (not deleted) */}
+                                                                                                {!weld.executed && !weld.deleted && (
+                                                                                                    <button
+                                                                                                        onClick={(e) => {
+                                                                                                            e.stopPropagation()
+                                                                                                            setWeldForExecution(weld)
+                                                                                                            setShowExecutionModal(true)
+                                                                                                        }}
+                                                                                                        className="px-3 py-1 bg-green-600 text-white rounded-lg text-xs font-medium hover:bg-green-700 transition-colors flex items-center gap-1"
+                                                                                                    >
+                                                                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                                                                                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                                                                                        </svg>
+                                                                                                        Reportar
+                                                                                                    </button>
                                                                                                 )}
                                                                                             </div>
-                                                                                            <div className="text-xs text-gray-600">{weld.type_weld} - {weld.nps}"</div>
                                                                                         </div>
-                                                                                        <div className="flex flex-col items-end gap-2">
-                                                                                            <span
-                                                                                                className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all ${weld.executed ? 'bg-green-100 text-green-700 border border-green-200' : 'bg-gray-200 text-gray-700 border border-gray-300'
-                                                                                                    }`}
-                                                                                            >
-                                                                                                {weld.executed ? 'EJECUTADO' : 'PENDIENTE'}
-                                                                                            </span>
-                                                                                            {/* Reportar button for pending welds */}
-                                                                                            {!weld.executed && (
-                                                                                                <button
-                                                                                                    onClick={(e) => {
-                                                                                                        e.stopPropagation()
-                                                                                                        setWeldForExecution(weld)
-                                                                                                        setShowExecutionModal(true)
-                                                                                                    }}
-                                                                                                    className="px-3 py-1 bg-green-600 text-white rounded-lg text-xs font-medium hover:bg-green-700 transition-colors flex items-center gap-1"
-                                                                                                >
-                                                                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                                                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                                                                                    </svg>
-                                                                                                    Reportar
-                                                                                                </button>
-                                                                                            )}
-                                                                                        </div>
-                                                                                    </div>
-                                                                                ))}
+                                                                                    )
+                                                                                })}
                                                                             </div>
                                                                         )}
                                                                     </div>
@@ -1861,6 +2065,12 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
                         setWeldForRework(weld)
                         setShowReworkModal(true)
                     }}
+                    onDelete={(weld) => {
+                        setSelectedWeld(null) // Close detail modal
+                        setWeldForDelete(weld)
+                        setShowDeleteModal(true)
+                    }}
+                    onRestore={handleRestoreWeld}
                     onRefresh={async () => {
                         // Reload isometric details
                         if (selectedRevisionId) {
@@ -1893,6 +2103,18 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
                         setWeldForRework(null)
                     }}
                     onSubmit={handleRework}
+                />
+            )}
+
+            {/* Delete Weld Modal */}
+            {showDeleteModal && weldForDelete && (
+                <DeleteWeldModal
+                    weld={weldForDelete}
+                    onClose={() => {
+                        setShowDeleteModal(false)
+                        setWeldForDelete(null)
+                    }}
+                    onSubmit={handleDeleteWeld}
                 />
             )}
 
