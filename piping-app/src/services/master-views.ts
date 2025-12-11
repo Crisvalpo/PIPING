@@ -289,13 +289,13 @@ export async function restoreWeld(weldId: string) {
  * Undo a false execution report - removes the execution and resets weld to pending
  */
 export async function undoWeldExecution(weldId: string, reason: string, userId?: string) {
-    // 1. Get current execution
+    // 1. Get current execution (may not exist)
     const { data: currentExecution } = await supabase
         .from('weld_executions')
         .select('*')
         .eq('weld_id', weldId)
         .eq('status', 'VIGENTE')
-        .single();
+        .maybeSingle();
 
     // 2. If there's a current execution, mark it as ANULADO (voided)
     if (currentExecution) {
