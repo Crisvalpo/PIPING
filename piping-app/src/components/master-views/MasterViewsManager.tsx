@@ -910,6 +910,11 @@ function ReworkModal({ weld, projectId, onClose, onSubmit }: ReworkModalProps) {
     const [loadingPersonnel, setLoadingPersonnel] = useState(false)
     const [showAllSoldadores, setShowAllSoldadores] = useState(false)
 
+    // Estampa state - shown when selected soldador has no estampa
+    const [needsEstampa, setNeedsEstampa] = useState(false)
+    const [estampaInput, setEstampaInput] = useState('')
+    const [savingEstampa, setSavingEstampa] = useState(false)
+
     // Load personnel when modal opens (TERRENO is default)
     useEffect(() => {
         if (responsibility === 'TERRENO') {
@@ -966,6 +971,21 @@ function ReworkModal({ weld, projectId, onClose, onSubmit }: ReworkModalProps) {
         }
     }
 
+    const handleSoldadorChange = (soldadorRut: string) => {
+        setSelectedSoldador(soldadorRut)
+
+        // Check if soldador needs estampa
+        const allList = showAllSoldadores ? allSoldadores : soldadores
+        const soldador = allList.find(s => s.rut === soldadorRut)
+        if (soldador && !soldador.estampa) {
+            setNeedsEstampa(true)
+            setEstampaInput('')
+        } else {
+            setNeedsEstampa(false)
+            setEstampaInput(soldador?.estampa || '')
+        }
+    }
+
     const handleSubmit = async () => {
         // Validate execution fields if TERRENO
         if (responsibility === 'TERRENO' && (!selectedSoldador || !selectedCapataz)) {
@@ -975,6 +995,36 @@ function ReworkModal({ weld, projectId, onClose, onSubmit }: ReworkModalProps) {
 
         setSubmitting(true)
         try {
+            // If soldador needs estampa, validate and save it first
+            if (responsibility === 'TERRENO' && needsEstampa) {
+                if (!estampaInput.trim()) {
+                    alert('La estampa del soldador es obligatoria')
+                    setSubmitting(false)
+                    return
+                }
+                setSavingEstampa(true)
+                try {
+                    const estampaRes = await fetch(`/api/personal/${encodeURIComponent(selectedSoldador)}/estampa`, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ estampa: estampaInput.trim() })
+                    })
+                    const estampaData = await estampaRes.json()
+                    setSavingEstampa(false)
+                    if (!estampaData.success) {
+                        alert(`Error al guardar estampa: ${estampaData.error}`)
+                        setSubmitting(false)
+                        return
+                    }
+                } catch (err) {
+                    console.error('Error saving estampa:', err)
+                    alert('Error al guardar la estampa')
+                    setSavingEstampa(false)
+                    setSubmitting(false)
+                    return
+                }
+            }
+
             const executionData = responsibility === 'TERRENO'
                 ? { fecha, welderId: selectedSoldador, foremanId: selectedCapataz }
                 : undefined
@@ -1081,14 +1131,14 @@ function ReworkModal({ weld, projectId, onClose, onSubmit }: ReworkModalProps) {
                                 <label className="block text-xs font-medium text-green-800 mb-1">Soldador *</label>
                                 <select
                                     value={selectedSoldador}
-                                    onChange={(e) => setSelectedSoldador(e.target.value)}
+                                    onChange={(e) => handleSoldadorChange(e.target.value)}
                                     disabled={!selectedCapataz}
                                     className="w-full border border-green-400 rounded-lg px-3 py-2 text-sm text-gray-900 bg-white focus:ring-2 focus:ring-green-500 focus:outline-none"
                                 >
                                     <option value="">Seleccionar soldador...</option>
                                     {(showAllSoldadores ? allSoldadores : soldadores).map((s) => (
                                         <option key={s.rut} value={s.rut}>
-                                            {s.estampa ? `[${s.estampa}] ` : ''}
+                                            {s.estampa ? `[${s.estampa}] ` : s.codigo_trabajador ? `[${s.codigo_trabajador}] ` : '⚠️ '}
                                             {s.nombre}
                                             {showAllSoldadores && s.cuadrilla_codigo ? ` (${s.cuadrilla_codigo})` : ''}
                                         </option>
@@ -1118,6 +1168,25 @@ function ReworkModal({ weld, projectId, onClose, onSubmit }: ReworkModalProps) {
                                     <p className="text-xs text-green-600 mt-1">Selecciona un capataz primero</p>
                                 )}
                             </div>
+
+                            {/* Estampa input - only shown when selected soldador has no estampa */}
+                            {needsEstampa && (
+                                <div className="bg-yellow-50 border border-yellow-300 rounded-lg p-3">
+                                    <label className="block text-xs font-medium text-yellow-800 mb-1">
+                                        Estampa del Soldador *
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={estampaInput}
+                                        onChange={(e) => setEstampaInput(e.target.value.toUpperCase())}
+                                        placeholder="Ej: S01"
+                                        className="w-full border border-yellow-400 rounded-lg px-3 py-2 text-sm text-gray-900 bg-white focus:ring-2 focus:ring-yellow-500 focus:outline-none"
+                                    />
+                                    <p className="text-xs text-yellow-700 mt-1">
+                                        ⚠️ Este soldador no tiene estampa registrada. Ingresa una para continuar.
+                                    </p>
+                                </div>
+                            )}
                         </div>
                     )}
 
@@ -1147,7 +1216,7 @@ function ReworkModal({ weld, projectId, onClose, onSubmit }: ReworkModalProps) {
                     </button>
                     <button
                         onClick={handleSubmit}
-                        disabled={submitting || (responsibility === 'TERRENO' && (!selectedSoldador || !selectedCapataz))}
+                        disabled={submitting || savingEstampa || (responsibility === 'TERRENO' && (!selectedSoldador || !selectedCapataz || (needsEstampa && !estampaInput.trim())))}
                         className="flex-1 px-4 py-3 bg-orange-500 hover:bg-orange-600 text-white rounded-xl font-medium transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
                     >
                         {submitting ? (
