@@ -2711,7 +2711,7 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
 
                                                                         {/* Welds List */}
                                                                         {isExpanded && (
-                                                                            <div className="border-t border-gray-300 bg-gray-50 p-2 space-y-1">
+                                                                            <div className="border-t border-gray-300 bg-gray-50 p-2">
                                                                                 {spool.welds.map((weld, weldIndex) => {
                                                                                     // Get adjacent welds for add button
                                                                                     const prevWeld = weldIndex > 0 ? spool.welds[weldIndex - 1] : null
@@ -2726,21 +2726,24 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
                                                                                     }
 
                                                                                     return (
-                                                                                        <div key={weld.id}>
-                                                                                            {/* Add Button before this weld */}
-                                                                                            <button
-                                                                                                onClick={(e) => {
-                                                                                                    e.stopPropagation()
-                                                                                                    handleAddWeld(prevWeld, nextWeld, selectedRevision?.id || '', selectedIsometric?.iso_number || '', selectedRevision?.rev || '')
-                                                                                                }}
-                                                                                                className="w-full py-1 flex justify-center items-center group"
-                                                                                            >
-                                                                                                <div className="w-6 h-6 rounded-full bg-gray-200 group-hover:bg-emerald-500 flex items-center justify-center transition-all group-hover:scale-110">
-                                                                                                    <svg className="w-4 h-4 text-gray-500 group-hover:text-white transition-colors" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                                                                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-                                                                                                    </svg>
-                                                                                                </div>
-                                                                                            </button>
+                                                                                        <div key={weld.id} className="relative group/weld">
+                                                                                            {/* Invisible hover zone for add button - between cards */}
+                                                                                            <div className="relative h-2 -mt-1 mb-1 first:mt-0 group/add">
+                                                                                                <button
+                                                                                                    onClick={(e) => {
+                                                                                                        e.stopPropagation()
+                                                                                                        const firstWeld = spool.welds[0]
+                                                                                                        handleAddWeld(prevWeld, nextWeld, firstWeld?.revision_id || '', firstWeld?.iso_number || '', firstWeld?.rev || '')
+                                                                                                    }}
+                                                                                                    className="absolute inset-x-0 -top-1 h-4 z-10 flex justify-center items-center opacity-0 hover:opacity-100 transition-opacity"
+                                                                                                >
+                                                                                                    <div className="w-5 h-5 rounded-full bg-emerald-500 shadow-lg flex items-center justify-center transform scale-75 hover:scale-100 transition-all">
+                                                                                                        <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
+                                                                                                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                                                                                                        </svg>
+                                                                                                    </div>
+                                                                                                </button>
+                                                                                            </div>
 
                                                                                             {/* Weld Card */}
                                                                                             <div
@@ -2802,21 +2805,24 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
                                                                                     )
                                                                                 })}
 
-                                                                                {/* Add Button at the end */}
-                                                                                <button
-                                                                                    onClick={(e) => {
-                                                                                        e.stopPropagation()
-                                                                                        const lastWeld = spool.welds[spool.welds.length - 1]
-                                                                                        handleAddWeld(lastWeld || null, null, selectedRevision?.id || '', selectedIsometric?.iso_number || '', selectedRevision?.rev || '')
-                                                                                    }}
-                                                                                    className="w-full py-1 flex justify-center items-center group"
-                                                                                >
-                                                                                    <div className="w-6 h-6 rounded-full bg-gray-200 group-hover:bg-emerald-500 flex items-center justify-center transition-all group-hover:scale-110">
-                                                                                        <svg className="w-4 h-4 text-gray-500 group-hover:text-white transition-colors" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                                                                                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-                                                                                        </svg>
-                                                                                    </div>
-                                                                                </button>
+                                                                                {/* Add Button at the end - appears on hover near bottom */}
+                                                                                <div className="relative h-3 mt-1 group/add">
+                                                                                    <button
+                                                                                        onClick={(e) => {
+                                                                                            e.stopPropagation()
+                                                                                            const lastWeld = spool.welds[spool.welds.length - 1]
+                                                                                            const firstWeld = spool.welds[0]
+                                                                                            handleAddWeld(lastWeld || null, null, firstWeld?.revision_id || '', firstWeld?.iso_number || '', firstWeld?.rev || '')
+                                                                                        }}
+                                                                                        className="absolute inset-x-0 top-0 h-4 z-10 flex justify-center items-center opacity-0 hover:opacity-100 transition-opacity"
+                                                                                    >
+                                                                                        <div className="w-5 h-5 rounded-full bg-emerald-500 shadow-lg flex items-center justify-center transform scale-75 hover:scale-100 transition-all">
+                                                                                            <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
+                                                                                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                                                                                            </svg>
+                                                                                        </div>
+                                                                                    </button>
+                                                                                </div>
                                                                             </div>
                                                                         )}
                                                                     </div>
