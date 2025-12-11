@@ -369,68 +369,69 @@ function WeldDetailModal({ weld, projectId, onClose, onUpdate, onRework, onDelet
                         </>
                     ) : (
                         <>
-                            <div className="flex gap-2">
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                                 <button
                                     onClick={() => setEditMode(true)}
-                                    className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
+                                    className="px-3 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors flex items-center justify-center gap-1"
                                 >
-                                    ✏️ Editar
+                                    <span>✏️</span>
+                                    <span>Editar</span>
                                 </button>
                                 {/* Rework button - only for executed welds (not deleted) */}
                                 {weld.executed && !weld.deleted && (
                                     <button
                                         onClick={() => onRework(weld)}
-                                        className="px-4 py-2 bg-orange-500 text-white rounded-lg font-medium hover:bg-orange-600 transition-colors flex items-center gap-1"
+                                        className="px-3 py-2 bg-orange-500 text-white rounded-lg text-sm font-medium hover:bg-orange-600 transition-colors flex items-center justify-center gap-1"
                                     >
                                         <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                             <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                                         </svg>
-                                        Retrabajo
+                                        <span>Retrabajo</span>
                                     </button>
                                 )}
                                 {/* Delete button - only for non-deleted welds */}
                                 {!weld.deleted && (
                                     <button
                                         onClick={() => onDelete(weld)}
-                                        className="px-4 py-2 bg-red-500 text-white rounded-lg font-medium hover:bg-red-600 transition-colors flex items-center gap-1"
+                                        className="px-3 py-2 bg-red-500 text-white rounded-lg text-sm font-medium hover:bg-red-600 transition-colors flex items-center justify-center gap-1"
                                     >
                                         <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                             <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                                         </svg>
-                                        Eliminar
+                                        <span>Eliminar</span>
                                     </button>
                                 )}
                                 {/* Restore button - only for deleted welds */}
                                 {weld.deleted && (
                                     <button
                                         onClick={() => onRestore(weld)}
-                                        className="px-4 py-2 bg-green-500 text-white rounded-lg font-medium hover:bg-green-600 transition-colors flex items-center gap-1"
+                                        className="px-3 py-2 bg-green-500 text-white rounded-lg text-sm font-medium hover:bg-green-600 transition-colors flex items-center justify-center gap-1"
                                     >
                                         <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                             <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                                         </svg>
-                                        Restaurar
+                                        <span>Restaurar</span>
                                     </button>
                                 )}
                                 {/* Undo execution button - only for executed welds (not deleted) */}
                                 {weld.executed && !weld.deleted && (
                                     <button
                                         onClick={() => onUndo(weld)}
-                                        className="px-4 py-2 bg-amber-500 text-white rounded-lg font-medium hover:bg-amber-600 transition-colors flex items-center gap-1"
+                                        className="px-3 py-2 bg-amber-500 text-white rounded-lg text-sm font-medium hover:bg-amber-600 transition-colors flex items-center justify-center gap-1"
                                     >
                                         <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                             <path strokeLinecap="round" strokeLinejoin="round" d="M12.066 11.2a1 1 0 000 1.6l5.334 4A1 1 0 0019 16V8a1 1 0 00-1.6-.8l-5.333 4zM4.066 11.2a1 1 0 000 1.6l5.334 4A1 1 0 0011 16V8a1 1 0 00-1.6-.8l-5.334 4z" />
                                         </svg>
-                                        Deshacer
+                                        <span>Deshacer</span>
                                     </button>
                                 )}
+                                <button
+                                    onClick={onClose}
+                                    className="px-3 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-300 transition-colors"
+                                >
+                                    Cerrar
+                                </button>
                             </div>
-                            <button
-                                onClick={onClose}
-                                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300 transition-colors"
-                            >
-                                Cerrar
-                            </button>
                         </>
                     )}
                 </div>
