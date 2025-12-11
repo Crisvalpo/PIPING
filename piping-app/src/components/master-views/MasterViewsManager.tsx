@@ -70,6 +70,7 @@ function WeldDetailModal({ weld, projectId, onClose, onUpdate, onRework, onDelet
     const [welderInfo, setWelderInfo] = useState<{ nombre: string; estampa: string } | null>(null)
     const [foremanInfo, setForemanInfo] = useState<{ nombre: string } | null>(null)
     const [reporterInfo, setReporterInfo] = useState<{ email: string } | null>(null)
+    const [deletedByInfo, setDeletedByInfo] = useState<{ nombre: string } | null>(null)
 
     // Execution history
     const [executionHistory, setExecutionHistory] = useState<WeldExecution[]>([])
@@ -138,6 +139,19 @@ function WeldDetailModal({ weld, projectId, onClose, onUpdate, onRework, onDelet
 
                 if (foreman) {
                     setForemanInfo({ nombre: foreman.nombre })
+                }
+            }
+
+            // Load deleted_by info if weld is deleted
+            if (weld.deleted && weld.deleted_by) {
+                const { data: deleter } = await supabase
+                    .from('users')
+                    .select('nombre')
+                    .eq('id', weld.deleted_by)
+                    .single()
+
+                if (deleter) {
+                    setDeletedByInfo({ nombre: deleter.nombre })
                 }
             }
         }
@@ -283,6 +297,33 @@ function WeldDetailModal({ weld, projectId, onClose, onUpdate, onRework, onDelet
                                 <DetailRow label="Material" value={formData.material} />
                                 <DetailRow label="Destino" value={getDestinationText(formData.destination)} />
                             </div>
+
+                            {/* Deleted Weld Info Section - Only show if deleted */}
+                            {weld.deleted && (
+                                <div className="mt-4 pt-4 border-t border-red-200 space-y-2">
+                                    <h4 className="text-xs font-bold text-red-700 uppercase tracking-wider flex items-center gap-2">
+                                        <span className="w-2 h-2 bg-red-600 rounded-full"></span>
+                                        Información de Eliminación
+                                    </h4>
+                                    <div className="bg-red-50 border border-red-200 rounded-lg p-3 space-y-1">
+                                        {deletedByInfo && (
+                                            <p className="text-sm text-red-700">
+                                                <strong>Eliminada por:</strong> {deletedByInfo.nombre}
+                                            </p>
+                                        )}
+                                        {weld.deleted_at && (
+                                            <p className="text-sm text-red-700">
+                                                <strong>Fecha:</strong> {new Date(weld.deleted_at).toLocaleString('es-CL')}
+                                            </p>
+                                        )}
+                                        {weld.deletion_reason && (
+                                            <p className="text-sm text-red-700">
+                                                <strong>Motivo:</strong> {weld.deletion_reason}
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
 
                             {/* Field Execution Data Section - Only show if executed OR has history */}
                             {(weld.executed || executionHistory.length > 0) && (
@@ -1751,7 +1792,9 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
         if (!weldForDelete) return
 
         try {
-            await deleteWeld(weldForDelete.id, reason)
+            // Get current user for audit
+            const { data: { user } } = await supabase.auth.getUser()
+            await deleteWeld(weldForDelete.id, reason, user?.id)
 
             // Update local state
             setDetails(prev => {
