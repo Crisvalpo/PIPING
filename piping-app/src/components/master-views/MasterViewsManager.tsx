@@ -1680,11 +1680,15 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
 
             // If TERRENO, also register the new execution immediately
             if (responsibility === 'TERRENO' && executionData) {
+                // Get current user for audit
+                const { data: { user } } = await supabase.auth.getUser()
+
                 await registerWeldExecution(
                     weldForRework.id,
                     executionData.welderId,
                     executionData.foremanId,
-                    executionData.fecha
+                    executionData.fecha,
+                    user?.id  // ID del usuario que reporta
                 )
 
                 // Update local state - weld is now executed again
