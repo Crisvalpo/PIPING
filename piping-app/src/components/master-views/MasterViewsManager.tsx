@@ -1005,7 +1005,7 @@ function ReworkModal({ weld, projectId, onClose, onSubmit }: ReworkModalProps) {
                 setSavingEstampa(true)
                 try {
                     const estampaRes = await fetch(`/api/personal/${encodeURIComponent(selectedSoldador)}/estampa`, {
-                        method: 'PATCH',
+                        method: 'PUT',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ estampa: estampaInput.trim() })
                     })
