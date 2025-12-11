@@ -123,11 +123,12 @@ export interface WeldExecution {
     execution_date: string;
     welder_id: string | null;
     foreman_id: string | null;
-    status: 'VIGENTE' | 'RETRABAJO';
+    status: 'VIGENTE' | 'RETRABAJO' | 'ANULADO';
     is_rework: boolean;
     rework_reason: string | null;
     rework_responsibility: ReworkResponsibility | null;
     created_at: string;
+    reported_by_user: string | null;
 }
 
 /**

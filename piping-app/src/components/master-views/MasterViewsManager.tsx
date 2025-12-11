@@ -87,14 +87,11 @@ function WeldDetailModal({ weld, projectId, onClose, onUpdate, onRework, onDelet
                 // Load reporter info from latest VIGENTE execution
                 const currentExecution = history.find(e => e.status === 'VIGENTE')
                 if (currentExecution?.reported_by_user) {
-                    const { data: reporter } = await supabase
-                        .from('users')
-                        .select('email')
-                        .eq('id', currentExecution.reported_by_user)
-                        .single()
+                    const { data: email } = await supabase
+                        .rpc('get_user_email', { user_id: currentExecution.reported_by_user })
 
-                    if (reporter) {
-                        setReporterInfo({ email: reporter.email })
+                    if (email) {
+                        setReporterInfo({ email })
                     }
                 }
             } catch (error) {
