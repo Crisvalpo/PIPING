@@ -776,19 +776,19 @@ function ReworkModal({ weld, projectId, onClose, onSubmit }: ReworkModalProps) {
     const [selectedSoldador, setSelectedSoldador] = useState('')
     const [loadingPersonnel, setLoadingPersonnel] = useState(false)
 
-    // Load personnel when TERRENO is selected
+    // Load personnel when modal opens (TERRENO is default)
     useEffect(() => {
         if (responsibility === 'TERRENO') {
             loadCapataces()
         }
-    }, [responsibility])
+    }, [responsibility, projectId])
 
     const loadCapataces = async () => {
         setLoadingPersonnel(true)
         try {
-            const res = await fetch(`/api/proyectos/${projectId}/personnel?type=capataces`)
+            const res = await fetch(`/api/proyectos/${projectId}/personnel?role=CAPATAZ`)
             const data = await res.json()
-            setCapataces(data.capataces || [])
+            setCapataces(data.data || [])
         } catch (error) {
             console.error('Error loading capataces:', error)
         }
@@ -798,11 +798,11 @@ function ReworkModal({ weld, projectId, onClose, onSubmit }: ReworkModalProps) {
     const loadSoldadores = async (cuadrillaId?: string) => {
         try {
             const url = cuadrillaId
-                ? `/api/proyectos/${projectId}/personnel?type=soldadores&cuadrillaId=${cuadrillaId}`
-                : `/api/proyectos/${projectId}/personnel?type=soldadores&all=true`
+                ? `/api/proyectos/${projectId}/personnel?role=SOLDADOR&cuadrilla_id=${cuadrillaId}`
+                : `/api/proyectos/${projectId}/personnel?role=SOLDADOR`
             const res = await fetch(url)
             const data = await res.json()
-            setSoldadores(data.soldadores || [])
+            setSoldadores(data.data || [])
         } catch (error) {
             console.error('Error loading soldadores:', error)
         }
@@ -910,7 +910,7 @@ function ReworkModal({ weld, projectId, onClose, onSubmit }: ReworkModalProps) {
                                     type="date"
                                     value={fecha}
                                     onChange={(e) => setFecha(e.target.value)}
-                                    className="w-full border border-green-300 rounded-lg px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-green-500 focus:outline-none"
+                                    className="w-full border border-green-400 rounded-lg px-3 py-2 text-sm text-gray-900 bg-white focus:ring-2 focus:ring-green-500 focus:outline-none"
                                 />
                             </div>
 
@@ -921,7 +921,7 @@ function ReworkModal({ weld, projectId, onClose, onSubmit }: ReworkModalProps) {
                                     value={selectedCapataz}
                                     onChange={(e) => handleCapatazChange(e.target.value)}
                                     disabled={loadingPersonnel}
-                                    className="w-full border border-green-300 rounded-lg px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-green-500 focus:outline-none"
+                                    className="w-full border border-green-400 rounded-lg px-3 py-2 text-sm text-gray-900 bg-white focus:ring-2 focus:ring-green-500 focus:outline-none"
                                 >
                                     <option value="">Seleccionar capataz...</option>
                                     {capataces.map((c) => (
@@ -937,7 +937,7 @@ function ReworkModal({ weld, projectId, onClose, onSubmit }: ReworkModalProps) {
                                     value={selectedSoldador}
                                     onChange={(e) => setSelectedSoldador(e.target.value)}
                                     disabled={!selectedCapataz}
-                                    className="w-full border border-green-300 rounded-lg px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-green-500 focus:outline-none"
+                                    className="w-full border border-green-400 rounded-lg px-3 py-2 text-sm text-gray-900 bg-white focus:ring-2 focus:ring-green-500 focus:outline-none"
                                 >
                                     <option value="">Seleccionar soldador...</option>
                                     {soldadores.map((s) => (
