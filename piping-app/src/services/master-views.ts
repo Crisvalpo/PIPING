@@ -203,7 +203,8 @@ export async function registerWeldExecution(
     weldId: string,
     welderId: string,
     foremanId: string,
-    executionDate?: string
+    executionDate?: string,
+    reportedByUserId?: string
 ) {
     // 1. Get the latest version for this weld
     const { data: latestExecution } = await supabase
@@ -212,7 +213,7 @@ export async function registerWeldExecution(
         .eq('weld_id', weldId)
         .order('version', { ascending: false })
         .limit(1)
-        .single();
+        .maybeSingle();
 
     const newVersion = (latestExecution?.version || 0) + 1;
     const isRework = newVersion > 1;
@@ -227,7 +228,8 @@ export async function registerWeldExecution(
             welder_id: welderId,
             foreman_id: foremanId,
             status: 'VIGENTE',
-            is_rework: isRework
+            is_rework: isRework,
+            reported_by_user: reportedByUserId || null
         })
         .select()
         .single();

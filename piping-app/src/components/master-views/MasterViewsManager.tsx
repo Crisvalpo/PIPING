@@ -69,6 +69,7 @@ function WeldDetailModal({ weld, projectId, onClose, onUpdate, onRework, onDelet
     // Personnel names for executed welds
     const [welderInfo, setWelderInfo] = useState<{ nombre: string; estampa: string } | null>(null)
     const [foremanInfo, setForemanInfo] = useState<{ nombre: string } | null>(null)
+    const [reporterInfo, setReporterInfo] = useState<{ email: string } | null>(null)
 
     // Execution history
     const [executionHistory, setExecutionHistory] = useState<WeldExecution[]>([])
@@ -82,6 +83,20 @@ function WeldDetailModal({ weld, projectId, onClose, onUpdate, onRework, onDelet
             try {
                 const history = await getWeldExecutions(weld.id)
                 setExecutionHistory(history)
+
+                // Load reporter info from latest VIGENTE execution
+                const currentExecution = history.find(e => e.status === 'VIGENTE')
+                if (currentExecution?.reported_by_user) {
+                    const { data: reporter } = await supabase
+                        .from('users')
+                        .select('email')
+                        .eq('id', currentExecution.reported_by_user)
+                        .single()
+
+                    if (reporter) {
+                        setReporterInfo({ email: reporter.email })
+                    }
+                }
             } catch (error) {
                 console.error('Error loading execution history:', error)
             }
@@ -296,6 +311,12 @@ function WeldDetailModal({ weld, projectId, onClose, onUpdate, onRework, onDelet
                                                 label="Capataz"
                                                 value={foremanInfo?.nombre || 'Cargando...'}
                                             />
+                                            {reporterInfo && (
+                                                <DetailRow
+                                                    label="Reportado por"
+                                                    value={reporterInfo.email}
+                                                />
+                                            )}
                                         </div>
                                     )}
 
@@ -1476,17 +1497,17 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
         if (!weldForExecution) return
 
         try {
-            const { error } = await supabase
-                .from('spools_welds')
-                .update({
-                    executed: true,
-                    execution_date: data.fecha,
-                    welder_id: data.ejecutadoPor,      // RUT del soldador
-                    foreman_id: data.supervisadoPor   // RUT del capataz
-                })
-                .eq('id', weldForExecution.id)
+            // Get current user for audit
+            const { data: { user } } = await supabase.auth.getUser()
 
-            if (error) throw error
+            // Use registerWeldExecution to create proper execution record with audit
+            await registerWeldExecution(
+                weldForExecution.id,
+                data.ejecutadoPor,     // RUT del soldador
+                data.supervisadoPor,   // RUT del capataz
+                data.fecha,
+                user?.id               // ID del usuario que reporta
+            )
 
             setDetails(prev => {
                 if (!prev) return null
