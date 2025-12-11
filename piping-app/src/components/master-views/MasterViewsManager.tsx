@@ -2952,264 +2952,243 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
                                                                                         </div>
                                                                                     )
                                                                                 }
-                                                                    </div>
+                                                                                </div>
+
+                                                                                {activeTab === 'SPOOLS' && (
+                                                                            <div className="space-y-3">
+                                                                                {details.spools.map(spool => (
+                                                                                    <div key={spool.spool_number} className="bg-white p-3 rounded-lg border border-gray-300 shadow-sm">
+                                                                                        <div className="flex justify-between items-center mb-2">
+                                                                                            <span className="font-bold text-gray-800">{spool.spool_number}</span>
+                                                                                            <span
+                                                                                                className={`text-xs font-bold px-2 py-1 rounded ${spool.status === 'COMPLETE'
+                                                                                                    ? 'bg-green-100 text-green-700'
+                                                                                                    : spool.status === 'PARTIAL'
+                                                                                                        ? 'bg-yellow-100 text-yellow-700'
+                                                                                                        : 'bg-gray-200 text-gray-700'
+                                                                                                    }`}
+                                                                                            >
+                                                                                                {spool.status === 'COMPLETE'
+                                                                                                    ? 'COMPLETO'
+                                                                                                    : spool.status === 'PARTIAL'
+                                                                                                        ? 'PARCIAL'
+                                                                                                        : 'PENDIENTE'}
+                                                                                            </span>
+                                                                                        </div>
+                                                                                        <div className="w-full bg-gray-200 rounded-full h-2">
+                                                                                            <div
+                                                                                                className="bg-blue-600 h-2 rounded-full transition-all"
+                                                                                                style={{ width: `${(spool.welds_executed / spool.welds_count) * 100}%` }}
+                                                                                            ></div>
+                                                                                        </div>
+                                                                                        <div className="flex justify-between mt-1 text-xs text-gray-700">
+                                                                                            <span>Progreso</span>
+                                                                                            <span>{spool.welds_executed} / {spool.welds_count} soldaduras</span>
+                                                                                        </div>
+                                                                                    </div>
+                                                                                ))}
+                                                                            </div>
                                                                         )
-                                                                        })}
-                                                                    </div>
-                                                                )
-                                                            }
+                                                                        }
 
-                                                { activeTab === 'SPOOLS' && (
-                                                                    <div className="space-y-3">
-                                                                        {details.spools.map(spool => (
-                                                                            <div key={spool.spool_number} className="bg-white p-3 rounded-lg border border-gray-300 shadow-sm">
-                                                                                <div className="flex justify-between items-center mb-2">
-                                                                                    <span className="font-bold text-gray-800">{spool.spool_number}</span>
-                                                                                    <span
-                                                                                        className={`text-xs font-bold px-2 py-1 rounded ${spool.status === 'COMPLETE'
-                                                                                            ? 'bg-green-100 text-green-700'
-                                                                                            : spool.status === 'PARTIAL'
-                                                                                                ? 'bg-yellow-100 text-yellow-700'
-                                                                                                : 'bg-gray-200 text-gray-700'
-                                                                                            }`}
-                                                                                    >
-                                                                                        {spool.status === 'COMPLETE'
-                                                                                            ? 'COMPLETO'
-                                                                                            : spool.status === 'PARTIAL'
-                                                                                                ? 'PARCIAL'
-                                                                                                : 'PENDIENTE'}
-                                                                                    </span>
+                                                                        {
+                                                                            activeTab === 'TORQUES' && (
+                                                                                <div className="space-y-3">
+                                                                                    {details.joints.map(joint => (
+                                                                                        <div key={joint.id} className="bg-white p-3 rounded-lg border border-gray-300 flex justify-between items-center shadow-sm">
+                                                                                            <div>
+                                                                                                <div className="font-bold text-gray-800">{joint.flanged_joint_number}</div>
+                                                                                                <div className="text-xs text-gray-700">Rating: {joint.rating}</div>
+                                                                                            </div>
+                                                                                            <button
+                                                                                                onClick={() => handleJointToggle(joint.id, joint.executed)}
+                                                                                                className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all ${joint.executed ? 'bg-green-100 text-green-700 border border-green-200' : 'bg-gray-200 text-gray-700 border border-gray-300 hover:bg-gray-200'
+                                                                                                    }`}
+                                                                                            >
+                                                                                                {joint.executed ? 'TORQUEADO' : 'PENDIENTE'}
+                                                                                            </button>
+                                                                                        </div>
+                                                                                    ))}
                                                                                 </div>
-                                                                                <div className="w-full bg-gray-200 rounded-full h-2">
-                                                                                    <div
-                                                                                        className="bg-blue-600 h-2 rounded-full transition-all"
-                                                                                        style={{ width: `${(spool.welds_executed / spool.welds_count) * 100}%` }}
-                                                                                    ></div>
-                                                                                </div>
-                                                                                <div className="flex justify-between mt-1 text-xs text-gray-700">
-                                                                                    <span>Progreso</span>
-                                                                                    <span>{spool.welds_executed} / {spool.welds_count} soldaduras</span>
-                                                                                </div>
-                                                                            </div>
-                                                                        ))}
+                                                                            )
+                                                                        }
                                                                     </div>
-                                                                )}
-
-                                                            {activeTab === 'TORQUES' && (
-                                                                <div className="space-y-3">
-                                                                    {details.joints.map(joint => (
-                                                                        <div key={joint.id} className="bg-white p-3 rounded-lg border border-gray-300 flex justify-between items-center shadow-sm">
-                                                                            <div>
-                                                                                <div className="font-bold text-gray-800">{joint.flanged_joint_number}</div>
-                                                                                <div className="text-xs text-gray-700">Rating: {joint.rating}</div>
                                                                             </div>
-                                                                            <button
-                                                                                onClick={() => handleJointToggle(joint.id, joint.executed)}
-                                                                                className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all ${joint.executed ? 'bg-green-100 text-green-700 border border-green-200' : 'bg-gray-200 text-gray-700 border border-gray-300 hover:bg-gray-200'
-                                                                                    }`}
-                                                                            >
-                                                                                {joint.executed ? 'TORQUEADO' : 'PENDIENTE'}
-                                                                            </button>
-                                                                        </div>
-                                                                    ))}
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                            </div>
-                                                ) : (
-                                                <div className="p-8 text-center text-gray-700">No hay detalles cargados para esta revisión.</div>
+                                                    ) : (
+                                                    <div className="p-8 text-center text-gray-700">No hay detalles cargados para esta revisión.</div>
                                         )}
+                                                </div>
+                                                )
+                                                    }
                                             </div>
                                         )
-                    }
-                                    </div>
-                                )
-                                })
+                                                    })
                 )}
-                            </div>
-
-            {/* Modales */ }
-                        {
-                            selectedWeld && (
-                                <WeldDetailModal
-                                    weld={selectedWeld}
-                                    projectId={projectId}
-                                    onClose={() => setSelectedWeld(null)}
-                                    onUpdate={handleWeldUpdate}
-                                    onRework={(weld) => {
-                                        setSelectedWeld(null) // Close detail modal
-                                        setWeldForRework(weld)
-                                        setShowReworkModal(true)
-                                    }}
-                                    onDelete={(weld) => {
-                                        setSelectedWeld(null) // Close detail modal
-                                        setWeldForDelete(weld)
-                                        setShowDeleteModal(true)
-                                    }}
-                                    onRestore={handleRestoreWeld}
-                                    onUndo={(weld) => {
-                                        setSelectedWeld(null) // Close detail modal
-                                        setWeldForUndo(weld)
-                                        setShowUndoModal(true)
-                                    }}
-                                    onRefresh={async () => {
-                                        // Reload isometric details
-                                        if (selectedRevisionId) {
-                                            const refreshedDetails = await getIsometricDetails(selectedRevisionId)
-                                            setDetails(refreshedDetails)
-                                        }
-                                    }}
-                                />
-                            )
-                        }
-
-                        {
-                            showExecutionModal && weldForExecution && (
-                                <ExecutionReportModal
-                                    weld={weldForExecution}
-                                    projectId={projectId}
-                                    onClose={() => {
-                                        setShowExecutionModal(false)
-                                        setWeldForExecution(null)
-                                    }}
-                                    onSubmit={handleExecutionReport}
-                                />
-                            )
-                        }
-
-                        {/* Rework Modal */ }
-                        {
-                            showReworkModal && weldForRework && (
-                                <ReworkModal
-                                    weld={weldForRework}
-                                    projectId={projectId}
-                                    onClose={() => {
-                                        setShowReworkModal(false)
-                                        setWeldForRework(null)
-                                    }}
-                                    onSubmit={handleRework}
-                                />
-                            )
-                        }
-
-                        {/* Delete Weld Modal */ }
-                        {
-                            showDeleteModal && weldForDelete && (
-                                <DeleteWeldModal
-                                    weld={weldForDelete}
-                                    onClose={() => {
-                                        setShowDeleteModal(false)
-                                        setWeldForDelete(null)
-                                    }}
-                                    onSubmit={handleDeleteWeld}
-                                />
-                            )
-                        }
-
-                        {/* Undo Execution Modal */ }
-                        {
-                            showUndoModal && weldForUndo && (
-                                <UndoExecutionModal
-                                    weld={weldForUndo}
-                                    onClose={() => {
-                                        setShowUndoModal(false)
-                                        setWeldForUndo(null)
-                                    }}
-                                    onSubmit={handleUndoExecution}
-                                />
-                            )
-                        }
-
-                        {/* Add Weld Modal */ }
-                        {
-                            showAddWeldModal && addWeldContext && (
-                                <AddWeldModal
-                                    adjacentWelds={addWeldAdjacentWelds}
-                                    revisionId={addWeldContext.revisionId}
-                                    projectId={addWeldContext.projectId}
-                                    isoNumber={addWeldContext.isoNumber}
-                                    rev={addWeldContext.rev}
-                                    onClose={() => {
-                                        setShowAddWeldModal(false)
-                                        setAddWeldContext(null)
-                                    }}
-                                    onSubmit={handleNewWeldCreated}
-                                />
-                            )
-                        }
-
-                        {/* PDF Viewer Modal */ }
-                        {
-                            showPdfViewer && selectedPdfUrl && (
-                                <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
-                                    <div className="bg-white rounded-xl w-full max-w-4xl h-[90vh] flex flex-col">
-                                        <div className="flex justify-between items-center p-4 border-b">
-                                            <h3 className="text-lg font-bold text-gray-900">Visor de PDF</h3>
-                                            <button
-                                                onClick={() => {
-                                                    setShowPdfViewer(false)
-                                                    setSelectedPdfUrl(null)
-                                                }}
-                                                className="text-gray-700 hover:text-gray-700 text-2xl font-bold"
-                                            >
-                                                ×
-                                            </button>
-                                        </div>
-                                        <div className="flex-1 overflow-hidden">
-                                            <iframe
-                                                src={selectedPdfUrl}
-                                                className="w-full h-full"
-                                                title="PDF Viewer"
-                                            />
-                                        </div>
                                     </div>
-                                </div>
-                            )
-                        }
 
-                        {/* Bottom Navigation Bar */ }
-                        <div className="fixed bottom-0 left-0 right-0 z-40">
-                            <div className="flex items-center justify-around border-t border-gray-300/80 bg-white/90 px-2 pb-4 pt-2 backdrop-blur-lg dark:border-gray-800/80 dark:bg-gray-900/90">
-                                {/* Home Button */}
-                                <a
-                                    href="/dashboard/master-views"
-                                    className={`flex flex-1 flex-col items-center justify-end gap-1.5 pt-1 transition-all ${bottomNavTab === 'home' ? 'text-blue-600' : 'text-gray-700 dark:text-gray-600'}`}
-                                >
-                                    <svg
-                                        className="w-6 h-6"
-                                        fill={bottomNavTab === 'home' ? 'currentColor' : 'none'}
-                                        stroke="currentColor"
-                                        strokeWidth="2"
-                                        viewBox="0 0 24 24"
-                                    >
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-                                    </svg>
-                                    <p className="text-xs font-medium tracking-wide">Inicio</p>
-                                </a>
+                                                {/* Modales */}
+                                {
+                                    selectedWeld && (
+                                        <WeldDetailModal
+                                            weld={selectedWeld}
+                                            projectId={projectId}
+                                            onClose={() => setSelectedWeld(null)}
+                                            onUpdate={handleWeldUpdate}
+                                            onRework={(weld) => {
+                                                setSelectedWeld(null) // Close detail modal
+                                                setWeldForRework(weld)
+                                                setShowReworkModal(true)
+                                            }}
+                                            onDelete={(weld) => {
+                                                setSelectedWeld(null) // Close detail modal
+                                                setWeldForDelete(weld)
+                                                setShowDeleteModal(true)
+                                            }}
+                                            onRestore={handleRestoreWeld}
+                                            onUndo={(weld) => {
+                                                setSelectedWeld(null) // Close detail modal
+                                                setWeldForUndo(weld)
+                                                setShowUndoModal(true)
+                                            }}
+                                            onRefresh={async () => {
+                                                // Reload isometric details
+                                                if (selectedRevisionId) {
+                                                    const refreshedDetails = await getIsometricDetails(selectedRevisionId)
+                                                    setDetails(refreshedDetails)
+                                                }
+                                            }}
+                                        />
+                                    )
+                                }
 
-                                {/* Stats Button */}
-                                <button
-                                    onClick={() => setBottomNavTab('stats')}
-                                    className={`flex flex-1 flex-col items-center justify-end gap-1.5 pt-1 transition-all ${bottomNavTab === 'stats' ? 'text-blue-600' : 'text-gray-700 dark:text-gray-600'}`}
-                                >
-                                    <svg
-                                        className="w-6 h-6"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        strokeWidth="2"
-                                        viewBox="0 0 24 24"
-                                    >
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                                    </svg>
-                                    <p className="text-xs font-medium tracking-wide">Estadísticas</p>
-                                </button>
+                                {
+                                    showExecutionModal && weldForExecution && (
+                                        <ExecutionReportModal
+                                            weld={weldForExecution}
+                                            projectId={projectId}
+                                            onClose={() => {
+                                                setShowExecutionModal(false)
+                                                setWeldForExecution(null)
+                                            }}
+                                            onSubmit={handleExecutionReport}
+                                        />
+                                    )
+                                }
 
-                                {/* Settings Button with Dropdown - Hidden for USUARIO role */}
-                                {userRole !== 'USUARIO' && (
-                                    <div className="relative flex flex-1">
+                                {/* Rework Modal */}
+                                {
+                                    showReworkModal && weldForRework && (
+                                        <ReworkModal
+                                            weld={weldForRework}
+                                            projectId={projectId}
+                                            onClose={() => {
+                                                setShowReworkModal(false)
+                                                setWeldForRework(null)
+                                            }}
+                                            onSubmit={handleRework}
+                                        />
+                                    )
+                                }
+
+                                {/* Delete Weld Modal */}
+                                {
+                                    showDeleteModal && weldForDelete && (
+                                        <DeleteWeldModal
+                                            weld={weldForDelete}
+                                            onClose={() => {
+                                                setShowDeleteModal(false)
+                                                setWeldForDelete(null)
+                                            }}
+                                            onSubmit={handleDeleteWeld}
+                                        />
+                                    )
+                                }
+
+                                {/* Undo Execution Modal */}
+                                {
+                                    showUndoModal && weldForUndo && (
+                                        <UndoExecutionModal
+                                            weld={weldForUndo}
+                                            onClose={() => {
+                                                setShowUndoModal(false)
+                                                setWeldForUndo(null)
+                                            }}
+                                            onSubmit={handleUndoExecution}
+                                        />
+                                    )
+                                }
+
+                                {/* Add Weld Modal */}
+                                {
+                                    showAddWeldModal && addWeldContext && (
+                                        <AddWeldModal
+                                            adjacentWelds={addWeldAdjacentWelds}
+                                            revisionId={addWeldContext.revisionId}
+                                            projectId={addWeldContext.projectId}
+                                            isoNumber={addWeldContext.isoNumber}
+                                            rev={addWeldContext.rev}
+                                            onClose={() => {
+                                                setShowAddWeldModal(false)
+                                                setAddWeldContext(null)
+                                            }}
+                                            onSubmit={handleNewWeldCreated}
+                                        />
+                                    )
+                                }
+
+                                {/* PDF Viewer Modal */}
+                                {
+                                    showPdfViewer && selectedPdfUrl && (
+                                        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
+                                            <div className="bg-white rounded-xl w-full max-w-4xl h-[90vh] flex flex-col">
+                                                <div className="flex justify-between items-center p-4 border-b">
+                                                    <h3 className="text-lg font-bold text-gray-900">Visor de PDF</h3>
+                                                    <button
+                                                        onClick={() => {
+                                                            setShowPdfViewer(false)
+                                                            setSelectedPdfUrl(null)
+                                                        }}
+                                                        className="text-gray-700 hover:text-gray-700 text-2xl font-bold"
+                                                    >
+                                                        ×
+                                                    </button>
+                                                </div>
+                                                <div className="flex-1 overflow-hidden">
+                                                    <iframe
+                                                        src={selectedPdfUrl}
+                                                        className="w-full h-full"
+                                                        title="PDF Viewer"
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )
+                                }
+
+                                {/* Bottom Navigation Bar */}
+                                <div className="fixed bottom-0 left-0 right-0 z-40">
+                                    <div className="flex items-center justify-around border-t border-gray-300/80 bg-white/90 px-2 pb-4 pt-2 backdrop-blur-lg dark:border-gray-800/80 dark:bg-gray-900/90">
+                                        {/* Home Button */}
+                                        <a
+                                            href="/dashboard/master-views"
+                                            className={`flex flex-1 flex-col items-center justify-end gap-1.5 pt-1 transition-all ${bottomNavTab === 'home' ? 'text-blue-600' : 'text-gray-700 dark:text-gray-600'}`}
+                                        >
+                                            <svg
+                                                className="w-6 h-6"
+                                                fill={bottomNavTab === 'home' ? 'currentColor' : 'none'}
+                                                stroke="currentColor"
+                                                strokeWidth="2"
+                                                viewBox="0 0 24 24"
+                                            >
+                                                <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                                            </svg>
+                                            <p className="text-xs font-medium tracking-wide">Inicio</p>
+                                        </a>
+
+                                        {/* Stats Button */}
                                         <button
-                                            onClick={() => setShowSettingsMenu(!showSettingsMenu)}
-                                            className={`flex flex-1 flex-col items-center justify-end gap-1.5 pt-1 transition-all ${bottomNavTab === 'settings' || showSettingsMenu ? 'text-blue-600' : 'text-gray-700 dark:text-gray-600'}`}
+                                            onClick={() => setBottomNavTab('stats')}
+                                            className={`flex flex-1 flex-col items-center justify-end gap-1.5 pt-1 transition-all ${bottomNavTab === 'stats' ? 'text-blue-600' : 'text-gray-700 dark:text-gray-600'}`}
                                         >
                                             <svg
                                                 className="w-6 h-6"
@@ -3218,53 +3197,72 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
                                                 strokeWidth="2"
                                                 viewBox="0 0 24 24"
                                             >
-                                                <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                                                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                                             </svg>
-                                            <p className="text-xs font-medium tracking-wide">Ajustes</p>
+                                            <p className="text-xs font-medium tracking-wide">Estadísticas</p>
                                         </button>
 
-                                        {/* Settings Dropdown Menu */}
-                                        {showSettingsMenu && (
-                                            <div className="absolute bottom-full right-0 mb-2 bg-white rounded-lg shadow-xl border border-gray-300 overflow-hidden min-w-[200px]">
-                                                <a
-                                                    href={`/proyectos/${projectId}/cuadrillas/manage`}
-                                                    className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors"
-                                                    onClick={() => setShowSettingsMenu(false)}
-                                                >
-                                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                                                    </svg>
-                                                    <span className="font-medium">Cuadrillas</span>
-                                                </a>
+                                        {/* Settings Button with Dropdown - Hidden for USUARIO role */}
+                                        {userRole !== 'USUARIO' && (
+                                            <div className="relative flex flex-1">
                                                 <button
-                                                    onClick={() => {
-                                                        setBottomNavTab('settings')
-                                                        setShowSettingsMenu(false)
-                                                        alert('Función de ayuda próximamente...')
-                                                    }}
-                                                    className="w-full flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors border-t border-gray-100"
+                                                    onClick={() => setShowSettingsMenu(!showSettingsMenu)}
+                                                    className={`flex flex-1 flex-col items-center justify-end gap-1.5 pt-1 transition-all ${bottomNavTab === 'settings' || showSettingsMenu ? 'text-blue-600' : 'text-gray-700 dark:text-gray-600'}`}
                                                 >
-                                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                    <svg
+                                                        className="w-6 h-6"
+                                                        fill="none"
+                                                        stroke="currentColor"
+                                                        strokeWidth="2"
+                                                        viewBox="0 0 24 24"
+                                                    >
+                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                                                     </svg>
-                                                    <span className="font-medium">Ayuda</span>
+                                                    <p className="text-xs font-medium tracking-wide">Ajustes</p>
                                                 </button>
+
+                                                {/* Settings Dropdown Menu */}
+                                                {showSettingsMenu && (
+                                                    <div className="absolute bottom-full right-0 mb-2 bg-white rounded-lg shadow-xl border border-gray-300 overflow-hidden min-w-[200px]">
+                                                        <a
+                                                            href={`/proyectos/${projectId}/cuadrillas/manage`}
+                                                            className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors"
+                                                            onClick={() => setShowSettingsMenu(false)}
+                                                        >
+                                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                                                            </svg>
+                                                            <span className="font-medium">Cuadrillas</span>
+                                                        </a>
+                                                        <button
+                                                            onClick={() => {
+                                                                setBottomNavTab('settings')
+                                                                setShowSettingsMenu(false)
+                                                                alert('Función de ayuda próximamente...')
+                                                            }}
+                                                            className="w-full flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors border-t border-gray-100"
+                                                        >
+                                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                            </svg>
+                                                            <span className="font-medium">Ayuda</span>
+                                                        </button>
+                                                    </div>
+                                                )}
                                             </div>
                                         )}
                                     </div>
-                                )}
-                            </div>
-                        </div>
+                                </div>
 
-                        {/* Hidden File Input */ }
-                        <input
-                            type="file"
-                            ref={fileInputRef}
-                            className="hidden"
-                            accept=".pdf"
-                            onChange={handleFileChange}
-                        />
-        </div >
-            )
-}
+                                {/* Hidden File Input */}
+                                <input
+                                    type="file"
+                                    ref={fileInputRef}
+                                    className="hidden"
+                                    accept=".pdf"
+                                    onChange={handleFileChange}
+                                />
+                            </div >
+                        )
+                    }
