@@ -325,26 +325,12 @@ function WeldDetailModal({ weld, projectId, onClose, onUpdate, onRework, onDelet
                                         <div className="mt-3">
                                             <p className="text-xs font-semibold text-gray-600 mb-2">Historial de Ejecuciones</p>
                                             <div className="space-y-2">
-                                                {executionHistory.filter(e => e.status === 'RETRABAJO').map((execution) => (
-                                                    <div
+                                                {executionHistory.filter(e => e.status === 'RETRABAJO' || e.status === 'ANULADO').map((execution) => (
+                                                    <ExecutionHistoryCard
                                                         key={execution.id}
-                                                        className="bg-orange-50 border border-orange-200 rounded-lg p-2 text-sm"
-                                                    >
-                                                        <div className="flex justify-between items-center">
-                                                            <span className="font-medium text-orange-800">
-                                                                v{execution.version} - {new Date(execution.execution_date).toLocaleDateString('es-CL')}
-                                                            </span>
-                                                            <span className="px-2 py-0.5 bg-orange-200 text-orange-700 text-xs rounded font-bold">
-                                                                RETRABAJO
-                                                            </span>
-                                                        </div>
-                                                        {execution.rework_responsibility && (
-                                                            <p className="text-xs text-orange-600 mt-1">
-                                                                <strong>Motivo:</strong> {getResponsibilityLabel(execution.rework_responsibility)}
-                                                                {execution.rework_reason && ` - ${execution.rework_reason}`}
-                                                            </p>
-                                                        )}
-                                                    </div>
+                                                        execution={execution}
+                                                        getResponsibilityLabel={getResponsibilityLabel}
+                                                    />
                                                 ))}
                                             </div>
                                         </div>
@@ -808,6 +794,89 @@ function DetailRow({ label, value }: { label: string; value: string }) {
         <div>
             <span className="text-xs font-bold text-gray-600 uppercase tracking-wider">{label}</span>
             <div className="text-sm text-gray-900 font-semibold mt-0.5">{value || '-'}</div>
+        </div>
+    )
+}
+
+// Component for execution history cards with personnel loading
+interface ExecutionHistoryCardProps {
+    execution: WeldExecution
+    getResponsibilityLabel: (resp: string) => string
+}
+
+function ExecutionHistoryCard({ execution, getResponsibilityLabel }: ExecutionHistoryCardProps) {
+    const [welderName, setWelderName] = useState<string>('...')
+    const [foremanName, setForemanName] = useState<string>('...')
+    const [reporterName, setReporterName] = useState<string | null>(null)
+
+    useEffect(() => {
+        const loadPersonnel = async () => {
+            // Load welder name
+            if (execution.welder_id) {
+                const { data: welder } = await supabase
+                    .from('personal')
+                    .select('nombre')
+                    .eq('rut', execution.welder_id)
+                    .single()
+                if (welder) setWelderName(welder.nombre)
+            }
+
+            // Load foreman name
+            if (execution.foreman_id) {
+                const { data: foreman } = await supabase
+                    .from('personal')
+                    .select('nombre')
+                    .eq('rut', execution.foreman_id)
+                    .single()
+                if (foreman) setForemanName(foreman.nombre)
+            }
+
+            // Load reporter name
+            if (execution.reported_by_user) {
+                const { data: reporter } = await supabase
+                    .from('users')
+                    .select('nombre')
+                    .eq('id', execution.reported_by_user)
+                    .single()
+                if (reporter) setReporterName(reporter.nombre)
+            }
+        }
+        loadPersonnel()
+    }, [execution])
+
+    const isAnulado = execution.status === 'ANULADO'
+    const bgColor = isAnulado ? 'bg-red-50 border-red-200' : 'bg-orange-50 border-orange-200'
+    const textColor = isAnulado ? 'text-red-800' : 'text-orange-800'
+    const subTextColor = isAnulado ? 'text-red-600' : 'text-orange-600'
+    const badgeColor = isAnulado ? 'bg-red-200 text-red-700' : 'bg-orange-200 text-orange-700'
+
+    return (
+        <div className={`${bgColor} border rounded-lg p-3 text-sm space-y-1`}>
+            <div className="flex justify-between items-center">
+                <span className={`font-medium ${textColor}`}>
+                    v{execution.version} - {new Date(execution.execution_date).toLocaleDateString('es-CL')}
+                </span>
+                <span className={`px-2 py-0.5 ${badgeColor} text-xs rounded font-bold`}>
+                    {execution.status}
+                </span>
+            </div>
+            <p className={`text-xs ${subTextColor}`}>
+                <strong>Soldador:</strong> {welderName}
+            </p>
+            <p className={`text-xs ${subTextColor}`}>
+                <strong>Capataz:</strong> {foremanName}
+            </p>
+            {reporterName && (
+                <p className={`text-xs ${subTextColor}`}>
+                    <strong>Reportado por:</strong> {reporterName}
+                </p>
+            )}
+            {execution.rework_responsibility && (
+                <p className={`text-xs ${subTextColor}`}>
+                    <strong>Motivo:</strong> {getResponsibilityLabel(execution.rework_responsibility)}
+                    {execution.rework_reason && ` - ${execution.rework_reason}`}
+                </p>
+            )}
         </div>
     )
 }
