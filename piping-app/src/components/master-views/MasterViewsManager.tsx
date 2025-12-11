@@ -94,7 +94,7 @@ function WeldDetailModal({ weld, projectId, onClose, onUpdate, onRework, onDelet
                         .single()
 
                     if (reporter) {
-                        setReporterInfo({ email: reporter.correo || reporter.nombre })
+                        setReporterInfo({ email: reporter.nombre })
                     }
                 }
             } catch (error) {
