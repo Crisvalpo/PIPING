@@ -2951,7 +2951,6 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
                                                                                             </div>
                                                                                         </div>
                                                                                     )
-                                                                                }
                                                                                 </div>
 
                                                                                 {activeTab === 'SPOOLS' && (
