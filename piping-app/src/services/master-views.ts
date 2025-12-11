@@ -328,3 +328,100 @@ export async function undoWeldExecution(weldId: string, reason: string, userId?:
 
     if (error) throw error;
 }
+
+/**
+ * Check if a weld number already exists in a revision
+ */
+export async function checkWeldNumberExists(revisionId: string, weldNumber: string): Promise<boolean> {
+    const { data, error } = await supabase
+        .from('spools_welds')
+        .select('id')
+        .eq('revision_id', revisionId)
+        .eq('weld_number', weldNumber)
+        .limit(1);
+
+    if (error) throw error;
+    return (data?.length || 0) > 0;
+}
+
+export type CreationType = 'TERRENO' | 'INGENIERIA';
+
+export interface NewWeldData {
+    revision_id: string;
+    proyecto_id: string;
+    iso_number: string;
+    rev: string;
+    line_number?: string;
+    spool_number: string;
+    sheet?: string;
+    weld_number: string;
+    destination?: string;
+    type_weld?: string;
+    nps?: string;
+    sch?: string;
+    thickness?: string;
+    piping_class?: string;
+    material?: string;
+}
+
+export interface FieldExecutionData {
+    fecha: string;
+    welderId: string;
+    foremanId: string;
+}
+
+/**
+ * Create a new weld from the field
+ * For TERRENO: creates weld and immediately registers execution
+ * For INGENIERIA: creates weld as pending
+ */
+export async function createFieldWeld(
+    weldData: NewWeldData,
+    creationType: CreationType,
+    creationReason: string,
+    userId?: string,
+    executionData?: FieldExecutionData
+) {
+    // 1. Validate weld_number is unique
+    const exists = await checkWeldNumberExists(weldData.revision_id, weldData.weld_number);
+    if (exists) {
+        throw new Error(`El número de unión ${weldData.weld_number} ya existe en esta isométrica`);
+    }
+
+    // 2. Create the weld
+    const { data: newWeld, error: createError } = await supabase
+        .from('spools_welds')
+        .insert({
+            ...weldData,
+            created_by: userId || null,
+            creation_type: creationType,
+            creation_reason: creationReason,
+            executed: false
+        })
+        .select()
+        .single();
+
+    if (createError) throw createError;
+
+    // 3. If TERRENO, register execution immediately
+    if (creationType === 'TERRENO' && executionData) {
+        await registerWeldExecution(
+            newWeld.id,
+            executionData.welderId,
+            executionData.foremanId,
+            executionData.fecha,
+            userId
+        );
+
+        // Return updated weld with execution
+        return {
+            ...newWeld,
+            executed: true,
+            execution_date: executionData.fecha,
+            welder_id: executionData.welderId,
+            foreman_id: executionData.foremanId
+        };
+    }
+
+    return newWeld;
+}
