@@ -28,6 +28,7 @@ interface MasterViewsManagerProps {
 interface WeldDetailModal {
     weld: any
     projectId: string
+    requiresWelder: (type: string) => boolean
     onClose: () => void
     onUpdate: (weldId: string, updates: any) => void
     onRework: (weld: any) => void
@@ -40,6 +41,7 @@ interface WeldDetailModal {
 interface ExecutionReportModal {
     weld: any
     projectId: string
+    requiresWelder: (type: string) => boolean
     onClose: () => void
     onSubmit: (data: { fecha: string; ejecutadoPor: string; supervisadoPor: string }) => void
 }
@@ -56,7 +58,7 @@ interface WeldsBySpool {
 }
 
 // Modal de Detalles de Soldadura con Edición
-function WeldDetailModal({ weld, projectId, onClose, onUpdate, onRework, onDelete, onRestore, onUndo, onRefresh }: WeldDetailModal) {
+function WeldDetailModal({ weld, projectId, requiresWelder, onClose, onUpdate, onRework, onDelete, onRestore, onUndo, onRefresh }: WeldDetailModal) {
     const [editMode, setEditMode] = useState(false)
     const [formData, setFormData] = useState({
         weld_number: weld.weld_number,
@@ -160,7 +162,7 @@ function WeldDetailModal({ weld, projectId, onClose, onUpdate, onRework, onDelet
             }
 
             // Load created_by info if weld has creation info
-            if (weld.created_by && weld.creation_type === 'TERRENO') {
+            if (weld.created_by) {
                 const { data: creator } = await supabase
                     .from('users')
                     .select('nombre')
@@ -315,26 +317,37 @@ function WeldDetailModal({ weld, projectId, onClose, onUpdate, onRework, onDelet
                                 <DetailRow label="Destino" value={getDestinationText(formData.destination)} />
                             </div>
 
-                            {/* Created from Field Info Section - Only show for TERRENO created welds */}
-                            {weld.creation_type === 'TERRENO' && (
-                                <div className="mt-4 pt-4 border-t border-emerald-200 space-y-2">
-                                    <h4 className="text-xs font-bold text-emerald-700 uppercase tracking-wider flex items-center gap-2">
-                                        <span className="w-2 h-2 bg-emerald-600 rounded-full"></span>
-                                        Creada en Terreno
+                            {/* Creation Info Section - Show for any manually created weld */}
+                            {(weld.creation_type || weld.created_by) && (
+                                <div className={`mt-4 pt-4 border-t space-y-2 ${weld.creation_type === 'TERRENO' ? 'border-emerald-200' : 'border-blue-200'
+                                    }`}>
+                                    <h4 className={`text-xs font-bold uppercase tracking-wider flex items-center gap-2 ${weld.creation_type === 'TERRENO' ? 'text-emerald-700' : 'text-blue-700'
+                                        }`}>
+                                        <span className={`w-2 h-2 rounded-full ${weld.creation_type === 'TERRENO' ? 'bg-emerald-600' : 'bg-blue-600'
+                                            }`}></span>
+                                        {weld.creation_type === 'TERRENO' ? 'Creada en Terreno' : 'Información de Creación'}
                                     </h4>
-                                    <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 space-y-1">
+                                    <div className={`border rounded-lg p-3 space-y-1 ${weld.creation_type === 'TERRENO'
+                                        ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                                        : 'bg-blue-50 border-blue-200 text-blue-700'
+                                        }`}>
                                         {createdByInfo && (
-                                            <p className="text-sm text-emerald-700">
+                                            <p className="text-sm">
                                                 <strong>Creada por:</strong> {createdByInfo.nombre}
                                             </p>
                                         )}
+                                        {weld.creation_type && weld.creation_type !== 'TERRENO' && (
+                                            <p className="text-sm">
+                                                <strong>Tipo:</strong> {weld.creation_type}
+                                            </p>
+                                        )}
                                         {weld.creation_reason && (
-                                            <p className="text-sm text-emerald-700">
+                                            <p className="text-sm">
                                                 <strong>Motivo:</strong> {weld.creation_reason}
                                             </p>
                                         )}
                                         {weld.created_at && (
-                                            <p className="text-sm text-emerald-700">
+                                            <p className="text-sm">
                                                 <strong>Fecha:</strong> {new Date(weld.created_at).toLocaleString('es-CL')}
                                             </p>
                                         )}
@@ -390,7 +403,7 @@ function WeldDetailModal({ weld, projectId, onClose, onUpdate, onRework, onDelet
                                             />
                                             <DetailRow
                                                 label="Soldador"
-                                                value={welderInfo ? `[${welderInfo.estampa}] ${welderInfo.nombre}` : 'Cargando...'}
+                                                value={!requiresWelder(weld.type_weld || '') ? 'N/A' : (welderInfo ? `[${welderInfo.estampa}] ${welderInfo.nombre}` : 'Cargando...')}
                                             />
                                             <DetailRow
                                                 label="Capataz"
@@ -526,7 +539,8 @@ function WeldDetailModal({ weld, projectId, onClose, onUpdate, onRework, onDelet
 }
 
 // Modal de Reporte de Ejecución - Con selección en cascada Capataz -> Soldadores
-function ExecutionReportModal({ weld, projectId, onClose, onSubmit }: ExecutionReportModal) {
+function ExecutionReportModal({ weld, projectId, requiresWelder, onClose, onSubmit }: ExecutionReportModal) {
+    const isWelderRequired = requiresWelder(weld.type_weld || '')
     const [fecha, setFecha] = useState(new Date().toISOString().split('T')[0])
     const [ejecutadoPor, setEjecutadoPor] = useState('')
     const [supervisadoPor, setSupervisadoPor] = useState('')
@@ -622,7 +636,7 @@ function ExecutionReportModal({ weld, projectId, onClose, onSubmit }: ExecutionR
         setSelectedSoldador(soldador || null)
 
         // Check if soldador needs estampa
-        if (soldador && !soldador.estampa) {
+        if (isWelderRequired && soldador && !soldador.estampa) {
             setNeedsEstampa(true)
             setEstampaInput('')
         } else {
@@ -634,13 +648,20 @@ function ExecutionReportModal({ weld, projectId, onClose, onSubmit }: ExecutionR
     const handleSubmit = async () => {
         setErrors({ ejecutadoPor: '', supervisadoPor: '' })
 
-        if (!fecha || !ejecutadoPor || !supervisadoPor) {
-            alert('Todos los campos son obligatorios')
+        // For non-welded types, only require fecha and supervisadoPor
+        if (!fecha || !supervisadoPor) {
+            alert('La fecha y el capataz son obligatorios')
+            return
+        }
+
+        // For welded types, also require ejecutadoPor (soldador)
+        if (isWelderRequired && !ejecutadoPor) {
+            alert('El soldador es obligatorio para este tipo de unión')
             return
         }
 
         // If soldador needs estampa, validate and save it first
-        if (needsEstampa) {
+        if (isWelderRequired && needsEstampa) {
             if (!estampaInput.trim()) {
                 alert('La estampa del soldador es obligatoria')
                 return
@@ -744,8 +765,8 @@ function ExecutionReportModal({ weld, projectId, onClose, onSubmit }: ExecutionR
                                 )}
                             </div>
 
-                            {/* PASO 2: Seleccionar Soldador (Solo si hay capataz seleccionado) */}
-                            {supervisadoPor && (
+                            {/* PASO 2: Seleccionar Soldador (Solo si hay capataz seleccionado Y requiere soldador) */}
+                            {supervisadoPor && isWelderRequired && (
                                 <div>
                                     <label className="block text-sm font-bold text-gray-800 mb-1">
                                         <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded text-xs mr-2">PASO 2</span>
@@ -851,7 +872,7 @@ function ExecutionReportModal({ weld, projectId, onClose, onSubmit }: ExecutionR
                     </button>
                     <button
                         onClick={handleSubmit}
-                        disabled={loading || savingEstampa || !ejecutadoPor || !supervisadoPor || (needsEstampa && !estampaInput.trim())}
+                        disabled={loading || savingEstampa || (isWelderRequired && !ejecutadoPor) || !supervisadoPor || (needsEstampa && !estampaInput.trim())}
                         className="px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         {savingEstampa ? (
@@ -971,8 +992,9 @@ function ExecutionHistoryCard({ execution, getResponsibilityLabel }: ExecutionHi
 interface ReworkModalProps {
     weld: any
     projectId: string
+    requiresWelder: (type: string) => boolean
     onClose: () => void
-    onSubmit: (responsibility: ReworkResponsibility, reason: string, executionData?: { fecha: string; welderId: string; foremanId: string }) => Promise<void>
+    onSubmit: (responsibility: ReworkResponsibility, reason: string, executionData?: { fecha: string; welderId: string | null; foremanId: string }) => Promise<void>
 }
 
 const REWORK_OPTIONS: { value: ReworkResponsibility; label: string; description: string }[] = [
@@ -981,7 +1003,7 @@ const REWORK_OPTIONS: { value: ReworkResponsibility; label: string; description:
     { value: 'RECHAZO_END', label: 'Rechazo', description: 'Rechazo por parte de Calidad' },
 ]
 
-function ReworkModal({ weld, projectId, onClose, onSubmit }: ReworkModalProps) {
+function ReworkModal({ weld, projectId, requiresWelder, onClose, onSubmit }: ReworkModalProps) {
     const [responsibility, setResponsibility] = useState<ReworkResponsibility>('TERRENO')
     const [reason, setReason] = useState('')
     const [submitting, setSubmitting] = useState(false)
@@ -1000,6 +1022,9 @@ function ReworkModal({ weld, projectId, onClose, onSubmit }: ReworkModalProps) {
     const [needsEstampa, setNeedsEstampa] = useState(false)
     const [estampaInput, setEstampaInput] = useState('')
     const [savingEstampa, setSavingEstampa] = useState(false)
+
+    // Check if welder is required based on weld type
+    const isWelderRequired = requiresWelder(weld.type_weld || '')
 
     // Load personnel when modal opens (TERRENO is default)
     useEffect(() => {
@@ -1074,9 +1099,15 @@ function ReworkModal({ weld, projectId, onClose, onSubmit }: ReworkModalProps) {
 
     const handleSubmit = async () => {
         // Validate execution fields if TERRENO
-        if (responsibility === 'TERRENO' && (!selectedSoldador || !selectedCapataz)) {
-            alert('Para Retrabajo por Terreno, debes seleccionar soldador y capataz')
-            return
+        if (responsibility === 'TERRENO') {
+            if (!selectedCapataz) {
+                alert('Para Retrabajo por Terreno, debes seleccionar un capataz')
+                return
+            }
+            if (isWelderRequired && !selectedSoldador) {
+                alert('Para Retrabajo por Terreno en soldaduras, debes seleccionar un soldador')
+                return
+            }
         }
 
         setSubmitting(true)
@@ -1111,8 +1142,13 @@ function ReworkModal({ weld, projectId, onClose, onSubmit }: ReworkModalProps) {
                 }
             }
 
+            // If isWelderRequired is false, we can skip welderId (or pass null/undefined)
             const executionData = responsibility === 'TERRENO'
-                ? { fecha, welderId: selectedSoldador, foremanId: selectedCapataz }
+                ? {
+                    fecha,
+                    welderId: isWelderRequired ? selectedSoldador : null,
+                    foremanId: selectedCapataz
+                }
                 : undefined
             await onSubmit(responsibility, reason, executionData)
             onClose()
@@ -1212,51 +1248,56 @@ function ReworkModal({ weld, projectId, onClose, onSubmit }: ReworkModalProps) {
                                 </select>
                             </div>
 
-                            {/* Soldador */}
-                            <div>
-                                <label className="block text-xs font-medium text-green-800 mb-1">Soldador *</label>
-                                <select
-                                    value={selectedSoldador}
-                                    onChange={(e) => handleSoldadorChange(e.target.value)}
-                                    disabled={!selectedCapataz}
-                                    className="w-full border border-green-400 rounded-lg px-3 py-2 text-sm text-gray-900 bg-white focus:ring-2 focus:ring-green-500 focus:outline-none"
-                                >
-                                    <option value="">Seleccionar soldador...</option>
-                                    {(showAllSoldadores ? allSoldadores : soldadores).map((s) => (
-                                        <option key={s.rut} value={s.rut}>
-                                            {s.estampa ? `[${s.estampa}] ` : s.codigo_trabajador ? `[${s.codigo_trabajador}] ` : '⚠️ '}
-                                            {s.nombre}
-                                            {showAllSoldadores && s.cuadrilla_codigo ? ` (${s.cuadrilla_codigo})` : ''}
-                                        </option>
-                                    ))}
-                                </select>
 
-                                {/* Toggle and info */}
-                                {selectedCapataz && (
-                                    <div className="flex items-center justify-between mt-1">
-                                        <p className="text-xs text-green-700">
-                                            {showAllSoldadores
-                                                ? `${allSoldadores.length} soldadores en proyecto`
-                                                : `${soldadores.length} soldadores en cuadrilla`
-                                            }
-                                        </p>
-                                        <button
-                                            type="button"
-                                            onClick={() => setShowAllSoldadores(!showAllSoldadores)}
-                                            className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                            {/* Soldador - Only if required */}
+                            {isWelderRequired && (
+                                <>
+                                    <div>
+                                        <label className="block text-xs font-medium text-green-800 mb-1">Soldador *</label>
+                                        <select
+                                            value={selectedSoldador}
+                                            onChange={(e) => handleSoldadorChange(e.target.value)}
+                                            disabled={!selectedCapataz}
+                                            className="w-full border border-green-400 rounded-lg px-3 py-2 text-sm text-gray-900 bg-white focus:ring-2 focus:ring-green-500 focus:outline-none"
                                         >
-                                            {showAllSoldadores ? '← Solo cuadrilla' : 'Ver todos →'}
-                                        </button>
+                                            <option value="">Seleccionar soldador...</option>
+                                            {(showAllSoldadores ? allSoldadores : soldadores).map((s) => (
+                                                <option key={s.rut} value={s.rut}>
+                                                    {s.estampa ? `[${s.estampa}] ` : s.codigo_trabajador ? `[${s.codigo_trabajador}] ` : '⚠️ '}
+                                                    {s.nombre}
+                                                    {showAllSoldadores && s.cuadrilla_codigo ? ` (${s.cuadrilla_codigo})` : ''}
+                                                </option>
+                                            ))}
+                                        </select>
                                     </div>
-                                )}
 
-                                {!selectedCapataz && (
-                                    <p className="text-xs text-green-600 mt-1">Selecciona un capataz primero</p>
-                                )}
-                            </div>
+                                    {/* Toggle and info */}
+                                    {selectedCapataz && (
+                                        <div className="flex items-center justify-between mt-1">
+                                            <p className="text-xs text-green-700">
+                                                {showAllSoldadores
+                                                    ? `${allSoldadores.length} soldadores en proyecto`
+                                                    : `${soldadores.length} soldadores en cuadrilla`
+                                                }
+                                            </p>
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowAllSoldadores(!showAllSoldadores)}
+                                                className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                                            >
+                                                {showAllSoldadores ? '← Solo cuadrilla' : 'Ver todos →'}
+                                            </button>
+                                        </div>
+                                    )}
+
+                                    {!selectedCapataz && (
+                                        <p className="text-xs text-green-600 mt-1">Selecciona un capataz primero</p>
+                                    )}
+                                </>
+                            )}
 
                             {/* Estampa input - only shown when selected soldador has no estampa */}
-                            {needsEstampa && (
+                            {needsEstampa && isWelderRequired && (
                                 <div className="bg-yellow-50 border border-yellow-300 rounded-lg p-3">
                                     <label className="block text-xs font-medium text-yellow-800 mb-1">
                                         Estampa del Soldador *
@@ -1288,11 +1329,11 @@ function ReworkModal({ weld, projectId, onClose, onSubmit }: ReworkModalProps) {
                             rows={2}
                             className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-orange-500 focus:outline-none"
                         />
-                    </div>
-                </div>
+                    </div >
+                </div >
 
                 {/* Footer */}
-                <div className="p-6 border-t border-gray-200 flex gap-3 sticky bottom-0 bg-white">
+                < div className="p-6 border-t border-gray-200 flex gap-3 sticky bottom-0 bg-white" >
                     <button
                         onClick={onClose}
                         disabled={submitting}
@@ -1302,7 +1343,7 @@ function ReworkModal({ weld, projectId, onClose, onSubmit }: ReworkModalProps) {
                     </button>
                     <button
                         onClick={handleSubmit}
-                        disabled={submitting || savingEstampa || (responsibility === 'TERRENO' && (!selectedSoldador || !selectedCapataz || (needsEstampa && !estampaInput.trim())))}
+                        disabled={submitting || savingEstampa || (responsibility === 'TERRENO' && ((isWelderRequired && !selectedSoldador) || !selectedCapataz || (needsEstampa && !estampaInput.trim())))}
                         className="flex-1 px-4 py-3 bg-orange-500 hover:bg-orange-600 text-white rounded-xl font-medium transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
                     >
                         {submitting ? (
@@ -1316,9 +1357,9 @@ function ReworkModal({ weld, projectId, onClose, onSubmit }: ReworkModalProps) {
                             </>
                         )}
                     </button>
-                </div>
-            </div>
-        </div>
+                </div >
+            </div >
+        </div >
     )
 }
 
@@ -1532,11 +1573,12 @@ interface AddWeldModalProps {
     projectId: string
     isoNumber: string
     rev: string
+    requiresWelder: (type: string) => boolean
     onClose: () => void
     onSubmit: (weld: any) => void
 }
 
-function AddWeldModal({ adjacentWelds, revisionId, projectId, isoNumber, rev, onClose, onSubmit }: AddWeldModalProps) {
+function AddWeldModal({ adjacentWelds, revisionId, projectId, isoNumber, rev, requiresWelder, onClose, onSubmit }: AddWeldModalProps) {
     // Suggest values from adjacent welds
     const suggestedWeld = adjacentWelds.prev || adjacentWelds.next || {}
 
@@ -1551,6 +1593,7 @@ function AddWeldModal({ adjacentWelds, revisionId, projectId, isoNumber, rev, on
     const [sheet, setSheet] = useState(suggestedWeld.sheet || '')
     const [destination, setDestination] = useState(suggestedWeld.destination || 'F')
     const [typeWeld, setTypeWeld] = useState(suggestedWeld.type_weld || '')
+    const isWelderRequired = requiresWelder(typeWeld || '')
     const [nps, setNps] = useState(suggestedWeld.nps || '')
     const [sch, setSch] = useState(suggestedWeld.sch || '')
     const [thickness, setThickness] = useState(suggestedWeld.thickness || '')
@@ -1632,7 +1675,7 @@ function AddWeldModal({ adjacentWelds, revisionId, projectId, isoNumber, rev, on
         setSelectedSoldador(soldadorRut)
         const allList = showAllSoldadores ? allSoldadores : soldadores
         const soldador = allList.find(s => s.rut === soldadorRut)
-        if (soldador && !soldador.estampa) {
+        if (isWelderRequired && soldador && !soldador.estampa) {
             setNeedsEstampa(true)
             setEstampaInput('')
         } else {
@@ -1682,7 +1725,7 @@ function AddWeldModal({ adjacentWelds, revisionId, projectId, isoNumber, rev, on
         setSubmitting(true)
         try {
             // If soldador needs estampa, save it first
-            if (creationType === 'TERRENO' && needsEstampa) {
+            if (creationType === 'TERRENO' && isWelderRequired && needsEstampa) {
                 if (!estampaInput.trim()) {
                     alert('La estampa del soldador es obligatoria')
                     setSubmitting(false)
@@ -1729,12 +1772,26 @@ function AddWeldModal({ adjacentWelds, revisionId, projectId, isoNumber, rev, on
                 foremanId: selectedCapataz
             } : undefined
 
+            // Determine display order
+            let displayOrder: number | undefined
+            if (adjacentWelds.prev) {
+                // If previous exists, go after it
+                displayOrder = (adjacentWelds.prev.display_order || 0) + 1
+            } else if (adjacentWelds.next) {
+                // If no previous but next exists (start of list), take its spot
+                displayOrder = adjacentWelds.next.display_order || 1
+            } else {
+                // Empty list
+                displayOrder = 1
+            }
+
             const newWeld = await createFieldWeld(
                 weldData,
                 creationType,
                 creationReason,
                 user?.id,
-                executionData
+                executionData,
+                displayOrder
             )
 
             onSubmit(newWeld)
@@ -1993,6 +2050,8 @@ function groupWeldsBySpool(welds: any[]): WeldsBySpool[] {
     return Array.from(spoolMap.values()).sort((a, b) => a.spool_number.localeCompare(b.spool_number))
 }
 
+// NON_WELDED_TYPES constant removed in favor of dynamic config
+
 export default function MasterViewsManager({ projectId }: MasterViewsManagerProps) {
     const [isometrics, setIsometrics] = useState<any[]>([])
     const [loading, setLoading] = useState(true)
@@ -2001,6 +2060,39 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
     const [details, setDetails] = useState<IsometricDetails | null>(null)
     const [loadingDetails, setLoadingDetails] = useState(false)
     const [activeTab, setActiveTab] = useState<'MATERIALS' | 'UNIONS' | 'SPOOLS' | 'TORQUES'>('UNIONS')
+
+    // Dynamic Weld Configuration
+    const [weldConfigs, setWeldConfigs] = useState<any[]>([])
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const [loadingConfigs, setLoadingConfigs] = useState(false)
+
+    // Load configs on mount
+    useEffect(() => {
+        const loadWeldConfigs = async () => {
+            if (!projectId) return
+            setLoadingConfigs(true)
+            try {
+                const res = await fetch(`/api/proyectos/${projectId}/weld-configs`)
+                const data = await res.json()
+                if (data.success && data.data) {
+                    setWeldConfigs(data.data)
+                }
+            } catch (error) {
+                console.error('Error loading weld configs:', error)
+            } finally {
+                setLoadingConfigs(false)
+            }
+        }
+        loadWeldConfigs()
+    }, [projectId])
+
+    // Helper to check if type requires welder
+    // Types in the exclusion list (project_weld_configs) DO NOT require welder
+    const requiresWelder = (type: string) => {
+        if (!type) return true
+        const isExcluded = weldConfigs.some(c => c.weld_type_code === type.toUpperCase())
+        return !isExcluded  // If in exclusion list, doesn't require welder
+    }
     const [showRevisionHistory, setShowRevisionHistory] = useState(false)
     const [selectedRevisionId, setSelectedRevisionId] = useState<string | null>(null)
     const [revisionFiles, setRevisionFiles] = useState<any[]>([])
@@ -2350,9 +2442,23 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
     const handleNewWeldCreated = (newWeld: any) => {
         setDetails(prev => {
             if (!prev) return null
+
+            let updatedWelds = [...prev.welds]
+
+            // If newWeld has display_order, might need to shift local welds
+            // (Only strictly necessary if we want to avoid refresh, but good for UX)
+            if (newWeld.display_order) {
+                updatedWelds = updatedWelds.map(w => {
+                    if ((w.display_order || 0) >= newWeld.display_order) {
+                        return { ...w, display_order: (w.display_order || 0) + 1 }
+                    }
+                    return w
+                })
+            }
+
             return {
                 ...prev,
-                welds: [...prev.welds, newWeld].sort((a, b) => a.weld_number.localeCompare(b.weld_number))
+                welds: [...updatedWelds, newWeld].sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
             }
         })
         setShowAddWeldModal(false)
@@ -2895,7 +3001,15 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
                                                                                                                 </span>
                                                                                                             )}
                                                                                                         </div>
-                                                                                                        <div className="text-xs text-gray-600">{weld.type_weld} - {weld.nps}"</div>
+                                                                                                        <div className="text-xs text-gray-600 flex items-center gap-1">
+                                                                                                            {weld.type_weld}
+                                                                                                            {!requiresWelder(weld.type_weld || '') && (
+                                                                                                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-800 border border-gray-200" title="No requiere soldador">
+                                                                                                                    No Soldada
+                                                                                                                </span>
+                                                                                                            )}
+                                                                                                            - {weld.nps}"
+                                                                                                        </div>
                                                                                                     </div>
                                                                                                 </div>
 
@@ -2928,340 +3042,349 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
                                                                                                     )}
                                                                                                 </div>
                                                                                             </div>
-                                                                                            )
-                                                                        })}
-
-                                                                                            {/* Add Button at the end - appears on hover near bottom */}
-                                                                                            <div className="relative h-3 mt-1 group/add">
-                                                                                                <button
-                                                                                                    onClick={(e) => {
-                                                                                                        e.stopPropagation()
-                                                                                                        const lastWeld = spool.welds[spool.welds.length - 1]
-                                                                                                        const firstWeld = spool.welds[0]
-                                                                                                        handleAddWeld(lastWeld || null, null, firstWeld?.revision_id || '', firstWeld?.iso_number || '', firstWeld?.rev || '')
-                                                                                                    }}
-                                                                                                    className="absolute inset-x-0 top-0 h-4 z-10 flex justify-center items-center opacity-0 hover:opacity-100 transition-opacity"
-                                                                                                >
-                                                                                                    <div className="w-5 h-5 rounded-full bg-emerald-500 shadow-lg flex items-center justify-center transform scale-75 hover:scale-100 transition-all">
-                                                                                                        <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
-                                                                                                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-                                                                                                        </svg>
-                                                                                                    </div>
-                                                                                                </button>
-                                                                                            </div>
                                                                                         </div>
                                                                                     )
-                                                                                </div>
+                                                                                })}
 
-                                                                                {activeTab === 'SPOOLS' && (
-                                                                            <div className="space-y-3">
-                                                                                {details.spools.map(spool => (
-                                                                                    <div key={spool.spool_number} className="bg-white p-3 rounded-lg border border-gray-300 shadow-sm">
-                                                                                        <div className="flex justify-between items-center mb-2">
-                                                                                            <span className="font-bold text-gray-800">{spool.spool_number}</span>
-                                                                                            <span
-                                                                                                className={`text-xs font-bold px-2 py-1 rounded ${spool.status === 'COMPLETE'
-                                                                                                    ? 'bg-green-100 text-green-700'
-                                                                                                    : spool.status === 'PARTIAL'
-                                                                                                        ? 'bg-yellow-100 text-yellow-700'
-                                                                                                        : 'bg-gray-200 text-gray-700'
-                                                                                                    }`}
-                                                                                            >
-                                                                                                {spool.status === 'COMPLETE'
-                                                                                                    ? 'COMPLETO'
-                                                                                                    : spool.status === 'PARTIAL'
-                                                                                                        ? 'PARCIAL'
-                                                                                                        : 'PENDIENTE'}
-                                                                                            </span>
+                                                                                {/* Add Button at the end - appears on hover near bottom */}
+                                                                                <div className="relative h-3 mt-1 group/add">
+                                                                                    <button
+                                                                                        onClick={(e) => {
+                                                                                            e.stopPropagation()
+                                                                                            const lastWeld = spool.welds[spool.welds.length - 1]
+                                                                                            const firstWeld = spool.welds[0]
+                                                                                            handleAddWeld(lastWeld || null, null, firstWeld?.revision_id || '', firstWeld?.iso_number || '', firstWeld?.rev || '')
+                                                                                        }}
+                                                                                        className="absolute inset-x-0 top-0 h-4 z-10 flex justify-center items-center opacity-0 hover:opacity-100 transition-opacity"
+                                                                                    >
+                                                                                        <div className="w-5 h-5 rounded-full bg-emerald-500 shadow-lg flex items-center justify-center transform scale-75 hover:scale-100 transition-all">
+                                                                                            <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
+                                                                                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                                                                                            </svg>
                                                                                         </div>
-                                                                                        <div className="w-full bg-gray-200 rounded-full h-2">
-                                                                                            <div
-                                                                                                className="bg-blue-600 h-2 rounded-full transition-all"
-                                                                                                style={{ width: `${(spool.welds_executed / spool.welds_count) * 100}%` }}
-                                                                                            ></div>
-                                                                                        </div>
-                                                                                        <div className="flex justify-between mt-1 text-xs text-gray-700">
-                                                                                            <span>Progreso</span>
-                                                                                            <span>{spool.welds_executed} / {spool.welds_count} soldaduras</span>
-                                                                                        </div>
-                                                                                    </div>
-                                                                                ))}
+                                                                                    </button>
+                                                                                </div>
                                                                             </div>
-                                                                        )
-                                                                        }
-
-                                                                        {
-                                                                            activeTab === 'TORQUES' && (
-                                                                                <div className="space-y-3">
-                                                                                    {details.joints.map(joint => (
-                                                                                        <div key={joint.id} className="bg-white p-3 rounded-lg border border-gray-300 flex justify-between items-center shadow-sm">
-                                                                                            <div>
-                                                                                                <div className="font-bold text-gray-800">{joint.flanged_joint_number}</div>
-                                                                                                <div className="text-xs text-gray-700">Rating: {joint.rating}</div>
-                                                                                            </div>
-                                                                                            <button
-                                                                                                onClick={() => handleJointToggle(joint.id, joint.executed)}
-                                                                                                className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all ${joint.executed ? 'bg-green-100 text-green-700 border border-green-200' : 'bg-gray-200 text-gray-700 border border-gray-300 hover:bg-gray-200'
-                                                                                                    }`}
-                                                                                            >
-                                                                                                {joint.executed ? 'TORQUEADO' : 'PENDIENTE'}
-                                                                                            </button>
-                                                                                        </div>
-                                                                                    ))}
-                                                                                </div>
-                                                                            )
-                                                                        }
+                                                                        )}
                                                                     </div>
-                                                                            </div>
-                                                    ) : (
-                                                    <div className="p-8 text-center text-gray-700">No hay detalles cargados para esta revisión.</div>
-                                        )}
-                                                </div>
-                                                )
+                                                                )
+                                                            })}
+                                                        </div>
+                                                    )}
+
+                                                    {activeTab === 'SPOOLS' && (
+                                                        <div className="space-y-3">
+                                                            {details.spools.map(spool => (
+                                                                <div key={spool.spool_number} className="bg-white p-3 rounded-lg border border-gray-300 shadow-sm">
+                                                                    <div className="flex justify-between items-center mb-2">
+                                                                        <span className="font-bold text-gray-800">{spool.spool_number}</span>
+                                                                        <span
+                                                                            className={`text-xs font-bold px-2 py-1 rounded ${spool.status === 'COMPLETE'
+                                                                                ? 'bg-green-100 text-green-700'
+                                                                                : spool.status === 'PARTIAL'
+                                                                                    ? 'bg-yellow-100 text-yellow-700'
+                                                                                    : 'bg-gray-200 text-gray-700'
+                                                                                }`}
+                                                                        >
+                                                                            {spool.status === 'COMPLETE'
+                                                                                ? 'COMPLETO'
+                                                                                : spool.status === 'PARTIAL'
+                                                                                    ? 'PARCIAL'
+                                                                                    : 'PENDIENTE'}
+                                                                        </span>
+                                                                    </div>
+                                                                    <div className="w-full bg-gray-200 rounded-full h-2">
+                                                                        <div
+                                                                            className="bg-blue-600 h-2 rounded-full transition-all"
+                                                                            style={{ width: `${(spool.welds_executed / spool.welds_count) * 100}%` }}
+                                                                        ></div>
+                                                                    </div>
+                                                                    <div className="flex justify-between mt-1 text-xs text-gray-700">
+                                                                        <span>Progreso</span>
+                                                                        <span>{spool.welds_executed} / {spool.welds_count} soldaduras</span>
+                                                                    </div>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    )
                                                     }
-                                            </div>
-                                        )
-                                                    })
-                )}
-                                    </div>
 
-                                                {/* Modales */}
-                                {
-                                    selectedWeld && (
-                                        <WeldDetailModal
-                                            weld={selectedWeld}
-                                            projectId={projectId}
-                                            onClose={() => setSelectedWeld(null)}
-                                            onUpdate={handleWeldUpdate}
-                                            onRework={(weld) => {
-                                                setSelectedWeld(null) // Close detail modal
-                                                setWeldForRework(weld)
-                                                setShowReworkModal(true)
-                                            }}
-                                            onDelete={(weld) => {
-                                                setSelectedWeld(null) // Close detail modal
-                                                setWeldForDelete(weld)
-                                                setShowDeleteModal(true)
-                                            }}
-                                            onRestore={handleRestoreWeld}
-                                            onUndo={(weld) => {
-                                                setSelectedWeld(null) // Close detail modal
-                                                setWeldForUndo(weld)
-                                                setShowUndoModal(true)
-                                            }}
-                                            onRefresh={async () => {
-                                                // Reload isometric details
-                                                if (selectedRevisionId) {
-                                                    const refreshedDetails = await getIsometricDetails(selectedRevisionId)
-                                                    setDetails(refreshedDetails)
-                                                }
-                                            }}
-                                        />
-                                    )
-                                }
-
-                                {
-                                    showExecutionModal && weldForExecution && (
-                                        <ExecutionReportModal
-                                            weld={weldForExecution}
-                                            projectId={projectId}
-                                            onClose={() => {
-                                                setShowExecutionModal(false)
-                                                setWeldForExecution(null)
-                                            }}
-                                            onSubmit={handleExecutionReport}
-                                        />
-                                    )
-                                }
-
-                                {/* Rework Modal */}
-                                {
-                                    showReworkModal && weldForRework && (
-                                        <ReworkModal
-                                            weld={weldForRework}
-                                            projectId={projectId}
-                                            onClose={() => {
-                                                setShowReworkModal(false)
-                                                setWeldForRework(null)
-                                            }}
-                                            onSubmit={handleRework}
-                                        />
-                                    )
-                                }
-
-                                {/* Delete Weld Modal */}
-                                {
-                                    showDeleteModal && weldForDelete && (
-                                        <DeleteWeldModal
-                                            weld={weldForDelete}
-                                            onClose={() => {
-                                                setShowDeleteModal(false)
-                                                setWeldForDelete(null)
-                                            }}
-                                            onSubmit={handleDeleteWeld}
-                                        />
-                                    )
-                                }
-
-                                {/* Undo Execution Modal */}
-                                {
-                                    showUndoModal && weldForUndo && (
-                                        <UndoExecutionModal
-                                            weld={weldForUndo}
-                                            onClose={() => {
-                                                setShowUndoModal(false)
-                                                setWeldForUndo(null)
-                                            }}
-                                            onSubmit={handleUndoExecution}
-                                        />
-                                    )
-                                }
-
-                                {/* Add Weld Modal */}
-                                {
-                                    showAddWeldModal && addWeldContext && (
-                                        <AddWeldModal
-                                            adjacentWelds={addWeldAdjacentWelds}
-                                            revisionId={addWeldContext.revisionId}
-                                            projectId={addWeldContext.projectId}
-                                            isoNumber={addWeldContext.isoNumber}
-                                            rev={addWeldContext.rev}
-                                            onClose={() => {
-                                                setShowAddWeldModal(false)
-                                                setAddWeldContext(null)
-                                            }}
-                                            onSubmit={handleNewWeldCreated}
-                                        />
-                                    )
-                                }
-
-                                {/* PDF Viewer Modal */}
-                                {
-                                    showPdfViewer && selectedPdfUrl && (
-                                        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
-                                            <div className="bg-white rounded-xl w-full max-w-4xl h-[90vh] flex flex-col">
-                                                <div className="flex justify-between items-center p-4 border-b">
-                                                    <h3 className="text-lg font-bold text-gray-900">Visor de PDF</h3>
-                                                    <button
-                                                        onClick={() => {
-                                                            setShowPdfViewer(false)
-                                                            setSelectedPdfUrl(null)
-                                                        }}
-                                                        className="text-gray-700 hover:text-gray-700 text-2xl font-bold"
-                                                    >
-                                                        ×
-                                                    </button>
-                                                </div>
-                                                <div className="flex-1 overflow-hidden">
-                                                    <iframe
-                                                        src={selectedPdfUrl}
-                                                        className="w-full h-full"
-                                                        title="PDF Viewer"
-                                                    />
+                                                    {
+                                                        activeTab === 'TORQUES' && (
+                                                            <div className="space-y-3">
+                                                                {details.joints.map(joint => (
+                                                                    <div key={joint.id} className="bg-white p-3 rounded-lg border border-gray-300 flex justify-between items-center shadow-sm">
+                                                                        <div>
+                                                                            <div className="font-bold text-gray-800">{joint.flanged_joint_number}</div>
+                                                                            <div className="text-xs text-gray-700">Rating: {joint.rating}</div>
+                                                                        </div>
+                                                                        <button
+                                                                            onClick={() => handleJointToggle(joint.id, joint.executed)}
+                                                                            className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all ${joint.executed ? 'bg-green-100 text-green-700 border border-green-200' : 'bg-gray-200 text-gray-700 border border-gray-300 hover:bg-gray-200'
+                                                                                }`}
+                                                                        >
+                                                                            {joint.executed ? 'TORQUEADO' : 'PENDIENTE'}
+                                                                        </button>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        )
+                                                    }
                                                 </div>
                                             </div>
-                                        </div>
-                                    )
-                                }
-
-                                {/* Bottom Navigation Bar */}
-                                <div className="fixed bottom-0 left-0 right-0 z-40">
-                                    <div className="flex items-center justify-around border-t border-gray-300/80 bg-white/90 px-2 pb-4 pt-2 backdrop-blur-lg dark:border-gray-800/80 dark:bg-gray-900/90">
-                                        {/* Home Button */}
-                                        <a
-                                            href="/dashboard/master-views"
-                                            className={`flex flex-1 flex-col items-center justify-end gap-1.5 pt-1 transition-all ${bottomNavTab === 'home' ? 'text-blue-600' : 'text-gray-700 dark:text-gray-600'}`}
-                                        >
-                                            <svg
-                                                className="w-6 h-6"
-                                                fill={bottomNavTab === 'home' ? 'currentColor' : 'none'}
-                                                stroke="currentColor"
-                                                strokeWidth="2"
-                                                viewBox="0 0 24 24"
-                                            >
-                                                <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-                                            </svg>
-                                            <p className="text-xs font-medium tracking-wide">Inicio</p>
-                                        </a>
-
-                                        {/* Stats Button */}
-                                        <button
-                                            onClick={() => setBottomNavTab('stats')}
-                                            className={`flex flex-1 flex-col items-center justify-end gap-1.5 pt-1 transition-all ${bottomNavTab === 'stats' ? 'text-blue-600' : 'text-gray-700 dark:text-gray-600'}`}
-                                        >
-                                            <svg
-                                                className="w-6 h-6"
-                                                fill="none"
-                                                stroke="currentColor"
-                                                strokeWidth="2"
-                                                viewBox="0 0 24 24"
-                                            >
-                                                <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                                            </svg>
-                                            <p className="text-xs font-medium tracking-wide">Estadísticas</p>
-                                        </button>
-
-                                        {/* Settings Button with Dropdown - Hidden for USUARIO role */}
-                                        {userRole !== 'USUARIO' && (
-                                            <div className="relative flex flex-1">
-                                                <button
-                                                    onClick={() => setShowSettingsMenu(!showSettingsMenu)}
-                                                    className={`flex flex-1 flex-col items-center justify-end gap-1.5 pt-1 transition-all ${bottomNavTab === 'settings' || showSettingsMenu ? 'text-blue-600' : 'text-gray-700 dark:text-gray-600'}`}
-                                                >
-                                                    <svg
-                                                        className="w-6 h-6"
-                                                        fill="none"
-                                                        stroke="currentColor"
-                                                        strokeWidth="2"
-                                                        viewBox="0 0 24 24"
-                                                    >
-                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                                    </svg>
-                                                    <p className="text-xs font-medium tracking-wide">Ajustes</p>
-                                                </button>
-
-                                                {/* Settings Dropdown Menu */}
-                                                {showSettingsMenu && (
-                                                    <div className="absolute bottom-full right-0 mb-2 bg-white rounded-lg shadow-xl border border-gray-300 overflow-hidden min-w-[200px]">
-                                                        <a
-                                                            href={`/proyectos/${projectId}/cuadrillas/manage`}
-                                                            className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors"
-                                                            onClick={() => setShowSettingsMenu(false)}
-                                                        >
-                                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                                                <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                                                            </svg>
-                                                            <span className="font-medium">Cuadrillas</span>
-                                                        </a>
-                                                        <button
-                                                            onClick={() => {
-                                                                setBottomNavTab('settings')
-                                                                setShowSettingsMenu(false)
-                                                                alert('Función de ayuda próximamente...')
-                                                            }}
-                                                            className="w-full flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors border-t border-gray-100"
-                                                        >
-                                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                                                <path strokeLinecap="round" strokeLinejoin="round" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                                            </svg>
-                                                            <span className="font-medium">Ayuda</span>
-                                                        </button>
-                                                    </div>
-                                                )}
-                                            </div>
+                                        ) : (
+                                            <div className="p-8 text-center text-gray-700">No hay detalles cargados para esta revisión.</div>
                                         )}
                                     </div>
-                                </div>
-
-                                {/* Hidden File Input */}
-                                <input
-                                    type="file"
-                                    ref={fileInputRef}
-                                    className="hidden"
-                                    accept=".pdf"
-                                    onChange={handleFileChange}
-                                />
-                            </div >
+                                )
+                                }
+                            </div>
                         )
-                    }
+                    })
+                )}
+            </div>
+
+            {/* Modales */}
+            {
+                selectedWeld && (
+                    <WeldDetailModal
+                        weld={selectedWeld}
+                        projectId={projectId}
+                        requiresWelder={requiresWelder}
+                        onClose={() => setSelectedWeld(null)}
+                        onUpdate={handleWeldUpdate}
+                        onRework={(weld) => {
+                            setSelectedWeld(null) // Close detail modal
+                            setWeldForRework(weld)
+                            setShowReworkModal(true)
+                        }}
+                        onDelete={(weld) => {
+                            setSelectedWeld(null) // Close detail modal
+                            setWeldForDelete(weld)
+                            setShowDeleteModal(true)
+                        }}
+                        onRestore={handleRestoreWeld}
+                        onUndo={(weld) => {
+                            setSelectedWeld(null) // Close detail modal
+                            setWeldForUndo(weld)
+                            setShowUndoModal(true)
+                        }}
+                        onRefresh={async () => {
+                            // Reload isometric details
+                            if (selectedRevisionId) {
+                                const refreshedDetails = await getIsometricDetails(selectedRevisionId)
+                                setDetails(refreshedDetails)
+                            }
+                        }}
+                    />
+                )
+            }
+
+            {
+                showExecutionModal && weldForExecution && (
+                    <ExecutionReportModal
+                        weld={weldForExecution}
+                        projectId={projectId}
+                        requiresWelder={requiresWelder}
+                        onClose={() => {
+                            setShowExecutionModal(false)
+                            setWeldForExecution(null)
+                        }}
+                        onSubmit={handleExecutionReport}
+                    />
+                )
+            }
+
+            {/* Rework Modal */}
+            {
+                showReworkModal && weldForRework && (
+                    <ReworkModal
+                        weld={weldForRework}
+                        projectId={projectId}
+                        requiresWelder={requiresWelder}
+                        onClose={() => {
+                            setShowReworkModal(false)
+                            setWeldForRework(null)
+                        }}
+                        onSubmit={handleRework}
+                    />
+                )
+            }
+
+            {/* Delete Weld Modal */}
+            {
+                showDeleteModal && weldForDelete && (
+                    <DeleteWeldModal
+                        weld={weldForDelete}
+                        onClose={() => {
+                            setShowDeleteModal(false)
+                            setWeldForDelete(null)
+                        }}
+                        onSubmit={handleDeleteWeld}
+                    />
+                )
+            }
+
+            {/* Undo Execution Modal */}
+            {
+                showUndoModal && weldForUndo && (
+                    <UndoExecutionModal
+                        weld={weldForUndo}
+                        onClose={() => {
+                            setShowUndoModal(false)
+                            setWeldForUndo(null)
+                        }}
+                        onSubmit={handleUndoExecution}
+                    />
+                )
+            }
+
+            {/* Add Weld Modal */}
+            {
+                showAddWeldModal && addWeldContext && (
+                    <AddWeldModal
+                        adjacentWelds={addWeldAdjacentWelds}
+                        revisionId={addWeldContext.revisionId}
+                        projectId={addWeldContext.projectId}
+                        isoNumber={addWeldContext.isoNumber}
+                        rev={addWeldContext.rev}
+                        requiresWelder={requiresWelder}
+                        onClose={() => {
+                            setShowAddWeldModal(false)
+                            setAddWeldContext(null)
+                        }}
+                        onSubmit={handleNewWeldCreated}
+                    />
+                )
+            }
+
+            {/* PDF Viewer Modal */}
+            {
+                showPdfViewer && selectedPdfUrl && (
+                    <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
+                        <div className="bg-white rounded-xl w-full max-w-4xl h-[90vh] flex flex-col">
+                            <div className="flex justify-between items-center p-4 border-b">
+                                <h3 className="text-lg font-bold text-gray-900">Visor de PDF</h3>
+                                <button
+                                    onClick={() => {
+                                        setShowPdfViewer(false)
+                                        setSelectedPdfUrl(null)
+                                    }}
+                                    className="text-gray-700 hover:text-gray-700 text-2xl font-bold"
+                                >
+                                    ×
+                                </button>
+                            </div>
+                            <div className="flex-1 overflow-hidden">
+                                <iframe
+                                    src={selectedPdfUrl}
+                                    className="w-full h-full"
+                                    title="PDF Viewer"
+                                />
+                            </div>
+                        </div>
+                    </div>
+                )
+            }
+
+            {/* Bottom Navigation Bar */}
+            <div className="fixed bottom-0 left-0 right-0 z-40">
+                <div className="flex items-center justify-around border-t border-gray-300/80 bg-white/90 px-2 pb-4 pt-2 backdrop-blur-lg dark:border-gray-800/80 dark:bg-gray-900/90">
+                    {/* Home Button */}
+                    <a
+                        href="/dashboard/master-views"
+                        className={`flex flex-1 flex-col items-center justify-end gap-1.5 pt-1 transition-all ${bottomNavTab === 'home' ? 'text-blue-600' : 'text-gray-700 dark:text-gray-600'}`}
+                    >
+                        <svg
+                            className="w-6 h-6"
+                            fill={bottomNavTab === 'home' ? 'currentColor' : 'none'}
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            viewBox="0 0 24 24"
+                        >
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                        </svg>
+                        <p className="text-xs font-medium tracking-wide">Inicio</p>
+                    </a>
+
+                    {/* Stats Button */}
+                    <button
+                        onClick={() => setBottomNavTab('stats')}
+                        className={`flex flex-1 flex-col items-center justify-end gap-1.5 pt-1 transition-all ${bottomNavTab === 'stats' ? 'text-blue-600' : 'text-gray-700 dark:text-gray-600'}`}
+                    >
+                        <svg
+                            className="w-6 h-6"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            viewBox="0 0 24 24"
+                        >
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                        </svg>
+                        <p className="text-xs font-medium tracking-wide">Estadísticas</p>
+                    </button>
+
+                    {/* Settings Button with Dropdown - Hidden for USUARIO role */}
+                    {userRole !== 'USUARIO' && (
+                        <div className="relative flex flex-1">
+                            <button
+                                onClick={() => setShowSettingsMenu(!showSettingsMenu)}
+                                className={`flex flex-1 flex-col items-center justify-end gap-1.5 pt-1 transition-all ${bottomNavTab === 'settings' || showSettingsMenu ? 'text-blue-600' : 'text-gray-700 dark:text-gray-600'}`}
+                            >
+                                <svg
+                                    className="w-6 h-6"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="2"
+                                    viewBox="0 0 24 24"
+                                >
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                </svg>
+                                <p className="text-xs font-medium tracking-wide">Ajustes</p>
+                            </button>
+
+                            {/* Settings Dropdown Menu */}
+                            {showSettingsMenu && (
+                                <div className="absolute bottom-full right-0 mb-2 bg-white rounded-lg shadow-xl border border-gray-300 overflow-hidden min-w-[200px]">
+                                    <a
+                                        href={`/proyectos/${projectId}/cuadrillas/manage`}
+                                        className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors"
+                                        onClick={() => setShowSettingsMenu(false)}
+                                    >
+                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                                        </svg>
+                                        <span className="font-medium">Cuadrillas</span>
+                                    </a>
+                                    <button
+                                        onClick={() => {
+                                            setBottomNavTab('settings')
+                                            setShowSettingsMenu(false)
+                                            alert('Función de ayuda próximamente...')
+                                        }}
+                                        className="w-full flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors border-t border-gray-100"
+                                    >
+                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                        <span className="font-medium">Ayuda</span>
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            {/* Hidden File Input */}
+            <input
+                type="file"
+                ref={fileInputRef}
+                className="hidden"
+                accept=".pdf"
+                onChange={handleFileChange}
+            />
+        </div >
+    )
+}
