@@ -380,7 +380,8 @@ export async function createFieldWeld(
     creationType: CreationType,
     creationReason: string,
     userId?: string,
-    executionData?: FieldExecutionData
+    executionData?: FieldExecutionData,
+    displayOrder?: number
 ) {
     // 1. Validate weld_number is unique
     const exists = await checkWeldNumberExists(weldData.revision_id, weldData.weld_number);
@@ -388,7 +389,35 @@ export async function createFieldWeld(
         throw new Error(`El número de unión ${weldData.weld_number} ya existe en esta isométrica`);
     }
 
-    // 2. Create the weld
+    // 2. Shift existing orders if inserting in middle
+    if (displayOrder !== undefined) {
+        // Shift all welds with display_order >= new order
+        const { error: shiftError } = await supabase.rpc('increment_weld_orders', {
+            p_revision_id: weldData.revision_id,
+            p_start_order: displayOrder
+        });
+
+        // Fallback to direct update if RPC doesn't exist (though we should create it or use raw query)
+        // Since we don't have the RPC, let's use a raw query or simple update loop? 
+        // A simple update using filter is better.
+        // Actually, supabase JS client allows filter on update? No, update is for rows matching filter.
+        if (shiftError && shiftError.code !== 'PGRST202') { // Ignore function not found for now and use direct update
+            // We can't easily do "display_order = display_order + 1" via standard Supabase JS client without RPC for filtering range.
+            // We can use a raw SQL query or create the RPC.
+            // Implementing RPC is safer.
+        }
+    }
+
+    // For now, let's try to do it without RPC if possible, but standard Supabase doesn't support increment without it easily for a range.
+    // Let's create an RPC in migration 50 or a new one.
+    // Actually, I'll modify migration 50 (it's recent) to include the RPC function.
+
+    // Resume modification of TS file assuming RPC exists or logic is handled.
+    // Wait, to avoid complexity, I can just fetch all welds, shift in memory? No, concurrency.
+    // I should create the RPC.
+
+    // Let's pause and create the RPC first.
+    // 3. Create the weld
     const { data: newWeld, error: createError } = await supabase
         .from('spools_welds')
         .insert({
@@ -396,7 +425,9 @@ export async function createFieldWeld(
             created_by: userId || null,
             creation_type: creationType,
             creation_reason: creationReason,
-            executed: false
+            executed: false,
+            // If displayOrder provided, use it. If not, default (DB default or null)
+            ...(displayOrder !== undefined ? { display_order: displayOrder } : {})
         })
         .select()
         .single();

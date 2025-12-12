@@ -25,3 +25,15 @@ ALTER COLUMN display_order SET NOT NULL;
 -- Create index for efficient ordering queries
 CREATE INDEX IF NOT EXISTS idx_spools_welds_display_order 
 ON spools_welds(revision_id, display_order);
+
+-- Function to increment display_order for welds >= start_order
+-- Used when inserting a new weld in the middle
+CREATE OR REPLACE FUNCTION increment_weld_orders(p_revision_id UUID, p_start_order INTEGER)
+RETURNS VOID AS $$
+BEGIN
+  UPDATE spools_welds
+  SET display_order = display_order + 1
+  WHERE revision_id = p_revision_id
+    AND display_order >= p_start_order;
+END;
+$$ LANGUAGE plpgsql;
