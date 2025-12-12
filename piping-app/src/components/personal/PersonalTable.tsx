@@ -14,6 +14,7 @@ interface PersonalTableProps {
 export default function PersonalTable({ personal, loading, onReload }: PersonalTableProps) {
     const [searchTerm, setSearchTerm] = useState('')
     const [filterRole, setFilterRole] = useState('ALL')
+    const [showOnlySoldadores, setShowOnlySoldadores] = useState(false)
     const [editingWorker, setEditingWorker] = useState<any>(null)
     const [deletingWorker, setDeletingWorker] = useState<any>(null)
 
@@ -26,7 +27,9 @@ export default function PersonalTable({ personal, loading, onReload }: PersonalT
             ? (filterRole === 'ASIGNADOS' ? p.asignado : true)
             : p.rol === filterRole
 
-        return matchesSearch && matchesRole
+        const matchesSoldador = !showOnlySoldadores || p.rol?.toUpperCase().includes('SOLDADOR')
+
+        return matchesSearch && matchesRole && matchesSoldador
     })
 
     const asignados = personal.filter(p => p.asignado).length
@@ -92,6 +95,18 @@ export default function PersonalTable({ personal, loading, onReload }: PersonalT
                                 </option>
                             ))}
                         </select>
+
+                        {/* Toggle for Soldadores only */}
+                        <button
+                            onClick={() => setShowOnlySoldadores(!showOnlySoldadores)}
+                            className={`px-3 py-2 rounded-lg text-xs font-semibold border transition-colors ${showOnlySoldadores
+                                ? 'bg-orange-500/30 text-orange-200 border-orange-500/50 hover:bg-orange-500/40'
+                                : 'bg-white/5 text-white/70 border-white/20 hover:bg-white/10'
+                                }`}
+                            title="Filtrar solo soldadores"
+                        >
+                            🔥 Solo Soldadores
+                        </button>
                     </div>
                 </div>
 
@@ -103,6 +118,7 @@ export default function PersonalTable({ personal, loading, onReload }: PersonalT
                                 <th className="px-6 py-3 text-left text-xs font-medium text-purple-100 uppercase tracking-wider">Nombre / RUT</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-purple-100 uppercase tracking-wider">Contacto</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-purple-100 uppercase tracking-wider">Código</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-purple-100 uppercase tracking-wider">Estampa</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-purple-100 uppercase tracking-wider">Jornada</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-purple-100 uppercase tracking-wider">Rol</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-purple-100 uppercase tracking-wider">Cuadrilla</th>
@@ -112,14 +128,14 @@ export default function PersonalTable({ personal, loading, onReload }: PersonalT
                         <tbody className="bg-white/5 divide-y divide-white/10">
                             {loading ? (
                                 <tr>
-                                    <td colSpan={7} className="px-6 py-12 text-center">
+                                    <td colSpan={8} className="px-6 py-12 text-center">
                                         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white/50 mx-auto"></div>
                                         <p className="mt-2 text-white/50 text-sm">Cargando personal...</p>
                                     </td>
                                 </tr>
                             ) : filteredPersonal.length === 0 ? (
                                 <tr>
-                                    <td colSpan={7} className="px-6 py-12 text-center text-white/50">
+                                    <td colSpan={8} className="px-6 py-12 text-center text-white/50">
                                         {searchTerm || filterRole !== 'ALL'
                                             ? 'No se encontraron trabajadores con los filtros aplicados'
                                             : 'No se encontraron trabajadores'}
@@ -171,6 +187,24 @@ export default function PersonalTable({ personal, loading, onReload }: PersonalT
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <span className="text-sm text-white/70">{worker.codigo_trabajador || '-'}</span>
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap">
+                                            {worker.rol?.toUpperCase().includes('SOLDADOR') ? (
+                                                worker.estampa ? (
+                                                    <span className="font-mono text-orange-400 font-bold text-sm px-2 py-1 bg-orange-500/10 rounded border border-orange-500/30">
+                                                        {worker.estampa}
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-red-400 text-xs font-semibold flex items-center gap-1">
+                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                                        </svg>
+                                                        Sin estampa
+                                                    </span>
+                                                )
+                                            ) : (
+                                                <span className="text-white/30 text-sm">-</span>
+                                            )}
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             {worker.work_schedules?.nombre ? (

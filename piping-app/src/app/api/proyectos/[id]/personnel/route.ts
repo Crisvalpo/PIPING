@@ -101,7 +101,7 @@ export async function GET(
                 // Get all soldadores from project
                 const { data: soldadores, error } = await supabase
                     .from('personal')
-                    .select('rut, nombre, codigo_trabajador, cargo')
+                    .select('rut, nombre, codigo_trabajador, cargo, soldadores(estampa)')
                     .eq('proyecto_id', proyectoId)
                     .eq('activo', true)
                     .ilike('cargo', '%SOLDADOR%')
@@ -133,7 +133,7 @@ export async function GET(
                         const cuad = asig?.cuadrillas as any
                         return {
                             ...s,
-                            estampa: null,
+                            estampa: s.soldadores?.estampa || null, // Extract from joined soldadores table
                             cuadrilla_id: cuad?.id || null,
                             cuadrilla_nombre: cuad?.nombre || null,
                             cuadrilla_codigo: cuad?.codigo || null

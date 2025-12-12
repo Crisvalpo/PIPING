@@ -25,7 +25,7 @@ export async function GET(request: Request) {
 
         let query = supabase
             .from('personal')
-            .select('rut, nombre, email, telefono, cargo, jefe_directo_rut, codigo_trabajador, work_schedule_id, proyecto_id, work_schedules(nombre)')
+            .select('rut, nombre, email, telefono, cargo, jefe_directo_rut, codigo_trabajador, work_schedule_id, proyecto_id, work_schedules(nombre), soldadores(estampa)')
             .eq('proyecto_id', proyectoId)
             .order('nombre')
 
@@ -119,7 +119,8 @@ export async function GET(request: Request) {
                     shift_name,
                     activo: true,
                     presente: attendance?.presente !== false, // Default to true if no record
-                    motivo_ausencia: attendance?.motivo_ausencia || null
+                    motivo_ausencia: attendance?.motivo_ausencia || null,
+                    estampa: (p as any).soldadores?.estampa || null // Extract estampa from joined soldadores table
                 }
             })
         )

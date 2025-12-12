@@ -841,22 +841,44 @@ function ExecutionReportModal({ weld, projectId, requiresWelder, onClose, onSubm
 
                             {/* PASO 3: Ingresar Estampa (Solo si soldador no tiene) */}
                             {needsEstampa && ejecutadoPor && (
-                                <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
-                                    <label className="block text-sm font-bold text-orange-800 mb-1">
-                                        <span className="bg-orange-100 text-orange-700 px-2 py-0.5 rounded text-xs mr-2">PASO 3</span>
-                                        Estampa del Soldador *
-                                    </label>
-                                    <input
-                                        type="text"
-                                        value={estampaInput}
-                                        onChange={(e) => setEstampaInput(e.target.value.toUpperCase())}
-                                        placeholder="Ej: S01, S02, S03..."
-                                        className="w-full border border-orange-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-orange-500 focus:outline-none bg-white"
-                                    />
-                                    <p className="text-xs text-orange-600 mt-1">
-                                        ⚠️ Este soldador no tiene estampa registrada. Ingresa una para continuar.
-                                    </p>
-                                </div>
+                                <>
+                                    {/* Helpful tip directing to centralized management */}
+                                    <div className="bg-blue-50 border border-blue-300 rounded-lg p-3 mb-3">
+                                        <p className="text-xs text-blue-800 flex items-start gap-2">
+                                            <svg className="w-4 h-4 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                            </svg>
+                                            <span>
+                                                <strong className="font-bold">Tip:</strong> Para evitar este paso en futuras ejecuciones,
+                                                asigna la estampa desde{' '}
+                                                <a
+                                                    href="/settings/personal"
+                                                    target="_blank"
+                                                    className="underline font-bold hover:text-blue-900"
+                                                >
+                                                    Configuración → Personal
+                                                </a>
+                                            </span>
+                                        </p>
+                                    </div>
+
+                                    <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                                        <label className="block text-sm font-bold text-orange-800 mb-1">
+                                            <span className="bg-orange-100 text-orange-700 px-2 py-0.5 rounded text-xs mr-2">PASO 3</span>
+                                            Estampa del Soldador *
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={estampaInput}
+                                            onChange={(e) => setEstampaInput(e.target.value.toUpperCase())}
+                                            placeholder="Ej: S01, S02, S03..."
+                                            className="w-full border border-orange-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-orange-500 focus:outline-none bg-white"
+                                        />
+                                        <p className="text-xs text-orange-600 mt-1">
+                                            ⚠️ Este soldador no tiene estampa registrada. Ingresa una para continuar.
+                                        </p>
+                                    </div>
+                                </>
                             )}
                         </>
                     )}
@@ -1298,21 +1320,43 @@ function ReworkModal({ weld, projectId, requiresWelder, onClose, onSubmit }: Rew
 
                             {/* Estampa input - only shown when selected soldador has no estampa */}
                             {needsEstampa && isWelderRequired && (
-                                <div className="bg-yellow-50 border border-yellow-300 rounded-lg p-3">
-                                    <label className="block text-xs font-medium text-yellow-800 mb-1">
-                                        Estampa del Soldador *
-                                    </label>
-                                    <input
-                                        type="text"
-                                        value={estampaInput}
-                                        onChange={(e) => setEstampaInput(e.target.value.toUpperCase())}
-                                        placeholder="Ej: S01"
-                                        className="w-full border border-yellow-400 rounded-lg px-3 py-2 text-sm text-gray-900 bg-white focus:ring-2 focus:ring-yellow-500 focus:outline-none"
-                                    />
-                                    <p className="text-xs text-yellow-700 mt-1">
-                                        ⚠️ Este soldador no tiene estampa registrada. Ingresa una para continuar.
-                                    </p>
-                                </div>
+                                <>
+                                    {/* Helpful tip directing to centralized management */}
+                                    <div className="bg-blue-50 border border-blue-300 rounded-lg p-3 mb-3">
+                                        <p className="text-xs text-blue-800 flex items-start gap-2">
+                                            <svg className="w-4 h-4 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                            </svg>
+                                            <span>
+                                                <strong className="font-bold">Tip:</strong> Para evitar este paso en futuros retrabajos,
+                                                asigna la estampa desde{' '}
+                                                <a
+                                                    href="/settings/personal"
+                                                    target="_blank"
+                                                    className="underline font-bold hover:text-blue-900"
+                                                >
+                                                    Configuración → Personal
+                                                </a>
+                                            </span>
+                                        </p>
+                                    </div>
+
+                                    <div className="bg-yellow-50 border border-yellow-300 rounded-lg p-3">
+                                        <label className="block text-xs font-medium text-yellow-800 mb-1">
+                                            Estampa del Soldador *
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={estampaInput}
+                                            onChange={(e) => setEstampaInput(e.target.value.toUpperCase())}
+                                            placeholder="Ej: S01"
+                                            className="w-full border border-yellow-400 rounded-lg px-3 py-2 text-sm text-gray-900 bg-white focus:ring-2 focus:ring-yellow-500 focus:outline-none"
+                                        />
+                                        <p className="text-xs text-yellow-700 mt-1">
+                                            ⚠️ Este soldador no tiene estampa registrada. Ingresa una para continuar.
+                                        </p>
+                                    </div>
+                                </>
                             )}
                         </div>
                     )}
