@@ -293,7 +293,7 @@ export async function GET(
                     totalHours: totalHoursShift,
                     avgHours: presentWorkersList.length ? (totalHoursShift / presentWorkersList.length).toFixed(1) : '0'
                 },
-                data: []
+                data: [] as any[]
             })
 
             // Re-group workers by Cuadrilla for the "data" field

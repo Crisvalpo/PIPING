@@ -13,10 +13,10 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey || process.env.NEX
  */
 export async function GET(
     request: Request,
-    { params }: { params: { id: string } }
+    { params }: { params: Promise<{ id: string }> }
 ) {
     try {
-        const cuadrillaId = params.id
+        const { id: cuadrillaId } = await params
 
         const { data, error } = await supabase
             .from('cuadrilla_members_full')
@@ -46,10 +46,10 @@ export async function GET(
  */
 export async function POST(
     request: Request,
-    { params }: { params: { id: string } }
+    { params }: { params: Promise<{ id: string }> }
 ) {
     try {
-        const cuadrillaId = params.id
+        const { id: cuadrillaId } = await params
         const body = await request.json()
         const { rut, role } = body
 
@@ -114,10 +114,10 @@ export async function POST(
  */
 export async function DELETE(
     request: Request,
-    { params }: { params: { id: string } }
+    { params }: { params: Promise<{ id: string }> }
 ) {
     try {
-        const cuadrillaId = params.id
+        const { id: cuadrillaId } = await params
         const { searchParams } = new URL(request.url)
         const rut = searchParams.get('rut')
 

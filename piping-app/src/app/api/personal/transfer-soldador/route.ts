@@ -11,7 +11,7 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey || process.env.NEX
  */
 export async function POST(request: Request) {
     try {
-        const body = await request json()
+        const body = await request.json()
         const { soldador_rut, cuadrilla_destino_id, observaciones } = body
 
         if (!soldador_rut || !cuadrilla_destino_id) {
