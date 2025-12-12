@@ -1761,8 +1761,14 @@ function AddWeldModal({ adjacentWelds, revisionId, projectId, isoNumber, rev, re
             return
         }
 
-        if (creationType === 'TERRENO' && (!selectedSoldador || !selectedCapataz)) {
-            alert('Para Terreno, debes seleccionar soldador y capataz')
+        // For TERRENO, always require capataz, but soldador only if weld type requires it
+        if (creationType === 'TERRENO' && !selectedCapataz) {
+            alert('Para Terreno, debes seleccionar un capataz')
+            return
+        }
+
+        if (creationType === 'TERRENO' && isWelderRequired && !selectedSoldador) {
+            alert('Para este tipo de soldadura, debes seleccionar un soldador')
             return
         }
 
@@ -1812,7 +1818,7 @@ function AddWeldModal({ adjacentWelds, revisionId, projectId, isoNumber, rev, re
 
             const executionData = creationType === 'TERRENO' ? {
                 fecha,
-                welderId: selectedSoldador,
+                welderId: isWelderRequired ? selectedSoldador : null,
                 foremanId: selectedCapataz
             } : undefined
 
@@ -1976,23 +1982,31 @@ function AddWeldModal({ adjacentWelds, revisionId, projectId, isoNumber, rev, re
                                 </select>
                             </div>
 
-                            <div>
-                                <label className="block text-xs font-medium text-green-800 mb-1">Soldador *</label>
-                                <select value={selectedSoldador} onChange={(e) => handleSoldadorChange(e.target.value)} disabled={!selectedCapataz} className="w-full border border-green-400 rounded-lg px-3 py-2 text-sm text-gray-900 bg-white">
-                                    <option value="">Seleccionar soldador...</option>
-                                    {(showAllSoldadores ? allSoldadores : soldadores).map((s) => (
-                                        <option key={s.rut} value={s.rut}>
-                                            {s.estampa ? `[${s.estampa}] ` : s.codigo_trabajador ? `[${s.codigo_trabajador}] ` : '⚠️ '}
-                                            {s.nombre}
-                                        </option>
-                                    ))}
-                                </select>
-                                {selectedCapataz && (
-                                    <button type="button" onClick={() => setShowAllSoldadores(!showAllSoldadores)} className="text-xs text-blue-600 hover:text-blue-800 mt-1">
-                                        {showAllSoldadores ? '← Solo cuadrilla' : 'Ver todos →'}
-                                    </button>
-                                )}
-                            </div>
+                            {isWelderRequired ? (
+                                <div>
+                                    <label className="block text-xs font-medium text-green-800 mb-1">Soldador *</label>
+                                    <select value={selectedSoldador} onChange={(e) => handleSoldadorChange(e.target.value)} disabled={!selectedCapataz} className="w-full border border-green-400 rounded-lg px-3 py-2 text-sm text-gray-900 bg-white">
+                                        <option value="">Seleccionar soldador...</option>
+                                        {(showAllSoldadores ? allSoldadores : soldadores).map((s) => (
+                                            <option key={s.rut} value={s.rut}>
+                                                {s.estampa ? `[${s.estampa}] ` : s.codigo_trabajador ? `[${s.codigo_trabajador}] ` : '⚠️ '}
+                                                {s.nombre}
+                                            </option>
+                                        ))}
+                                    </select>
+                                    {selectedCapataz && (
+                                        <button type="button" onClick={() => setShowAllSoldadores(!showAllSoldadores)} className="text-xs text-blue-600 hover:text-blue-800 mt-1">
+                                            {showAllSoldadores ? '← Solo cuadrilla' : 'Ver todos →'}
+                                        </button>
+                                    )}
+                                </div>
+                            ) : (
+                                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                                    <p className="text-xs text-blue-800">
+                                        ℹ️ Este tipo de unión no requiere soldador
+                                    </p>
+                                </div>
+                            )}
 
                             {needsEstampa && (
                                 <div className="bg-yellow-50 border border-yellow-300 rounded-lg p-3">
@@ -2012,7 +2026,7 @@ function AddWeldModal({ adjacentWelds, revisionId, projectId, isoNumber, rev, re
                     </button>
                     <button
                         onClick={handleSubmit}
-                        disabled={submitting || savingEstampa || !!weldNumberError || !weldNumber.trim() || !spoolNumber.trim() || (creationType === 'TERRENO' && (!selectedSoldador || !selectedCapataz || (needsEstampa && !estampaInput.trim())))}
+                        disabled={submitting || savingEstampa || !!weldNumberError || !weldNumber.trim() || !spoolNumber.trim() || (creationType === 'TERRENO' && (!selectedCapataz || (isWelderRequired && (!selectedSoldador || (needsEstampa && !estampaInput.trim())))))}
                         className="flex-1 px-4 py-3 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-medium flex items-center justify-center gap-2 disabled:opacity-50"
                     >
                         {submitting ? (
@@ -2028,7 +2042,7 @@ function AddWeldModal({ adjacentWelds, revisionId, projectId, isoNumber, rev, re
                     </button>
                 </div>
             </div>
-        </div>
+        </div >
     )
 }
 
