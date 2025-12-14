@@ -3487,11 +3487,17 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
 
                                                                                     {/* Action Buttons */}
                                                                                     <div className="mt-4 pt-3 border-t border-gray-300 flex gap-2">
-                                                                                        <button className="flex-1 px-3 py-2 text-sm font-medium text-blue-700 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors">
+                                                                                        <button
+                                                                                            onClick={() => handleOpenSpoolInfoModal(spool)}
+                                                                                            className="flex-1 px-3 py-2 text-sm font-medium text-blue-700 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
+                                                                                        >
                                                                                             📏 Solicitar Largo
                                                                                         </button>
-                                                                                        <button className="flex-1 px-3 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors">
-                                                                                            📋 Ver Detalles
+                                                                                        <button
+                                                                                            onClick={() => handleOpenPhaseModal(spool, 'ndt', 'END/NDE', 'PENDING')}
+                                                                                            className="flex-1 px-3 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                                                                                        >
+                                                                                            📋 Gestionar Fases
                                                                                         </button>
                                                                                     </div>
                                                                                 </div>
@@ -3780,6 +3786,37 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
                 accept=".pdf"
                 onChange={handleFileChange}
             />
+
+            {/* Spool Modals */}
+            {selectedSpoolForModal && (
+                <>
+                    <SpoolPhaseModal
+                        isOpen={showSpoolPhaseModal}
+                        onClose={() => {
+                            setShowSpoolPhaseModal(false)
+                            setSelectedSpoolForModal(null)
+                        }}
+                        spoolNumber={selectedSpoolForModal.spoolNumber}
+                        revisionId={selectedSpoolForModal.revisionId}
+                        phase={selectedSpoolForModal.phase!}
+                        phaseName={selectedSpoolForModal.phaseName || ''}
+                        currentStatus={selectedSpoolForModal.currentStatus}
+                        onUpdate={handleModalUpdate}
+                    />
+                    <SpoolInfoModal
+                        isOpen={showSpoolInfoModal}
+                        onClose={() => {
+                            setShowSpoolInfoModal(false)
+                            setSelectedSpoolForModal(null)
+                        }}
+                        spoolNumber={selectedSpoolForModal.spoolNumber}
+                        revisionId={selectedSpoolForModal.revisionId}
+                        currentLength={selectedSpoolForModal.lengthMeters}
+                        currentWeight={selectedSpoolForModal.weightKg}
+                        onUpdate={handleModalUpdate}
+                    />
+                </>
+            )}
         </div >
     )
 }
