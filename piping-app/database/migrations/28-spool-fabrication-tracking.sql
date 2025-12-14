@@ -140,6 +140,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Trigger to auto-create tracking record when weld is created
+DROP TRIGGER IF EXISTS auto_init_spool_fabrication_tracking ON spools_welds;
 CREATE TRIGGER auto_init_spool_fabrication_tracking
   AFTER INSERT ON spools_welds
   FOR EACH ROW
@@ -184,6 +185,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Trigger to update shop welding status when welds change
+DROP TRIGGER IF EXISTS update_shop_welding_on_weld_change ON spools_welds;
 CREATE TRIGGER update_shop_welding_on_weld_change
   AFTER INSERT OR UPDATE OF executed ON spools_welds
   FOR EACH ROW
