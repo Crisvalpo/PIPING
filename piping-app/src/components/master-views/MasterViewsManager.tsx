@@ -54,7 +54,7 @@ interface WeldsBySpool {
     field_welds_total: number
     field_welds_executed: number
     is_fabricated: boolean
-    fabrication_status: 'FABRICADO' | 'EN PROCESO' | 'PENDIENTE' | 'N/A'
+    fabrication_status: 'COMPLETO' | 'FABRICADO' | 'EN PROCESO' | 'PENDIENTE' | 'N/A'
 }
 
 // Modal de Detalles de Soldadura con Edición
@@ -2089,23 +2089,104 @@ function groupWeldsBySpool(welds: any[]): WeldsBySpool[] {
     })
 
     // Calcular estado de fabricación para cada spool
+    // En la vista de UNIONES, el estado debe reflejar TODAS las uniones (taller + campo)
     spoolMap.forEach(spool => {
-        if (spool.shop_welds_total === 0) {
+        const totalWelds = spool.shop_welds_total + spool.field_welds_total
+        const totalExecuted = spool.shop_welds_executed + spool.field_welds_executed
+
+        if (totalWelds === 0) {
             spool.fabrication_status = 'N/A'
             spool.is_fabricated = false
-        } else if (spool.shop_welds_total === spool.shop_welds_executed) {
-            spool.fabrication_status = 'FABRICADO'
+        } else if (totalWelds === totalExecuted) {
+            // TODAS las uniones (taller + campo) ejecutadas
+            spool.fabrication_status = 'COMPLETO'
             spool.is_fabricated = true
-        } else if (spool.shop_welds_executed > 0) {
+        } else if (totalExecuted > 0) {
+            // Algunas uniones ejecutadas pero no todas
             spool.fabrication_status = 'EN PROCESO'
             spool.is_fabricated = false
         } else {
+            // Ninguna unión ejecutada
             spool.fabrication_status = 'PENDIENTE'
             spool.is_fabricated = false
         }
     })
 
     return Array.from(spoolMap.values()).sort((a, b) => a.spool_number.localeCompare(b.spool_number))
+}
+
+// Function to group spools for the Spools tab (fabrication-focused)
+function groupSpoolsForFabrication(welds: any[]) {
+    const spoolMap = new Map<string, any>()
+
+    welds.forEach(weld => {
+        const spoolNumber = weld.spool_number
+        if (!spoolMap.has(spoolNumber)) {
+            spoolMap.set(spoolNumber, {
+                spool_number: spoolNumber,
+                shop_welds_total: 0,
+                shop_welds_executed: 0,
+                field_welds_total: 0,
+                field_welds_executed: 0,
+                welds_count: 0,
+                welds_executed: 0
+            })
+        }
+
+        const spool = spoolMap.get(spoolNumber)!
+
+        // Skip deleted welds from counts
+        if (weld.deleted) return
+
+        // Count all welds for total progress
+        spool.welds_count++
+        if (weld.executed) {
+            spool.welds_executed++
+        }
+
+        // Count shop/field separately
+        if (weld.destination === 'S') {
+            spool.shop_welds_total++
+            if (weld.executed) {
+                spool.shop_welds_executed++
+            }
+        }
+
+        if (weld.destination === 'F') {
+            spool.field_welds_total++
+            if (weld.executed) {
+                spool.field_welds_executed++
+            }
+        }
+    })
+
+    // Calculate fabrication status for each spool
+    // In Spools view, status is based on SHOP (fabrication) welds only
+    const spools = Array.from(spoolMap.values()).map(spool => {
+        let status = 'PENDING'
+
+        if (spool.shop_welds_total === 0) {
+            // No shop welds - check if all welds are complete
+            if (spool.welds_count > 0 && spool.welds_count === spool.welds_executed) {
+                status = 'COMPLETE'
+            } else if (spool.welds_executed > 0) {
+                status = 'PARTIAL'
+            }
+        } else if (spool.shop_welds_total === spool.shop_welds_executed) {
+            // All shop welds executed = FABRICATED
+            status = 'FABRICATED'
+        } else if (spool.shop_welds_executed > 0) {
+            // Some shop welds executed
+            status = 'PARTIAL'
+        }
+
+        return {
+            ...spool,
+            status
+        }
+    })
+
+    return spools.sort((a, b) => a.spool_number.localeCompare(b.spool_number))
 }
 
 // NON_WELDED_TYPES constant removed in favor of dynamic config
@@ -2187,7 +2268,10 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
 
     // Estado para spools agrupados
     const [weldsBySpool, setWeldsBySpool] = useState<WeldsBySpool[]>([])
+    const [fabricationSpools, setFabricationSpools] = useState<any[]>([])
     const [expandedSpools, setExpandedSpools] = useState<Set<string>>(new Set())
+    const [expandedSpoolsInSpoolsView, setExpandedSpoolsInSpoolsView] = useState<Set<string>>(new Set())
+    const [draggedSpoolNumber, setDraggedSpoolNumber] = useState<string | null>(null)
 
     const fileInputRef = useRef<HTMLInputElement>(null)
     const [uploadingRevisionId, setUploadingRevisionId] = useState<string | null>(null)
@@ -2220,6 +2304,10 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
         if (details) {
             const grouped = groupWeldsBySpool(details.welds)
             setWeldsBySpool(grouped)
+
+            // Also calculate fabrication-focused data for Spools tab
+            const fabrication = groupSpoolsForFabrication(details.welds)
+            setFabricationSpools(fabrication)
         }
     }, [details])
 
@@ -2590,18 +2678,6 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
         }
     }
 
-    const toggleSpoolExpanded = (spoolNumber: string) => {
-        setExpandedSpools(prev => {
-            const newSet = new Set(prev)
-            if (newSet.has(spoolNumber)) {
-                newSet.delete(spoolNumber)
-            } else {
-                newSet.add(spoolNumber)
-            }
-            return newSet
-        })
-    }
-
     const loadAllRevisionFiles = async (revisionIds: string[]) => {
         if (!revisionIds.length) {
             setRevisionFiles([])
@@ -2700,6 +2776,69 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
         setLoadingDetails(false)
     }
 
+    // Toggle spool expansion in Unions view
+    const toggleSpoolExpanded = (spoolNumber: string) => {
+        setExpandedSpools(prev => {
+            const newSet = new Set(prev)
+            if (newSet.has(spoolNumber)) {
+                newSet.delete(spoolNumber)
+            } else {
+                newSet.add(spoolNumber)
+            }
+            return newSet
+        })
+    }
+
+    //Toggle spool expansion in Spools view
+    const toggleSpoolInSpoolsView = (spoolNumber: string) => {
+        setExpandedSpoolsInSpoolsView(prev => {
+            const newSet = new Set(prev)
+            if (newSet.has(spoolNumber)) {
+                newSet.delete(spoolNumber)
+            } else {
+                newSet.add(spoolNumber)
+            }
+            return newSet
+        })
+    }
+
+    // Handlers for spool drag & drop in Spools view
+    const handleSpoolDragStart = (e: React.DragEvent, spoolNumber: string) => {
+        if (!isDragDropEnabled) return
+        setDraggedSpoolNumber(spoolNumber)
+        e.dataTransfer.effectAllowed = 'move'
+    }
+
+    const handleSpoolDragOver = (e: React.DragEvent) => {
+        if (!isDragDropEnabled || !draggedSpoolNumber) return
+        e.preventDefault()
+        e.dataTransfer.dropEffect = 'move'
+    }
+
+    const handleSpoolDrop = (e: React.DragEvent, targetSpoolNumber: string) => {
+        e.preventDefault()
+        if (!isDragDropEnabled || !draggedSpoolNumber || draggedSpoolNumber === targetSpoolNumber) {
+            setDraggedSpoolNumber(null)
+            return
+        }
+
+        // Reorder the fabrication spools array
+        const draggedIndex = fabricationSpools.findIndex(s => s.spool_number === draggedSpoolNumber)
+        const targetIndex = fabricationSpools.findIndex(s => s.spool_number === targetSpoolNumber)
+
+        if (draggedIndex === -1 || targetIndex === -1) {
+            setDraggedSpoolNumber(null)
+            return
+        }
+
+        const reordered = [...fabricationSpools]
+        const [removed] = reordered.splice(draggedIndex, 1)
+        reordered.splice(targetIndex, 0, removed)
+
+        setFabricationSpools(reordered)
+        setDraggedSpoolNumber(null)
+    }
+
     return (
         <div className="relative min-h-screen pb-20">
             {/* Search Bar */}
@@ -2712,17 +2851,6 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
                         onChange={e => setSearchTerm(e.target.value)}
                         className="flex-1 bg-gray-50 border border-gray-300 rounded-lg px-4 py-3 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
                     />
-
-                    {/* Drag & Drop Toggle */}
-                    <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg">
-                        <span className="text-xs font-medium text-gray-700 whitespace-nowrap">Reordenar</span>
-                        <button
-                            onClick={() => setIsDragDropEnabled(!isDragDropEnabled)}
-                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${isDragDropEnabled ? 'bg-emerald-500' : 'bg-gray-300'}`}
-                        >
-                            <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-lg transition-transform ${isDragDropEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
-                        </button>
-                    </div>
                 </div>
             </div>
 
@@ -2931,6 +3059,23 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
                                                     </button>
                                                 </div>
 
+                                                {/* Reordenar Toggle - visible para UNIONS y SPOOLS */}
+                                                {(activeTab === 'UNIONS' || activeTab === 'SPOOLS') && (
+                                                    <div className="px-4 py-3 bg-gray-50 border-b border-gray-300 flex items-center justify-between">
+                                                        <span className="text-sm text-gray-700 font-medium">Modo Reordenar</span>
+                                                        <button
+                                                            onClick={() => setIsDragDropEnabled(!isDragDropEnabled)}
+                                                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${isDragDropEnabled ? 'bg-emerald-500' : 'bg-gray-300'
+                                                                }`}
+                                                        >
+                                                            <span
+                                                                className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-lg transition-transform ${isDragDropEnabled ? 'translate-x-6' : 'translate-x-1'
+                                                                    }`}
+                                                            />
+                                                        </button>
+                                                    </div>
+                                                )}
+
                                                 {/* Content */}
                                                 <div className="p-4">
                                                     {activeTab === 'MATERIALS' && (
@@ -2963,13 +3108,15 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
                                                                                 <div className="flex items-center gap-2">
                                                                                     <span className="font-bold text-gray-900">Spool: {spool.spool_number}</span>
                                                                                     <span
-                                                                                        className={`px-2 py-0.5 rounded text-xs font-bold ${spool.fabrication_status === 'FABRICADO'
-                                                                                            ? 'bg-green-100 text-green-700'
-                                                                                            : spool.fabrication_status === 'EN PROCESO'
-                                                                                                ? 'bg-yellow-100 text-yellow-700'
-                                                                                                : spool.fabrication_status === 'N/A'
-                                                                                                    ? 'bg-gray-200 text-gray-700'
-                                                                                                    : 'bg-orange-100 text-orange-700'
+                                                                                        className={`px-2 py-0.5 rounded text-xs font-bold ${spool.fabrication_status === 'COMPLETO'
+                                                                                            ? 'bg-emerald-100 text-emerald-700'
+                                                                                            : spool.fabrication_status === 'FABRICADO'
+                                                                                                ? 'bg-green-100 text-green-700'
+                                                                                                : spool.fabrication_status === 'EN PROCESO'
+                                                                                                    ? 'bg-yellow-100 text-yellow-700'
+                                                                                                    : spool.fabrication_status === 'N/A'
+                                                                                                        ? 'bg-gray-200 text-gray-700'
+                                                                                                        : 'bg-orange-100 text-orange-700'
                                                                                             }`}
                                                                                     >
                                                                                         {spool.fabrication_status}
@@ -2978,7 +3125,7 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
                                                                                 <div className="text-xs text-gray-700 mt-1">
                                                                                     Taller: {spool.shop_welds_executed}/{spool.shop_welds_total} •
                                                                                     Campo: {spool.field_welds_executed}/{spool.field_welds_total} •
-                                                                                    Total: {spool.welds.length} uniones
+                                                                                    Total: {spool.welds.filter((w: any) => !w.deleted).length} uniones
                                                                                 </div>
                                                                             </div>
                                                                             <div className="text-gray-600">{isExpanded ? '▲' : '▼'}</div>
@@ -3010,10 +3157,10 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
                                                                                                         const firstWeld = spool.welds[0]
                                                                                                         handleAddWeld(prevWeld, nextWeld, firstWeld?.revision_id || '', firstWeld?.iso_number || '', firstWeld?.rev || '')
                                                                                                     }}
-                                                                                                    className="absolute inset-x-0 -top-1 h-4 z-10 flex justify-center items-center opacity-0 hover:opacity-100 transition-opacity"
+                                                                                                    className="absolute inset-x-0 -top-1 h-5 z-0 flex justify-center items-center transition-opacity"
                                                                                                 >
-                                                                                                    <div className="w-5 h-5 rounded-full bg-emerald-500 shadow-lg flex items-center justify-center transform scale-75 hover:scale-100 transition-all">
-                                                                                                        <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
+                                                                                                    <div className="w-6 h-6 rounded-full bg-white border border-gray-300 opacity-30 hover:opacity-70 shadow-sm flex items-center justify-center transition-all">
+                                                                                                        <svg className="w-3.5 h-3.5 text-gray-600" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
                                                                                                             <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
                                                                                                         </svg>
                                                                                                     </div>
@@ -3050,12 +3197,6 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
                                                                                                             {weld.rework_count > 0 && (
                                                                                                                 <span className="px-1.5 py-0.5 rounded text-xs font-bold bg-orange-100 text-orange-700 border border-orange-200">
                                                                                                                     R{weld.rework_count}
-                                                                                                                </span>
-                                                                                                            )}
-                                                                                                            {/* Deleted Badge */}
-                                                                                                            {weld.deleted && (
-                                                                                                                <span className="px-1.5 py-0.5 rounded text-xs font-bold bg-red-100 text-red-700 border border-red-200">
-                                                                                                                    ELIMINADA
                                                                                                                 </span>
                                                                                                             )}
                                                                                                         </div>
@@ -3113,10 +3254,10 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
                                                                                             const firstWeld = spool.welds[0]
                                                                                             handleAddWeld(lastWeld || null, null, firstWeld?.revision_id || '', firstWeld?.iso_number || '', firstWeld?.rev || '')
                                                                                         }}
-                                                                                        className="absolute inset-x-0 top-0 h-4 z-10 flex justify-center items-center opacity-0 hover:opacity-100 transition-opacity"
+                                                                                        className="absolute inset-x-0 top-0 h-5 z-0 flex justify-center items-center transition-opacity"
                                                                                     >
-                                                                                        <div className="w-5 h-5 rounded-full bg-emerald-500 shadow-lg flex items-center justify-center transform scale-75 hover:scale-100 transition-all">
-                                                                                            <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
+                                                                                        <div className="w-6 h-6 rounded-full bg-white border border-gray-300 opacity-30 hover:opacity-70 shadow-sm flex items-center justify-center transition-all">
+                                                                                            <svg className="w-3.5 h-3.5 text-gray-600" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
                                                                                                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
                                                                                             </svg>
                                                                                         </div>
@@ -3132,37 +3273,123 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
 
                                                     {activeTab === 'SPOOLS' && (
                                                         <div className="space-y-3">
-                                                            {details.spools.map(spool => (
-                                                                <div key={spool.spool_number} className="bg-white p-3 rounded-lg border border-gray-300 shadow-sm">
-                                                                    <div className="flex justify-between items-center mb-2">
-                                                                        <span className="font-bold text-gray-800">{spool.spool_number}</span>
-                                                                        <span
-                                                                            className={`text-xs font-bold px-2 py-1 rounded ${spool.status === 'COMPLETE'
-                                                                                ? 'bg-green-100 text-green-700'
-                                                                                : spool.status === 'PARTIAL'
-                                                                                    ? 'bg-yellow-100 text-yellow-700'
-                                                                                    : 'bg-gray-200 text-gray-700'
-                                                                                }`}
-                                                                        >
-                                                                            {spool.status === 'COMPLETE'
-                                                                                ? 'COMPLETO'
-                                                                                : spool.status === 'PARTIAL'
-                                                                                    ? 'PARCIAL'
-                                                                                    : 'PENDIENTE'}
-                                                                        </span>
-                                                                    </div>
-                                                                    <div className="w-full bg-gray-200 rounded-full h-2">
+                                                            {fabricationSpools.map(spool => {
+                                                                const isExpanded = expandedSpoolsInSpoolsView.has(spool.spool_number)
+                                                                const spoolWelds = details?.welds.filter(w => w.spool_number === spool.spool_number) || []
+
+                                                                return (
+                                                                    <div
+                                                                        key={spool.spool_number}
+                                                                        className={`bg-white rounded-lg border border-gray-300 shadow-sm overflow-hidden transition-all ${isDragDropEnabled ? 'cursor-grab active:cursor-grabbing' : ''
+                                                                            } ${draggedSpoolNumber === spool.spool_number ? 'opacity-50' : ''}`}
+                                                                        draggable={isDragDropEnabled}
+                                                                        onDragStart={(e) => handleSpoolDragStart(e, spool.spool_number)}
+                                                                        onDragOver={handleSpoolDragOver}
+                                                                        onDrop={(e) => handleSpoolDrop(e, spool.spool_number)}
+                                                                    >
                                                                         <div
-                                                                            className="bg-blue-600 h-2 rounded-full transition-all"
-                                                                            style={{ width: `${(spool.welds_executed / spool.welds_count) * 100}%` }}
-                                                                        ></div>
+                                                                            onClick={() => !isDragDropEnabled && toggleSpoolInSpoolsView(spool.spool_number)}
+                                                                            className={`p-3 flex justify-between items-center ${!isDragDropEnabled ? 'cursor-pointer hover:bg-gray-50' : ''} transition-colors`}
+                                                                        >
+                                                                            <div className="flex-1">
+                                                                                <div className="flex items-center gap-2">
+                                                                                    {isDragDropEnabled && (
+                                                                                        <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                                                                            <path strokeLinecap="round" strokeLinejoin="round" d="M4 8h16M4 16h16" />
+                                                                                        </svg>
+                                                                                    )}
+                                                                                    <span className="font-bold text-gray-800">{spool.spool_number}</span>
+                                                                                    <span
+                                                                                        className={`text-xs font-bold px-2 py-1 rounded ${spool.status === 'COMPLETE'
+                                                                                            ? 'bg-emerald-100 text-emerald-700'
+                                                                                            : spool.status === 'FABRICATED'
+                                                                                                ? 'bg-green-100 text-green-700'
+                                                                                                : spool.status === 'PARTIAL'
+                                                                                                    ? 'bg-yellow-100 text-yellow-700'
+                                                                                                    : 'bg-gray-200 text-gray-700'
+                                                                                            }`}
+                                                                                    >
+                                                                                        {spool.status === 'COMPLETE'
+                                                                                            ? 'COMPLETO'
+                                                                                            : spool.status === 'FABRICATED'
+                                                                                                ? 'FABRICADO'
+                                                                                                : spool.status === 'PARTIAL'
+                                                                                                    ? 'PARCIAL'
+                                                                                                    : 'PENDIENTE'}
+                                                                                    </span>
+                                                                                </div>
+                                                                                <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
+                                                                                    <div
+                                                                                        className="bg-blue-600 h-2 rounded-full transition-all"
+                                                                                        style={{ width: `${spool.welds_count > 0 ? (spool.welds_executed / spool.welds_count) * 100 : 0}%` }}
+                                                                                    ></div>
+                                                                                </div>
+                                                                                <div className="flex justify-between mt-1 text-xs text-gray-700">
+                                                                                    <span>Progreso</span>
+                                                                                    <span>{spool.welds_executed} / {spool.welds_count} uniones</span>
+                                                                                </div>
+                                                                                <div className="text-xs text-gray-600 mt-1 flex gap-3">
+                                                                                    <span>Taller: {spool.shop_welds_executed}/{spool.shop_welds_total}</span>
+                                                                                    <span>Campo: {spool.field_welds_executed}/{spool.field_welds_total}</span>
+                                                                                </div>
+                                                                            </div>
+                                                                            {!isDragDropEnabled && (
+                                                                                <div className="text-gray-600">{isExpanded ? '▲' : '▼'}</div>
+                                                                            )}
+                                                                        </div>
+
+                                                                        {isExpanded && (
+                                                                            <div className="border-t border-gray-300 bg-gray-50 p-3">
+                                                                                <div className="space-y-2">
+                                                                                    {spoolWelds.map(weld => {
+                                                                                        const getCardBgClass = () => {
+                                                                                            if (weld.deleted) return 'bg-red-50 border-red-200'
+                                                                                            if (weld.executed) return 'bg-green-50 border-green-200'
+                                                                                            if (weld.rework_count > 0) return 'bg-orange-50 border-orange-200'
+                                                                                            return 'bg-white border-gray-300'
+                                                                                        }
+
+                                                                                        return (
+                                                                                            <div
+                                                                                                key={weld.id}
+                                                                                                onClick={() => setSelectedWeld(weld)}
+                                                                                                className={`p-3 rounded-lg border flex justify-between items-center shadow-sm cursor-pointer hover:shadow-md transition-all ${getCardBgClass()}`}
+                                                                                            >
+                                                                                                <div>
+                                                                                                    <div className="font-bold text-gray-800 flex items-center gap-2">
+                                                                                                        {weld.weld_number}
+                                                                                                        <span className={`px-1.5 py-0.5 rounded text-xs font-bold ${weld.destination === 'S' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'}`}>
+                                                                                                            {weld.destination === 'S' ? 'Taller' : 'Campo'}
+                                                                                                        </span>
+                                                                                                        {weld.rework_count > 0 && (
+                                                                                                            <span className="px-1.5 py-0.5 rounded text-xs font-bold bg-orange-100 text-orange-700 border border-orange-200">
+                                                                                                                R{weld.rework_count}
+                                                                                                            </span>
+                                                                                                        )}
+                                                                                                    </div>
+                                                                                                    <div className="text-xs text-gray-600 flex items-center gap-1">
+                                                                                                        {weld.type_weld} - {weld.nps}"
+                                                                                                    </div>
+                                                                                                </div>
+                                                                                                <span
+                                                                                                    className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all ${weld.deleted
+                                                                                                        ? 'bg-red-100 text-red-700 border border-red-200'
+                                                                                                        : weld.executed
+                                                                                                            ? 'bg-green-100 text-green-700 border border-green-200'
+                                                                                                            : 'bg-gray-200 text-gray-700 border border-gray-300'
+                                                                                                        }`}
+                                                                                                >
+                                                                                                    {weld.deleted ? 'ELIMINADA' : weld.executed ? 'EJECUTADO' : 'PENDIENTE'}
+                                                                                                </span>
+                                                                                            </div>
+                                                                                        )
+                                                                                    })}
+                                                                                </div>
+                                                                            </div>
+                                                                        )}
                                                                     </div>
-                                                                    <div className="flex justify-between mt-1 text-xs text-gray-700">
-                                                                        <span>Progreso</span>
-                                                                        <span>{spool.welds_executed} / {spool.welds_count} soldaduras</span>
-                                                                    </div>
-                                                                </div>
-                                                            ))}
+                                                                )
+                                                            })}
                                                         </div>
                                                     )
                                                     }
