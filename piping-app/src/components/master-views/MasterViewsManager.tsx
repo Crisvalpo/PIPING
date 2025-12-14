@@ -3275,115 +3275,174 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
                                                         <div className="space-y-3">
                                                             {fabricationSpools.map(spool => {
                                                                 const isExpanded = expandedSpoolsInSpoolsView.has(spool.spool_number)
-                                                                const spoolWelds = details?.welds.filter(w => w.spool_number === spool.spool_number) || []
+
+                                                                // Calculate overall progress
+                                                                const totalPhases = 7
+                                                                const completedPhases = [
+                                                                    spool.status === 'FABRICATED' || spool.status === 'COMPLETE',  // Shop welding
+                                                                    false, // NDT (to be fetched from API)
+                                                                    false, // PWHT
+                                                                    false, // Surface treatment
+                                                                    false, // Dispatch
+                                                                    false, // Field erection
+                                                                    spool.status === 'COMPLETE'  // Field welding
+                                                                ].filter(Boolean).length
+                                                                const progressPercent = Math.round((completedPhases / totalPhases) * 100)
 
                                                                 return (
                                                                     <div
                                                                         key={spool.spool_number}
-                                                                        className={`bg-white rounded-lg border border-gray-300 shadow-sm overflow-hidden transition-all ${isDragDropEnabled ? 'cursor-grab active:cursor-grabbing' : ''
-                                                                            } ${draggedSpoolNumber === spool.spool_number ? 'opacity-50' : ''}`}
-                                                                        draggable={isDragDropEnabled}
-                                                                        onDragStart={(e) => handleSpoolDragStart(e, spool.spool_number)}
-                                                                        onDragOver={handleSpoolDragOver}
-                                                                        onDrop={(e) => handleSpoolDrop(e, spool.spool_number)}
+                                                                        className="bg-white rounded-lg border border-gray-300 shadow-sm overflow-hidden"
                                                                     >
                                                                         <div
-                                                                            onClick={() => !isDragDropEnabled && toggleSpoolInSpoolsView(spool.spool_number)}
-                                                                            className={`p-3 flex justify-between items-center ${!isDragDropEnabled ? 'cursor-pointer hover:bg-gray-50' : ''} transition-colors`}
+                                                                            onClick={() => toggleSpoolInSpoolsView(spool.spool_number)}
+                                                                            className="p-4 cursor-pointer hover:bg-gray-50 transition-colors"
                                                                         >
-                                                                            <div className="flex-1">
-                                                                                <div className="flex items-center gap-2">
-                                                                                    {isDragDropEnabled && (
-                                                                                        <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                                                                            <path strokeLinecap="round" strokeLinejoin="round" d="M4 8h16M4 16h16" />
-                                                                                        </svg>
-                                                                                    )}
-                                                                                    <span className="font-bold text-gray-800">{spool.spool_number}</span>
-                                                                                    <span
-                                                                                        className={`text-xs font-bold px-2 py-1 rounded ${spool.status === 'COMPLETE'
+                                                                            <div className="flex justify-between items-start mb-2">
+                                                                                <div className="flex-1">
+                                                                                    <div className="flex items-center gap-2 mb-1">
+                                                                                        <span className="font-bold text-lg text-gray-900">{spool.spool_number}</span>
+                                                                                        <span className={`text-xs font-bold px-2 py-1 rounded ${progressPercent === 100
                                                                                             ? 'bg-emerald-100 text-emerald-700'
-                                                                                            : spool.status === 'FABRICATED'
-                                                                                                ? 'bg-green-100 text-green-700'
-                                                                                                : spool.status === 'PARTIAL'
-                                                                                                    ? 'bg-yellow-100 text-yellow-700'
-                                                                                                    : 'bg-gray-200 text-gray-700'
-                                                                                            }`}
-                                                                                    >
-                                                                                        {spool.status === 'COMPLETE'
-                                                                                            ? 'COMPLETO'
-                                                                                            : spool.status === 'FABRICATED'
-                                                                                                ? 'FABRICADO'
-                                                                                                : spool.status === 'PARTIAL'
-                                                                                                    ? 'PARCIAL'
-                                                                                                    : 'PENDIENTE'}
-                                                                                    </span>
+                                                                                            : progressPercent > 0
+                                                                                                ? 'bg-blue-100 text-blue-700'
+                                                                                                : 'bg-gray-200 text-gray-700'
+                                                                                            }`}>
+                                                                                            {progressPercent}% Completado
+                                                                                        </span>
+                                                                                    </div>
+                                                                                    <div className="text-sm text-gray-600 flex gap-3">
+                                                                                        <span>Largo: --m</span>
+                                                                                        <span>Peso: --kg</span>
+                                                                                    </div>
                                                                                 </div>
-                                                                                <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
-                                                                                    <div
-                                                                                        className="bg-blue-600 h-2 rounded-full transition-all"
-                                                                                        style={{ width: `${spool.welds_count > 0 ? (spool.welds_executed / spool.welds_count) * 100 : 0}%` }}
-                                                                                    ></div>
-                                                                                </div>
-                                                                                <div className="flex justify-between mt-1 text-xs text-gray-700">
-                                                                                    <span>Progreso</span>
-                                                                                    <span>{spool.welds_executed} / {spool.welds_count} uniones</span>
-                                                                                </div>
-                                                                                <div className="text-xs text-gray-600 mt-1 flex gap-3">
-                                                                                    <span>Taller: {spool.shop_welds_executed}/{spool.shop_welds_total}</span>
-                                                                                    <span>Campo: {spool.field_welds_executed}/{spool.field_welds_total}</span>
-                                                                                </div>
-                                                                            </div>
-                                                                            {!isDragDropEnabled && (
                                                                                 <div className="text-gray-600">{isExpanded ? '▲' : '▼'}</div>
-                                                                            )}
+                                                                            </div>
+
+                                                                            {/* Progress bar */}
+                                                                            <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
+                                                                                <div
+                                                                                    className={`h-2 rounded-full transition-all ${progressPercent === 100 ? 'bg-emerald-500' : 'bg-blue-500'
+                                                                                        }`}
+                                                                                    style={{ width: `${progressPercent}%` }}
+                                                                                ></div>
+                                                                            </div>
                                                                         </div>
 
                                                                         {isExpanded && (
-                                                                            <div className="border-t border-gray-300 bg-gray-50 p-3">
-                                                                                <div className="space-y-2">
-                                                                                    {spoolWelds.map(weld => {
-                                                                                        const getCardBgClass = () => {
-                                                                                            if (weld.deleted) return 'bg-red-50 border-red-200'
-                                                                                            if (weld.executed) return 'bg-green-50 border-green-200'
-                                                                                            if (weld.rework_count > 0) return 'bg-orange-50 border-orange-200'
-                                                                                            return 'bg-white border-gray-300'
-                                                                                        }
-
-                                                                                        return (
-                                                                                            <div
-                                                                                                key={weld.id}
-                                                                                                onClick={() => setSelectedWeld(weld)}
-                                                                                                className={`p-3 rounded-lg border flex justify-between items-center shadow-sm cursor-pointer hover:shadow-md transition-all ${getCardBgClass()}`}
-                                                                                            >
-                                                                                                <div>
-                                                                                                    <div className="font-bold text-gray-800 flex items-center gap-2">
-                                                                                                        {weld.weld_number}
-                                                                                                        <span className={`px-1.5 py-0.5 rounded text-xs font-bold ${weld.destination === 'S' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'}`}>
-                                                                                                            {weld.destination === 'S' ? 'Taller' : 'Campo'}
-                                                                                                        </span>
-                                                                                                        {weld.rework_count > 0 && (
-                                                                                                            <span className="px-1.5 py-0.5 rounded text-xs font-bold bg-orange-100 text-orange-700 border border-orange-200">
-                                                                                                                R{weld.rework_count}
-                                                                                                            </span>
-                                                                                                        )}
-                                                                                                    </div>
-                                                                                                    <div className="text-xs text-gray-600 flex items-center gap-1">
-                                                                                                        {weld.type_weld} - {weld.nps}"
-                                                                                                    </div>
-                                                                                                </div>
-                                                                                                <span
-                                                                                                    className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all ${weld.deleted
-                                                                                                        ? 'bg-red-100 text-red-700 border border-red-200'
-                                                                                                        : weld.executed
-                                                                                                            ? 'bg-green-100 text-green-700 border border-green-200'
-                                                                                                            : 'bg-gray-200 text-gray-700 border border-gray-300'
-                                                                                                        }`}
-                                                                                                >
-                                                                                                    {weld.deleted ? 'ELIMINADA' : weld.executed ? 'EJECUTADO' : 'PENDIENTE'}
-                                                                                                </span>
+                                                                            <div className="border-t border-gray-300 bg-gray-50 p-4">
+                                                                                <div className="space-y-3">
+                                                                                    {/* Phase 1: Shop Welding */}
+                                                                                    <div className="flex items-center gap-3 p-2 bg-white rounded border border-gray-200">
+                                                                                        <div className={`w-6 h-6 rounded-full flex items-center justify-center ${spool.status === 'FABRICATED' || spool.status === 'COMPLETE'
+                                                                                            ? 'bg-green-100 text-green-700'
+                                                                                            : spool.shop_welds_executed > 0
+                                                                                                ? 'bg-yellow-100 text-yellow-700'
+                                                                                                : 'bg-gray-200 text-gray-600'
+                                                                                            }`}>
+                                                                                            {spool.status === 'FABRICATED' || spool.status === 'COMPLETE' ? '✓' : '1'}
+                                                                                        </div>
+                                                                                        <div className="flex-1">
+                                                                                            <div className="font-medium text-sm text-gray-900">Soldadura Taller</div>
+                                                                                            <div className="text-xs text-gray-600">
+                                                                                                {spool.shop_welds_executed}/{spool.shop_welds_total} uniones
                                                                                             </div>
-                                                                                        )
-                                                                                    })}
+                                                                                        </div>
+                                                                                        <span className={`text-xs font-bold px-2 py-1 rounded ${spool.status === 'FABRICATED' || spool.status === 'COMPLETE'
+                                                                                            ? 'bg-green-100 text-green-700'
+                                                                                            : spool.shop_welds_executed > 0
+                                                                                                ? 'bg-yellow-100 text-yellow-700'
+                                                                                                : 'bg-gray-200 text-gray-700'
+                                                                                            }`}>
+                                                                                            {spool.status === 'FABRICATED' || spool.status === 'COMPLETE' ? 'COMPLETADO' : spool.shop_welds_executed > 0 ? 'EN PROCESO' : 'PENDIENTE'}
+                                                                                        </span>
+                                                                                    </div>
+
+                                                                                    {/* Phase 2: NDT */}
+                                                                                    <div className="flex items-center gap-3 p-2 bg-white rounded border border-gray-200">
+                                                                                        <div className="w-6 h-6 rounded-full flex items-center justify-center bg-gray-200 text-gray-600">2</div>
+                                                                                        <div className="flex-1">
+                                                                                            <div className="font-medium text-sm text-gray-900">END/NDE</div>
+                                                                                            <div className="text-xs text-gray-600">Ensayos No Destructivos</div>
+                                                                                        </div>
+                                                                                        <span className="text-xs font-bold px-2 py-1 rounded bg-gray-200 text-gray-700">PENDIENTE</span>
+                                                                                    </div>
+
+                                                                                    {/* Phase 3: PWHT */}
+                                                                                    <div className="flex items-center gap-3 p-2 bg-white rounded border border-gray-200">
+                                                                                        <div className="w-6 h-6 rounded-full flex items-center justify-center bg-gray-200 text-gray-600">3</div>
+                                                                                        <div className="flex-1">
+                                                                                            <div className="font-medium text-sm text-gray-900">PWHT</div>
+                                                                                            <div className="text-xs text-gray-600">Tratamiento Térmico</div>
+                                                                                        </div>
+                                                                                        <span className="text-xs font-bold px-2 py-1 rounded bg-gray-300 text-gray-600">N/A</span>
+                                                                                    </div>
+
+                                                                                    {/* Phase 4: Surface Treatment */}
+                                                                                    <div className="flex items-center gap-3 p-2 bg-white rounded border border-gray-200">
+                                                                                        <div className="w-6 h-6 rounded-full flex items-center justify-center bg-gray-200 text-gray-600">4</div>
+                                                                                        <div className="flex-1">
+                                                                                            <div className="font-medium text-sm text-gray-900">Tratamiento Superficial</div>
+                                                                                            <div className="text-xs text-gray-600">Pintura/Galvanizado</div>
+                                                                                        </div>
+                                                                                        <span className="text-xs font-bold px-2 py-1 rounded bg-gray-200 text-gray-700">PENDIENTE</span>
+                                                                                    </div>
+
+                                                                                    {/* Phase 5: Dispatch */}
+                                                                                    <div className="flex items-center gap-3 p-2 bg-white rounded border border-gray-200">
+                                                                                        <div className="w-6 h-6 rounded-full flex items-center justify-center bg-gray-200 text-gray-600">5</div>
+                                                                                        <div className="flex-1">
+                                                                                            <div className="font-medium text-sm text-gray-900">Despacho</div>
+                                                                                            <div className="text-xs text-gray-600">Logística y Transporte</div>
+                                                                                        </div>
+                                                                                        <span className="text-xs font-bold px-2 py-1 rounded bg-gray-200 text-gray-700">PENDIENTE</span>
+                                                                                    </div>
+
+                                                                                    {/* Phase 6: Field Erection */}
+                                                                                    <div className="flex items-center gap-3 p-2 bg-white rounded border border-gray-200">
+                                                                                        <div className="w-6 h-6 rounded-full flex items-center justify-center bg-gray-200 text-gray-600">6</div>
+                                                                                        <div className="flex-1">
+                                                                                            <div className="font-medium text-sm text-gray-900">Montaje Campo</div>
+                                                                                            <div className="text-xs text-gray-600">Erección</div>
+                                                                                        </div>
+                                                                                        <span className="text-xs font-bold px-2 py-1 rounded bg-gray-200 text-gray-700">PENDIENTE</span>
+                                                                                    </div>
+
+                                                                                    {/* Phase 7: Field Welding */}
+                                                                                    <div className="flex items-center gap-3 p-2 bg-white rounded border border-gray-200">
+                                                                                        <div className={`w-6 h-6 rounded-full flex items-center justify-center ${spool.status === 'COMPLETE'
+                                                                                            ? 'bg-green-100 text-green-700'
+                                                                                            : spool.field_welds_executed > 0
+                                                                                                ? 'bg-yellow-100 text-yellow-700'
+                                                                                                : 'bg-gray-200 text-gray-600'
+                                                                                            }`}>
+                                                                                            {spool.status === 'COMPLETE' ? '✓' : '7'}
+                                                                                        </div>
+                                                                                        <div className="flex-1">
+                                                                                            <div className="font-medium text-sm text-gray-900">Soldadura Campo</div>
+                                                                                            <div className="text-xs text-gray-600">
+                                                                                                {spool.field_welds_executed}/{spool.field_welds_total} uniones
+                                                                                            </div>
+                                                                                        </div>
+                                                                                        <span className={`text-xs font-bold px-2 py-1 rounded ${spool.status === 'COMPLETE'
+                                                                                            ? 'bg-green-100 text-green-700'
+                                                                                            : spool.field_welds_executed > 0
+                                                                                                ? 'bg-yellow-100 text-yellow-700'
+                                                                                                : 'bg-gray-200 text-gray-700'
+                                                                                            }`}>
+                                                                                            {spool.status === 'COMPLETE' ? 'COMPLETADO' : spool.field_welds_executed > 0 ? 'EN PROCESO' : 'PENDIENTE'}
+                                                                                        </span>
+                                                                                    </div>
+
+                                                                                    {/* Action Buttons */}
+                                                                                    <div className="mt-4 pt-3 border-t border-gray-300 flex gap-2">
+                                                                                        <button className="flex-1 px-3 py-2 text-sm font-medium text-blue-700 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors">
+                                                                                            📏 Solicitar Largo
+                                                                                        </button>
+                                                                                        <button className="flex-1 px-3 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors">
+                                                                                            📋 Ver Detalles
+                                                                                        </button>
+                                                                                    </div>
                                                                                 </div>
                                                                             </div>
                                                                         )}
