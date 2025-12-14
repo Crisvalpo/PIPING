@@ -2118,7 +2118,7 @@ function groupWeldsBySpool(welds: any[]): WeldsBySpool[] {
 }
 
 // Function to group spools for the Spools tab (fabrication-focused)
-function groupSpoolsForFabrication(welds: any[]) {
+function groupSpoolsForFabrication(welds: any[], fabricationTracking: any[] = []) {
     const spoolMap = new Map<string, any>()
 
     welds.forEach(weld => {
@@ -2162,29 +2162,38 @@ function groupSpoolsForFabrication(welds: any[]) {
         }
     })
 
-    // Calculate fabrication status for each spool
-    // In Spools view, status is based on SHOP (fabrication) welds only
     const spools = Array.from(spoolMap.values()).map(spool => {
         let status = 'PENDING'
-
         if (spool.shop_welds_total === 0) {
-            // No shop welds - check if all welds are complete
-            if (spool.welds_count > 0 && spool.welds_count === spool.welds_executed) {
-                status = 'COMPLETE'
-            } else if (spool.welds_executed > 0) {
-                status = 'PARTIAL'
-            }
-        } else if (spool.shop_welds_total === spool.shop_welds_executed) {
-            // All shop welds executed = FABRICATED
-            status = 'FABRICATED'
+            status = 'N/A' // No shop welds
+        } else if (spool.shop_welds_executed === spool.shop_welds_total) {
+            status = 'COMPLETED'
         } else if (spool.shop_welds_executed > 0) {
             // Some shop welds executed
             status = 'PARTIAL'
         }
 
+        // Merge with real tracking data if available
+        const tracking = fabricationTracking.find(t => t.spool_number === spool.spool_number)
+
         return {
             ...spool,
-            status
+            status,
+            // Use tracking data or defaults
+            length_meters: tracking?.length_meters,
+            weight_kg: tracking?.weight_kg,
+
+            // Phase statuses
+            shop_welding_status: tracking?.shop_welding_status || (status === 'COMPLETED' ? 'COMPLETED' : status === 'PARTIAL' ? 'IN_PROGRESS' : 'PENDING'),
+            ndt_status: tracking?.ndt_status || 'PENDING',
+            pwht_status: tracking?.pwht_status || 'N/A',
+            surface_treatment_status: tracking?.surface_treatment_status || 'PENDING',
+            dispatch_status: tracking?.dispatch_status || 'PENDING',
+            field_erection_status: tracking?.field_erection_status || 'PENDING',
+            field_welding_status: tracking?.field_welding_status || 'PENDING',
+
+            // User info for tooltips/display if needed
+            tracking_data: tracking
         }
     })
 
@@ -2321,7 +2330,7 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
             setWeldsBySpool(grouped)
 
             // Also calculate fabrication-focused data for Spools tab
-            const fabrication = groupSpoolsForFabrication(details.welds)
+            const fabrication = groupSpoolsForFabrication(details.welds, details.fabricationTracking)
             setFabricationSpools(fabrication)
         }
     }, [details])

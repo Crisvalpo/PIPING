@@ -5,6 +5,7 @@ export interface IsometricDetails {
     spools: any[];
     materials: any[];
     joints: any[];
+    fabricationTracking: any[];
 }
 
 export async function getIsometricDetails(revisionId: string): Promise<IsometricDetails> {
@@ -38,6 +39,14 @@ export async function getIsometricDetails(revisionId: string): Promise<Isometric
 
     if (jointsError) throw jointsError;
 
+    // Fetch Spool Fabrication Tracking
+    const { data: fabricationTracking, error: fabError } = await supabase
+        .from('spool_fabrication_tracking')
+        .select('*')
+        .eq('revision_id', revisionId);
+
+    if (fabError) throw fabError;
+
     // Derive Spools from Welds (group by spool_number)
     // Note: This is a simplification. Ideally we should have a 'spools' table if we want to track spool status independently.
     // But based on current schema, spools are implicit in spools_welds or material_take_off.
@@ -68,7 +77,8 @@ export async function getIsometricDetails(revisionId: string): Promise<Isometric
         welds: welds || [],
         spools,
         materials: materials || [],
-        joints: joints || []
+        joints: joints || [],
+        fabricationTracking: fabricationTracking || []
     };
 }
 
