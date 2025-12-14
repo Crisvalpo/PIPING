@@ -76,9 +76,9 @@ CREATE TABLE IF NOT EXISTS spool_fabrication_tracking (
 );
 
 -- Create indexes
-CREATE INDEX idx_spool_fab_tracking_revision ON spool_fabrication_tracking(revision_id);
-CREATE INDEX idx_spool_fab_tracking_project ON spool_fabrication_tracking(project_id);
-CREATE INDEX idx_spool_fab_tracking_spool ON spool_fabrication_tracking(spool_number);
+CREATE INDEX IF NOT EXISTS idx_spool_fab_tracking_revision ON spool_fabrication_tracking(revision_id);
+CREATE INDEX IF NOT EXISTS idx_spool_fab_tracking_project ON spool_fabrication_tracking(project_id);
+CREATE INDEX IF NOT EXISTS idx_spool_fab_tracking_spool ON spool_fabrication_tracking(spool_number);
 
 -- Auto-update timestamp trigger
 CREATE OR REPLACE FUNCTION update_spool_fabrication_timestamp()
