@@ -3,8 +3,17 @@
 -- Description: Table to track fabrication lifecycle of spools through 7 phases
 
 -- Create enum types for statuses
-CREATE TYPE fabrication_phase_status AS ENUM ('PENDING', 'IN_PROGRESS', 'COMPLETED', 'N/A');
-CREATE TYPE surface_treatment_type AS ENUM ('PAINT', 'GALVANIZED', 'NONE', 'OTHER');
+DO $$ BEGIN
+    CREATE TYPE fabrication_phase_status AS ENUM ('PENDING', 'IN_PROGRESS', 'COMPLETED', 'N/A');
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
+
+DO $$ BEGIN
+    CREATE TYPE surface_treatment_type AS ENUM ('PAINT', 'GALVANIZED', 'NONE', 'OTHER');
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
 
 -- Create spool fabrication tracking table
 CREATE TABLE IF NOT EXISTS spool_fabrication_tracking (
