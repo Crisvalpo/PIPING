@@ -89,6 +89,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS update_spool_fabrication_tracking_updated_at ON spool_fabrication_tracking;
 CREATE TRIGGER update_spool_fabrication_tracking_updated_at
   BEFORE UPDATE ON spool_fabrication_tracking
   FOR EACH ROW
