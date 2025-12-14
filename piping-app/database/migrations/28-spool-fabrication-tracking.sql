@@ -93,9 +93,7 @@ CREATE POLICY "Users can view fabrication tracking for their projects"
   ON spool_fabrication_tracking
   FOR SELECT
   USING (
-    project_id IN (
-      SELECT project_id FROM user_projects WHERE user_id = auth.uid()
-    )
+    project_id = (SELECT proyecto_id FROM users WHERE id = auth.uid())
   );
 
 -- Supervisors and admins can insert/update
@@ -103,12 +101,10 @@ CREATE POLICY "Supervisors can manage fabrication tracking"
   ON spool_fabrication_tracking
   FOR ALL
   USING (
-    project_id IN (
-      SELECT up.project_id 
-      FROM user_projects up
-      WHERE up.user_id = auth.uid()
-      AND up.rol IN ('Admin', 'Supervisor', 'QC Inspector')
-    )
+    project_id = (SELECT proyecto_id FROM users WHERE id = auth.uid())
+    AND (
+      SELECT rol FROM users WHERE id = auth.uid()
+    ) IN ('Admin', 'Supervisor', 'QC Inspector')
   );
 
 -- Function to auto-initialize tracking when spool is created
@@ -123,9 +119,7 @@ BEGIN
   SELECT DISTINCT
     NEW.spool_number,
     NEW.revision_id,
-    (SELECT project_id FROM isometric_revisions ir 
-     JOIN isometricos i ON ir.isometric_id = i.id 
-     WHERE ir.id = NEW.revision_id)
+    NEW.proyecto_id
   WHERE NOT EXISTS (
     SELECT 1 FROM spool_fabrication_tracking
     WHERE spool_number = NEW.spool_number
@@ -138,7 +132,7 @@ $$ LANGUAGE plpgsql;
 
 -- Trigger to auto-create tracking record when weld is created
 CREATE TRIGGER auto_init_spool_fabrication_tracking
-  AFTER INSERT ON welds
+  AFTER INSERT ON spools_welds
   FOR EACH ROW
   EXECUTE FUNCTION initialize_spool_fabrication_tracking();
 
@@ -148,20 +142,13 @@ RETURNS TRIGGER AS $$
 DECLARE
   total_shop_welds INT;
   completed_shop_welds INT;
-  v_project_id UUID;
 BEGIN
-  -- Get project_id
-  SELECT project_id INTO v_project_id
-  FROM isometric_revisions ir
-  JOIN isometricos i ON ir.isometric_id = i.id
-  WHERE ir.id = NEW.revision_id;
-  
   -- Count shop welds for this spool
   SELECT 
     COUNT(*) FILTER (WHERE destination = 'S' AND NOT deleted),
     COUNT(*) FILTER (WHERE destination = 'S' AND executed AND NOT deleted)
   INTO total_shop_welds, completed_shop_welds
-  FROM welds
+  FROM spools_welds
   WHERE spool_number = NEW.spool_number
   AND revision_id = NEW.revision_id;
   
@@ -189,7 +176,7 @@ $$ LANGUAGE plpgsql;
 
 -- Trigger to update shop welding status when welds change
 CREATE TRIGGER update_shop_welding_on_weld_change
-  AFTER INSERT OR UPDATE OF executed ON welds
+  AFTER INSERT OR UPDATE OF executed ON spools_welds
   FOR EACH ROW
   EXECUTE FUNCTION update_shop_welding_status();
 
