@@ -2275,6 +2275,19 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
     const [expandedSpoolsInSpoolsView, setExpandedSpoolsInSpoolsView] = useState<Set<string>>(new Set())
     const [draggedSpoolNumber, setDraggedSpoolNumber] = useState<string | null>(null)
 
+    // Spool modal states
+    const [showSpoolPhaseModal, setShowSpoolPhaseModal] = useState(false)
+    const [showSpoolInfoModal, setShowSpoolInfoModal] = useState(false)
+    const [selectedSpoolForModal, setSelectedSpoolForModal] = useState<{
+        spoolNumber: string
+        revisionId: string
+        phase?: 'ndt' | 'pwht' | 'surface_treatment' | 'dispatch' | 'field_erection'
+        phaseName?: string
+        currentStatus?: string
+        lengthMeters?: number
+        weightKg?: number
+    } | null>(null)
+
     const fileInputRef = useRef<HTMLInputElement>(null)
     const [uploadingRevisionId, setUploadingRevisionId] = useState<string | null>(null)
 
@@ -2791,7 +2804,7 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
         })
     }
 
-    //Toggle spool expansion in Spools view
+    // Toggle spool expansion in Spools view
     const toggleSpoolInSpoolsView = (spoolNumber: string) => {
         setExpandedSpoolsInSpoolsView(prev => {
             const newSet = new Set(prev)
@@ -2802,6 +2815,42 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
             }
             return newSet
         })
+    }
+
+    // Spool modal handlers
+    const handleOpenSpoolInfoModal = (spool: any) => {
+        if (!selectedRevisionId) return
+        setSelectedSpoolForModal({
+            spoolNumber: spool.spool_number,
+            revisionId: selectedRevisionId,
+            lengthMeters: spool.length_meters,
+            weightKg: spool.weight_kg
+        })
+        setShowSpoolInfoModal(true)
+    }
+
+    const handleOpenPhaseModal = (spool: any, phase: 'ndt' | 'pwht' | 'surface_treatment' | 'dispatch' | 'field_erection', phaseName: string, currentStatus?: string) => {
+        if (!selectedRevisionId) return
+        setSelectedSpoolForModal({
+            spoolNumber: spool.spool_number,
+            revisionId: selectedRevisionId,
+            phase,
+            phaseName,
+            currentStatus
+        })
+        setShowSpoolPhaseModal(true)
+    }
+
+    const handleModalUpdate = async () => {
+        // Reload details to refresh spool data
+        if (details && selectedRevisionId) {
+            try {
+                const freshData = await getIsometricDetails(selectedRevisionId)
+                setDetails(freshData)
+            } catch (error) {
+                console.error('Error refreshing data:', error)
+            }
+        }
     }
 
     // Handlers for spool drag & drop in Spools view
