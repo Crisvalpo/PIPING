@@ -99,6 +99,7 @@ CREATE TRIGGER update_spool_fabrication_tracking_updated_at
 ALTER TABLE spool_fabrication_tracking ENABLE ROW LEVEL SECURITY;
 
 -- Users can view fabrication tracking for their project
+DROP POLICY IF EXISTS "Users can view fabrication tracking for their projects" ON spool_fabrication_tracking;
 CREATE POLICY "Users can view fabrication tracking for their projects"
   ON spool_fabrication_tracking
   FOR SELECT
@@ -107,6 +108,7 @@ CREATE POLICY "Users can view fabrication tracking for their projects"
   );
 
 -- Supervisors and admins can insert/update
+DROP POLICY IF EXISTS "Supervisors can manage fabrication tracking" ON spool_fabrication_tracking;
 CREATE POLICY "Supervisors can manage fabrication tracking"
   ON spool_fabrication_tracking
   FOR ALL
