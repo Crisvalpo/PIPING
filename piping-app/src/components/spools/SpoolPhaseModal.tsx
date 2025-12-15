@@ -6,6 +6,7 @@ interface SpoolPhaseModalProps {
     onClose: () => void
     spoolNumber: string
     revisionId: string
+    projectId: string
     phase: 'ndt' | 'pwht' | 'surface_treatment' | 'dispatch' | 'field_erection'
     phaseName: string
     currentStatus?: string
@@ -25,6 +26,7 @@ export default function SpoolPhaseModal({
     onClose,
     spoolNumber,
     revisionId,
+    projectId,
     phase,
     phaseName,
     currentStatus = 'PENDING',
@@ -65,6 +67,7 @@ export default function SpoolPhaseModal({
             // Build request body
             const requestBody: any = {
                 revisionId,
+                projectId,
                 phase,
                 status,
                 notes: notes.trim() || undefined

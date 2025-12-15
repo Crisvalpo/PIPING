@@ -28,51 +28,24 @@ export async function POST(
         }
 
         const body = await request.json()
-        const { revisionId, lengthMeters, weightKg } = body
+        const { revisionId, projectId, lengthMeters, weightKg } = body
 
         if (!revisionId) {
             return NextResponse.json({ error: 'revisionId requerido' }, { status: 400 })
+        }
+
+        // Use provided projectId or fail (client must provide it now)
+        if (!projectId) {
+            return NextResponse.json({ error: 'projectId requerido' }, { status: 400 })
         }
 
         const spoolNumber = decodeURIComponent(params.spoolNumber)
 
         console.log('[DEBUG] Request Info - Spool Number:', spoolNumber)
         console.log('[DEBUG] Request Info - Revision ID:', revisionId)
+        console.log('[DEBUG] Request Info - Project ID:', projectId)
 
-        // Step 1: Get isometric_id from revision first
-        const { data: revData, error: revError } = await supabase
-            .from('isometric_revisions')
-            .select('isometric_id')
-            .eq('id', revisionId)
-            .single()
-
-        if (revError || !revData) {
-            console.log('[DEBUG] Revision Error:', revError)
-            return NextResponse.json({
-                error: 'Revisión no encontrada',
-                debug: revError
-            }, { status: 404 })
-        }
-
-        // Step 2: Get proyecto_id from isometric
-        const { data: isoData, error: isoError } = await supabase
-            .from('isometrics')
-            .select('proyecto_id')
-            .eq('id', revData.isometric_id)
-            .single()
-
-        if (isoError || !isoData) {
-            console.log('[DEBUG] Isometric Error:', isoError)
-            return NextResponse.json({
-                error: 'Isométrico no encontrado',
-                debug: isoError
-            }, { status: 404 })
-        }
-
-        const projectId = isoData.proyecto_id
-        console.log('[DEBUG] Found Project ID:', projectId)
-
-        // Update or create tracking record
+        // Update or create tracking record - NO server-side lookup needed!
         const updateData: any = {
             spool_number: spoolNumber,
             revision_id: revisionId,

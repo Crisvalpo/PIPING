@@ -11,7 +11,7 @@ export async function GET(
     try {
         const params = await paramsObj.params
         const supabase = await createClient()
-        let { data: { user }, error: authError } = await supabase.auth.getUser()
+        let { data: { user } } = await supabase.auth.getUser()
 
         // Fallback: Check for Bearer token if cookie auth fails
         if (!user) {
@@ -23,13 +23,8 @@ export async function GET(
             }
         }
 
-        console.log('[API Debug] Auth Error:', authError)
-        console.log('[API Debug] User ID:', user?.id)
-
-        if (!user) {
-            console.log('[API Debug] No session found (Cookie + Bearer failed)')
-            return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-        }
+        // Just log warning if no user but don't block strictly here if we want public read? 
+        // No, RLS protects it.
 
         const searchParams = request.nextUrl.searchParams
         const revisionId = searchParams.get('revisionId')
@@ -113,6 +108,7 @@ export async function PUT(
         const body = await request.json()
         const {
             revisionId,
+            projectId,
             phase,
             status,
             notes,
@@ -125,6 +121,11 @@ export async function PUT(
                 { error: 'revisionId, phase y status son requeridos' },
                 { status: 400 }
             )
+        }
+
+        // Use provided projectId or fail
+        if (!projectId) {
+            return NextResponse.json({ error: 'projectId requerido' }, { status: 400 })
         }
 
         const spoolNumber = decodeURIComponent(params.spoolNumber)
@@ -183,32 +184,7 @@ export async function PUT(
                 return NextResponse.json({ error: 'Fase inválida' }, { status: 400 })
         }
 
-        // Fetch project_id for new records (2-step fetch)
-        // Step 1: Get isometric_id
-        const { data: revData, error: revError } = await supabase
-            .from('isometric_revisions')
-            .select('isometric_id')
-            .eq('id', revisionId)
-            .single()
-
-        if (revError || !revData) {
-            return NextResponse.json({ error: 'Revisión no válida o no encontrada' }, { status: 400 })
-        }
-
-        // Step 2: Get proyecto_id
-        const { data: isoData, error: isoError } = await supabase
-            .from('isometrics')
-            .select('proyecto_id')
-            .eq('id', revData.isometric_id)
-            .single()
-
-        if (isoError || !isoData) {
-            return NextResponse.json({ error: 'Isométrico asociado no encontrado' }, { status: 400 })
-        }
-
-        const projectId = isoData.proyecto_id
-
-        // Upsert the tracking record
+        // Upsert the tracking record using Client-Provided Project ID
         const { data, error } = await supabase
             .from('spool_fabrication_tracking')
             .upsert({

@@ -3807,6 +3807,7 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
                         }}
                         spoolNumber={selectedSpoolForModal.spoolNumber}
                         revisionId={selectedSpoolForModal.revisionId}
+                        projectId={projectId}
                         phase={selectedSpoolForModal.phase!}
                         phaseName={selectedSpoolForModal.phaseName || ''}
                         currentStatus={selectedSpoolForModal.currentStatus}
@@ -3820,6 +3821,7 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
                         }}
                         spoolNumber={selectedSpoolForModal.spoolNumber}
                         revisionId={selectedSpoolForModal.revisionId}
+                        projectId={projectId}
                         currentLength={selectedSpoolForModal.lengthMeters}
                         currentWeight={selectedSpoolForModal.weightKg}
                         onUpdate={handleModalUpdate}
