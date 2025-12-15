@@ -11,7 +11,17 @@ export async function POST(
     try {
         const params = await paramsObj.params
         const supabase = await createClient()
-        const { data: { user } } = await supabase.auth.getUser()
+        let { data: { user } } = await supabase.auth.getUser()
+
+        // Fallback: Check for Bearer token if cookie auth fails
+        if (!user) {
+            const authHeader = request.headers.get('authorization')
+            if (authHeader && authHeader.startsWith('Bearer ')) {
+                const token = authHeader.split(' ')[1]
+                const { data } = await supabase.auth.getUser(token)
+                user = data.user
+            }
+        }
 
         if (!user) {
             return NextResponse.json({ error: 'No autorizado' }, { status: 401 })

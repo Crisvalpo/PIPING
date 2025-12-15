@@ -75,11 +75,15 @@ export default function SpoolInfoModal({
                 throw new Error('Debes ingresar al menos el largo o el peso')
             }
 
+            // Get current session for token
+            const { data: { session } } = await supabase.auth.getSession()
+
             // Call API to update spool info
             const response = await fetch(`/api/spools/${encodeURIComponent(spoolNumber)}/request-info`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${session?.access_token}`
                 },
                 body: JSON.stringify(requestBody)
             })

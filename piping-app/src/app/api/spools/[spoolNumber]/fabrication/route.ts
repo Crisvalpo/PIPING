@@ -11,9 +11,23 @@ export async function GET(
     try {
         const params = await paramsObj.params
         const supabase = await createClient()
-        const { data: { user } } = await supabase.auth.getUser()
+        let { data: { user }, error: authError } = await supabase.auth.getUser()
+
+        // Fallback: Check for Bearer token if cookie auth fails
+        if (!user) {
+            const authHeader = request.headers.get('authorization')
+            if (authHeader && authHeader.startsWith('Bearer ')) {
+                const token = authHeader.split(' ')[1]
+                const { data } = await supabase.auth.getUser(token)
+                user = data.user
+            }
+        }
+
+        console.log('[API Debug] Auth Error:', authError)
+        console.log('[API Debug] User ID:', user?.id)
 
         if (!user) {
+            console.log('[API Debug] No session found (Cookie + Bearer failed)')
             return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
         }
 
@@ -80,7 +94,17 @@ export async function PUT(
     try {
         const params = await paramsObj.params
         const supabase = await createClient()
-        const { data: { user } } = await supabase.auth.getUser()
+        let { data: { user } } = await supabase.auth.getUser()
+
+        // Fallback: Check for Bearer token if cookie auth fails
+        if (!user) {
+            const authHeader = request.headers.get('authorization')
+            if (authHeader && authHeader.startsWith('Bearer ')) {
+                const token = authHeader.split(' ')[1]
+                const { data } = await supabase.auth.getUser(token)
+                user = data.user
+            }
+        }
 
         if (!user) {
             return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
