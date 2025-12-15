@@ -39,27 +39,38 @@ export async function POST(
         console.log('[DEBUG] Request Info - Spool Number:', spoolNumber)
         console.log('[DEBUG] Request Info - Revision ID:', revisionId)
 
-        // Get project_id from isometric_revisions -> isometrics
-        // Using explicit relationship to avoid ambiguity
-        const { data: revisionData, error: revisionError } = await supabase
+        // Step 1: Get isometric_id from revision first
+        const { data: revData, error: revError } = await supabase
             .from('isometric_revisions')
-            .select('isometric_id, isometrics!isometric_revisions_isometric_id_fkey!inner(proyecto_id)')
+            .select('isometric_id')
             .eq('id', revisionId)
             .single()
 
-        console.log('[DEBUG] Revision Query Result:', revisionData)
-        console.log('[DEBUG] Revision Query Error:', revisionError)
-
-        if (!revisionData || revisionError) {
+        if (revError || !revData) {
+            console.log('[DEBUG] Revision Error:', revError)
             return NextResponse.json({
                 error: 'Revisión no encontrada',
-                debug: { revisionId, revisionError }
+                debug: revError
             }, { status: 404 })
         }
 
-        const projectId = (revisionData.isometrics as any).proyecto_id
+        // Step 2: Get proyecto_id from isometric
+        const { data: isoData, error: isoError } = await supabase
+            .from('isometrics')
+            .select('proyecto_id')
+            .eq('id', revData.isometric_id)
+            .single()
 
-        console.log('[DEBUG] Project ID:', projectId)
+        if (isoError || !isoData) {
+            console.log('[DEBUG] Isometric Error:', isoError)
+            return NextResponse.json({
+                error: 'Isométrico no encontrado',
+                debug: isoError
+            }, { status: 404 })
+        }
+
+        const projectId = isoData.proyecto_id
+        console.log('[DEBUG] Found Project ID:', projectId)
 
         // Update or create tracking record
         const updateData: any = {
