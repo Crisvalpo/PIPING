@@ -183,18 +183,30 @@ export async function PUT(
                 return NextResponse.json({ error: 'Fase inválida' }, { status: 400 })
         }
 
-        // Fetch project_id for new records
-        const { data: revisionData, error: revisionError } = await supabase
+        // Fetch project_id for new records (2-step fetch)
+        // Step 1: Get isometric_id
+        const { data: revData, error: revError } = await supabase
             .from('isometric_revisions')
-            .select('isometric_id, isometrics!isometric_revisions_isometric_id_fkey!inner(proyecto_id)')
+            .select('isometric_id')
             .eq('id', revisionId)
             .single()
 
-        if (!revisionData || revisionError) {
+        if (revError || !revData) {
             return NextResponse.json({ error: 'Revisión no válida o no encontrada' }, { status: 400 })
         }
 
-        const projectId = (revisionData.isometrics as any).proyecto_id
+        // Step 2: Get proyecto_id
+        const { data: isoData, error: isoError } = await supabase
+            .from('isometrics')
+            .select('proyecto_id')
+            .eq('id', revData.isometric_id)
+            .single()
+
+        if (isoError || !isoData) {
+            return NextResponse.json({ error: 'Isométrico asociado no encontrado' }, { status: 400 })
+        }
+
+        const projectId = isoData.proyecto_id
 
         // Upsert the tracking record
         const { data, error } = await supabase
