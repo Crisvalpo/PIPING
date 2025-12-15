@@ -184,6 +184,45 @@ export async function PUT(
                 return NextResponse.json({ error: 'Fase inválida' }, { status: 400 })
         }
 
+        // HISTORY TRACKING: Get current tracking to compare status
+        const { data: currentTracking } = await supabase
+            .from('spool_fabrication_tracking')
+            .select('id, ndt_status, pwht_status, surface_treatment_status, dispatch_status, field_erection_status')
+            .eq('spool_number', spoolNumber)
+            .eq('revision_id', revisionId)
+            .maybeSingle()
+
+        // If tracking exists and status changed, log to history
+        if (currentTracking) {
+            const statusField = `${phase}_status` as keyof typeof currentTracking
+            const oldStatus = currentTracking[statusField]
+
+            // Only log if status actually changed
+            if (oldStatus && oldStatus !== status) {
+                // Prepare metadata for this phase
+                const metadata: any = {}
+                if (phase === 'surface_treatment' && surfaceTreatmentType) {
+                    metadata.surface_treatment_type = surfaceTreatmentType
+                }
+                if (phase === 'dispatch' && dispatchTrackingNumber) {
+                    metadata.dispatch_tracking_number = dispatchTrackingNumber
+                }
+
+                // Insert history record
+                await supabase
+                    .from('spool_fabrication_tracking_history')
+                    .insert({
+                        tracking_id: currentTracking.id,
+                        phase: phase,
+                        old_status: oldStatus,
+                        new_status: status,
+                        changed_by: user.id,
+                        notes: notes || null,
+                        metadata: Object.keys(metadata).length > 0 ? metadata : null
+                    })
+            }
+        }
+
         // Upsert the tracking record using Client-Provided Project ID
         const { data, error } = await supabase
             .from('spool_fabrication_tracking')
