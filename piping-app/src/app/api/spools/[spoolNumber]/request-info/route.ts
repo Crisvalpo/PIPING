@@ -36,18 +36,22 @@ export async function POST(
 
         const spoolNumber = decodeURIComponent(params.spoolNumber)
 
-        // Get project_id from revision
-        const { data: revisionData } = await supabase
-            .from('isometric_revisions')
-            .select('isometric_id, isometricos(project_id)')
-            .eq('id', revisionId)
-            .single()
+        // Get project_id from existing welds for this spool/revision
+        const { data: weldData } = await supabase
+            .from('spools_welds')
+            .select('proyecto_id')
+            .eq('revision_id', revisionId)
+            .eq('spool_number', spoolNumber)
+            .limit(1)
+            .maybeSingle()
 
-        if (!revisionData) {
-            return NextResponse.json({ error: 'Revisión no encontrada' }, { status: 404 })
+        if (!weldData?.proyecto_id) {
+            return NextResponse.json({
+                error: 'No se encontraron soldaduras para este spool en la revisión especificada'
+            }, { status: 404 })
         }
 
-        const projectId = (revisionData.isometricos as any).project_id
+        const projectId = weldData.proyecto_id
 
         // Update or create tracking record
         const updateData: any = {
