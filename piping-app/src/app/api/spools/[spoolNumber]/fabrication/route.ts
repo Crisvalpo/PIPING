@@ -186,7 +186,7 @@ export async function PUT(
         // Fetch project_id for new records
         const { data: revisionData, error: revisionError } = await supabase
             .from('isometric_revisions')
-            .select('isometric_id, isometrics!isometric_revisions_isometric_id_fkey!inner(project_id)')
+            .select('isometric_id, isometrics!isometric_revisions_isometric_id_fkey!inner(proyecto_id)')
             .eq('id', revisionId)
             .single()
 
@@ -194,7 +194,7 @@ export async function PUT(
             return NextResponse.json({ error: 'Revisión no válida o no encontrada' }, { status: 400 })
         }
 
-        const projectId = (revisionData.isometrics as any).project_id
+        const projectId = (revisionData.isometrics as any).proyecto_id
 
         // Upsert the tracking record
         const { data, error } = await supabase

@@ -43,7 +43,7 @@ export async function POST(
         // Using explicit relationship to avoid ambiguity
         const { data: revisionData, error: revisionError } = await supabase
             .from('isometric_revisions')
-            .select('isometric_id, isometrics!isometric_revisions_isometric_id_fkey!inner(project_id)')
+            .select('isometric_id, isometrics!isometric_revisions_isometric_id_fkey!inner(proyecto_id)')
             .eq('id', revisionId)
             .single()
 
@@ -57,7 +57,7 @@ export async function POST(
             }, { status: 404 })
         }
 
-        const projectId = (revisionData.isometrics as any).project_id
+        const projectId = (revisionData.isometrics as any).proyecto_id
 
         console.log('[DEBUG] Project ID:', projectId)
 
