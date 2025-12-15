@@ -1,0 +1,119 @@
+// NEW SPOOL CARD DESIGN WITH PHOTO AND BORDER PROGRESS BAR
+// Replace the return statement inside fabricationSpools.map() (around line 3421-3500)
+// This design shows the latest photo with progress bar as a colored border
+
+return (
+    <div 
+        key={spool.spool_number} 
+        className="relative bg-white rounded-lg overflow-hidden shadow-md hover:shadow-lg transition-shadow"
+        style={{
+            border: `4px solid`,
+            borderImage: `linear-gradient(to right, 
+                #10b981 0%, 
+                #10b981 ${progressPercent}%, 
+                #e5e7eb ${progressPercent}%, 
+                #e5e7eb 100%) 1`
+        }}
+    >
+        {/* Header with spool number and chevron */}
+        <div
+            onClick={() => toggleSpoolInSpoolsView(spool.spool_number)}
+            className="p-3 cursor-pointer hover:bg-gray-50 transition-colors flex justify-between items-center border-b border-gray-200"
+        >
+            <div className="flex items-center gap-3">
+                <span className="font-bold text-lg text-gray-900">{spool.spool_number}</span>
+                <span className={`text-xs font-bold px-2 py-1 rounded ${progressPercent === 100 ? 'bg-emerald-100 text-emerald-700' : progressPercent > 0 ? 'bg-blue-100 text-blue-700' : 'bg-gray-200 text-gray-700'}`}>
+                    {progressPercent}% Completado
+                </span>
+            </div>
+            <div className="flex items-center gap-2">
+                <div className="text-xs text-gray-600">
+                    Largo: {spool.length_meters || '--'}m | Peso: {spool.weight_kg || '--'}kg
+                </div>
+                <div className="text-gray-600">{isExpanded ? '▲' : '▼'}</div>
+            </div>
+        </div>
+
+        {/* Photo section (if image exists - will be loaded dynamically) */}
+        {spool.levantamiento_photo_url && (
+            <div 
+                className="relative h-48 bg-gray-100 group cursor-pointer"
+                onClick={() => handleOpenPhotoViewer(spool)}
+            >
+                <img 
+                    src={spool.levantamiento_photo_url} 
+                    alt={`Levantamiento ${spool.spool_number}`}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="absolute bottom-3 left-3 right-3 text-white">
+                        <div className="text-sm font-medium">{spool.levantamiento_location || 'Sin ubicación'}</div>
+                        <div className="text-xs text-gray-200 mt-1">
+                            {spool.levantamiento_date} por {spool.levantamiento_user}
+                        </div>
+                    </div>
+                </div>
+                <div className="absolute top-3 right-3 bg-purple-600 text-white px-2 py-1 rounded-lg text-xs font-medium shadow-lg">
+                    📷 {spool.levantamiento_photos_count || 1} fotos
+                </div>
+            </div>
+        )}
+
+        {/* Expanded content with phases */}
+        {isExpanded && (
+            <div className="p-4 space-y-3 bg-gray-50">
+                {phasesConfig.map((phase) => (
+                    <div
+                        key={phase.id}
+                        className="flex items-center gap-3 py-2 px-3 bg-white rounded-lg border border-gray-200 hover:border-blue-300 transition-colors"
+                    >
+                        <div className={`w-6 h-6 rounded-full flex items-center justify-center ${phase.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-700' : phase.status === 'IN_PROGRESS' ? 'bg-amber-100 text-amber-700' : 'bg-gray-200 text-gray-600'}`}>
+                            {phase.status === 'COMPLETED' ? '✓' : phase.index}
+                        </div>
+                        <div className="flex-1">
+                            <div className="font-medium text-sm text-gray-900">{phase.label}</div>
+                            <div className="text-xs text-gray-600">{phase.sub}</div>
+                            {phase.id === 'dispatch' && spool.tracking_data?.dispatch_tracking_number && (
+                                <div className="text-xs text-blue-600 mt-1">Guía: {spool.tracking_data.dispatch_tracking_number}</div>
+                            )}
+                        </div>
+                        <button
+                            onClick={(e) => {
+                                if (phase.click) {
+                                    e.stopPropagation()
+                                    phase.click()
+                                }
+                            }}
+                            className={`text-xs font-bold px-2 py-1 rounded border ${getStatusColor(phase.status)} ${phase.click ? 'hover:brightness-95 cursor-pointer' : 'cursor-default'}`}
+                        >
+                            {getStatusLabel(phase.status)}
+                        </button>
+                    </div>
+                ))}
+
+                {/* Action Buttons */}
+                <div className="mt-4 pt-3 border-t border-gray-300 flex gap-2">
+                    <button
+                        onClick={() => handleOpenSpoolInfoModal(spool)}
+                        className="flex-1 px-3 py-2 text-sm font-medium text-blue-700 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
+                    >
+                        📏 Solicitar Largo
+                    </button>
+                    <button
+                        onClick={() => handleOpenLevantamientoModal(spool)}
+                        className="flex-1 px-3 py-2 text-sm font-medium text-purple-700 bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors"
+                    >
+                        📷 Levantamiento
+                    </button>
+                </div>
+            </div>
+        )}
+    </div>
+)
+
+// NOTES:
+// 1. The border-image creates a gradient border showing progress (green for completed, gray for remaining)
+// 2. Photo section will be shown when spool.levantamiento_photo_url exists
+// 3. Hover overlay shows location, date, and user elegantly
+// 4. You need to add logic to fetch the latest levantamiento photo for each spool
+// 5. Add state for photo viewer modal similar to levantamiento modal

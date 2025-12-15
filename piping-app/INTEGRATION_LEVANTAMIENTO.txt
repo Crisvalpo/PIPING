@@ -1,0 +1,42 @@
+// CODE SNIPPET TO ADD TO MasterViewsManager.tsx
+// Add this after the existing modal states (around line 2300-2400)
+
+// ============ LEVANTAMIENTO MODAL STATE ============
+const [levantamientoModal, setLevantamientoModal] = useState<{
+    isOpen: boolean
+    spoolNumber: string
+    revisionId: string
+    projectId: string
+} | null>(null)
+
+// ============ LEVANTAMIENTO MODAL HANDLER ============
+const handleOpenLevantamientoModal = (spool: any) => {
+    if (!activeIsometric?.revisionDetails?.id) return
+    
+    setLevantamientoModal({
+        isOpen: true,
+        spoolNumber: spool.spool_number,
+        revisionId: activeIsometric.revisionDetails.id,
+        projectId: projectId
+    })
+}
+
+const handleCloseLevantamientoModal = () => {
+    setLevantamientoModal(null)
+}
+
+// ============ JSX TO ADD AT END OF RETURN STATEMENT (before closing fragment </>) ============
+{levantamientoModal && (
+    <LevantamientoModal
+        isOpen={levantamientoModal.isOpen}
+        onClose={handleCloseLevantamientoModal}
+        spoolNumber={levantamientoModal.spoolNumber}
+        revisionId={levantamientoModal.revisionId}
+        projectId={levantamientoModal.projectId}
+        onUpdate={() => {
+            if (activeIsometric) {
+                loadIsometricData(activeIsometric.revisionDetails.id)
+            }
+        }}
+    />
+)}

@@ -22,6 +22,7 @@ import type { IsometricDetails } from '@/services/master-views'
 import { supabase } from '@/lib/supabase'
 import SpoolPhaseModal from '@/components/spools/SpoolPhaseModal'
 import SpoolInfoModal from '@/components/spools/SpoolInfoModal'
+import LevantamientoModal from '@/components/spools/LevantamientoModal'
 
 interface MasterViewsManagerProps {
     projectId: string
