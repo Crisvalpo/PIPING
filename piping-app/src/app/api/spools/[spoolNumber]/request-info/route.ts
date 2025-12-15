@@ -36,18 +36,39 @@ export async function POST(
 
         const spoolNumber = decodeURIComponent(params.spoolNumber)
 
+        console.log('[DEBUG] Request Info - Spool Number:', spoolNumber)
+        console.log('[DEBUG] Request Info - Revision ID:', revisionId)
+
         // Get project_id from existing welds for this spool/revision
-        const { data: weldData } = await supabase
+        const { data: weldData, error: weldError } = await supabase
             .from('spools_welds')
-            .select('proyecto_id')
+            .select('proyecto_id, spool_number, revision_id')
             .eq('revision_id', revisionId)
             .eq('spool_number', spoolNumber)
             .limit(1)
             .maybeSingle()
 
+        console.log('[DEBUG] Weld Query Result:', weldData)
+        console.log('[DEBUG] Weld Query Error:', weldError)
+
+        // Try case-insensitive search if exact match fails
         if (!weldData?.proyecto_id) {
+            console.log('[DEBUG] Trying case-insensitive search...')
+            const { data: allWelds } = await supabase
+                .from('spools_welds')
+                .select('proyecto_id, spool_number, revision_id')
+                .eq('revision_id', revisionId)
+                .limit(10)
+
+            console.log('[DEBUG] All welds for this revision (first 10):', allWelds)
+
             return NextResponse.json({
-                error: 'No se encontraron soldaduras para este spool en la revisión especificada'
+                error: 'No se encontraron soldaduras para este spool en la revisión especificada',
+                debug: {
+                    requestedSpool: spoolNumber,
+                    requestedRevision: revisionId,
+                    availableSpools: allWelds?.map(w => w.spool_number) || []
+                }
             }, { status: 404 })
         }
 
