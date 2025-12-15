@@ -40,9 +40,10 @@ export async function POST(
         console.log('[DEBUG] Request Info - Revision ID:', revisionId)
 
         // Get project_id from isometric_revisions -> isometrics
+        // Using explicit relationship to avoid ambiguity
         const { data: revisionData, error: revisionError } = await supabase
             .from('isometric_revisions')
-            .select('isometric_id, isometrics!inner(project_id)')
+            .select('isometric_id, isometrics!isometric_revisions_isometric_id_fkey!inner(project_id)')
             .eq('id', revisionId)
             .single()
 
