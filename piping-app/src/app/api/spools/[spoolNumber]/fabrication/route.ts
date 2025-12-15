@@ -1,5 +1,4 @@
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
-import { cookies } from 'next/headers'
+import { createClient } from '@/lib/supabase-server'
 import { NextRequest, NextResponse } from 'next/server'
 
 export const dynamic = 'force-dynamic'
@@ -7,10 +6,11 @@ export const dynamic = 'force-dynamic'
 // GET /api/spools/[spoolNumber]/fabrication?revisionId=xxx
 export async function GET(
     request: NextRequest,
-    { params }: { params: { spoolNumber: string } }
+    paramsObj: { params: Promise<{ spoolNumber: string }> }
 ) {
     try {
-        const supabase = createRouteHandlerClient({ cookies })
+        const params = await paramsObj.params
+        const supabase = await createClient()
         const { data: { user } } = await supabase.auth.getUser()
 
         if (!user) {
@@ -75,10 +75,11 @@ export async function GET(
 // PUT /api/spools/[spoolNumber]/fabrication
 export async function PUT(
     request: NextRequest,
-    { params }: { params: { spoolNumber: string } }
+    paramsObj: { params: Promise<{ spoolNumber: string }> }
 ) {
     try {
-        const supabase = createRouteHandlerClient({ cookies })
+        const params = await paramsObj.params
+        const supabase = await createClient()
         const { data: { user } } = await supabase.auth.getUser()
 
         if (!user) {

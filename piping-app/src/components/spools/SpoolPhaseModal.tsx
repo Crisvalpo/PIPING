@@ -127,7 +127,7 @@ export default function SpoolPhaseModal({
                         <select
                             value={status}
                             onChange={(e) => setStatus(e.target.value)}
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900"
                             required
                         >
                             <option value="PENDING">⏳ Pendiente</option>
@@ -146,7 +146,7 @@ export default function SpoolPhaseModal({
                             <select
                                 value={surfaceTreatmentType}
                                 onChange={(e) => setSurfaceTreatmentType(e.target.value as any)}
-                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900"
                             >
                                 <option value="PAINT">🎨 Pintura</option>
                                 <option value="GALVANIZED">⚡ Galvanizado</option>
@@ -182,7 +182,7 @@ export default function SpoolPhaseModal({
                             onChange={(e) => setNotes(e.target.value)}
                             rows={4}
                             placeholder="Agregar observaciones, resultados de inspección, etc..."
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
+                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none text-gray-900"
                         />
                     </div>
 
