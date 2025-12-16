@@ -295,7 +295,7 @@ export default function LevantamientoModal({
                                                 setStorageLocation(e.target.value)
                                             }
                                         }}
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-gray-900"
                                     >
                                         <option value="">Seleccionar ubicación...</option>
                                         {existingLocations.map((loc, idx) => (
@@ -311,7 +311,7 @@ export default function LevantamientoModal({
                                         value={storageLocation}
                                         onChange={(e) => setStorageLocation(e.target.value.toUpperCase())}
                                         placeholder="Ej: ACOPIO PRINCIPAL - ZONA A"
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 uppercase"
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 uppercase text-gray-900 placeholder-gray-500"
                                         autoFocus
                                     />
                                     <button
@@ -337,7 +337,7 @@ export default function LevantamientoModal({
                                 onChange={(e) => setNotes(e.target.value)}
                                 placeholder="Notas adicionales sobre el levantamiento..."
                                 rows={2}
-                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-gray-900 placeholder-gray-500"
                             />
                         </div>
 
