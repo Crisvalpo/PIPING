@@ -76,19 +76,35 @@ export async function GET(
                     // 1. Try public.users with Admin privileges
                     const { data: publicUser } = await supabaseAdmin
                         .from('users')
-                        .select('email, full_name')
+                        .select('correo, nombre')
                         .eq('id', lev.captured_by)
                         .single()
 
                     if (publicUser) {
-                        userInfo.email = publicUser.email || 'unknown'
-                        userInfo.full_name = publicUser.full_name
-                    } else {
-                        // 2. Fallback to auth.users using Admin API
+                        userInfo.email = publicUser.correo || 'unknown'
+                        userInfo.full_name = publicUser.nombre
+                    }
+
+                    // If still no full_name, try auth.users (expanded fallback)
+                    if (!userInfo.full_name) {
                         const { data: authUser } = await supabaseAdmin.auth.admin.getUserById(lev.captured_by)
                         if (authUser?.user) {
-                            userInfo.email = authUser.user.email || 'unknown'
-                            userInfo.full_name = authUser.user.user_metadata?.full_name || null
+                            userInfo.email = userInfo.email !== 'unknown' ? userInfo.email : (authUser.user.email || 'unknown')
+
+                            // Try multiple metadata fields
+                            const meta = authUser.user.user_metadata || {}
+                            userInfo.full_name = meta.full_name || meta.name || meta.firstName || meta.first_name
+                                ? `${meta.first_name || meta.firstName || ''} ${meta.last_name || meta.lastName || ''}`.trim() || meta.name || meta.full_name
+                                : null
+
+                            // Last resort: extract from email
+                            if (!userInfo.full_name && userInfo.email && userInfo.email !== 'unknown') {
+                                const namePart = userInfo.email.split('@')[0]
+                                userInfo.full_name = namePart
+                                    .split(/[._-]/)
+                                    .map(s => s.charAt(0).toUpperCase() + s.slice(1))
+                                    .join(' ')
+                            }
                         }
                     }
                 }
@@ -222,7 +238,7 @@ export async function POST(
                 .select()
                 .single()
 
-            if (!photoError && photoRecord) {
+            if (!photoRecord) {
                 uploadedPhotos.push(photoRecord)
             }
         }
