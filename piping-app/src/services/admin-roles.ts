@@ -1,4 +1,5 @@
-import { supabase } from '@/lib/supabase'
+import { SupabaseClient } from '@supabase/supabase-js'
+import { supabase as defaultSupabase } from '@/lib/supabase'
 import type { RoleConfig } from '@/config/roles'
 
 export interface AppRole extends RoleConfig {
@@ -9,7 +10,8 @@ export interface AppRole extends RoleConfig {
 /**
  * Obtiene todos los roles configurados en la base de datos
  */
-export async function getAppRoles(): Promise<AppRole[]> {
+export async function getAppRoles(client?: SupabaseClient): Promise<AppRole[]> {
+    const supabase = client || defaultSupabase
     const { data, error } = await supabase
         .from('app_roles')
         .select('*')
@@ -28,7 +30,8 @@ export async function getAppRoles(): Promise<AppRole[]> {
 /**
  * Actualiza los permisos de un rol específico
  */
-export async function updateAppRolePermissions(roleId: string, permissions: RoleConfig['permisos']) {
+export async function updateAppRolePermissions(roleId: string, permissions: RoleConfig['permisos'], client?: SupabaseClient) {
+    const supabase = client || defaultSupabase
     const { data, error } = await supabase
         .from('app_roles')
         .update({
@@ -37,8 +40,10 @@ export async function updateAppRolePermissions(roleId: string, permissions: Role
         })
         .eq('id', roleId)
         .select()
-        .single()
+        .maybeSingle()
 
     if (error) throw error
+    if (!data) throw new Error('No se pudo actualizar el rol. Verifique permisos (RLS) o si el ID es correcto.')
+
     return data as AppRole
 }

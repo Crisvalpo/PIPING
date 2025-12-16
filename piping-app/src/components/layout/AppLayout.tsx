@@ -1,8 +1,10 @@
 'use client'
 
+import { useEffect } from 'react'
 import { usePathname } from 'next/navigation'
 import AppNavbar from '@/components/layout/AppNavbar'
 import BottomNavigation from '@/components/navigation/BottomNavigation'
+import { useRolesStore } from '@/store/roles-store'
 
 export default function AppLayout({
     children,
@@ -10,6 +12,12 @@ export default function AppLayout({
     children: React.ReactNode
 }) {
     const pathname = usePathname()
+    const fetchRoles = useRolesStore(state => state.fetchRoles)
+
+    useEffect(() => {
+        // Hydrate dynamic roles on startup
+        fetchRoles()
+    }, [fetchRoles])
     // Identificar si estamos en la vista de gestión de cuadrillas o reporte diario para usar full-width
     const isFullWidth = pathname?.includes('/cuadrillas/manage') || pathname?.includes('/reporte-diario') || pathname?.includes('/settings/personal') || pathname?.includes('/reportes') || pathname?.includes('/admin/roles')
 

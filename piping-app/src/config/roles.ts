@@ -202,7 +202,15 @@ export function hasPermission(
     module: keyof RoleConfig['permisos'],
     action: 'create' | 'read' | 'update' | 'delete'
 ): boolean {
-    const role = ROLES[userRole]
+    // TORY: Dynamic check via store (lazy load to avoid circular deps if possible)
+    // We access the store state directly. Note: this runs outside react components often.
+    // We need to import the store here.
+    const { useRolesStore } = require('@/store/roles-store')
+
+    // Try to get from store first
+    const dynamicRoles = useRolesStore.getState().roles
+    const role = dynamicRoles[userRole] || ROLES[userRole]
+
     if (!role) return false
 
     const permission = role.permisos[module]
