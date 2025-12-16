@@ -42,6 +42,28 @@ export async function GET(
 
         if (error) throw error
 
+        // Get unique locations for the project (for autocomplete)
+        const projectId = searchParams.get('projectId')
+        let uniqueLocations: string[] = []
+
+        if (projectId) {
+            const { data: locationsData } = await supabase
+                .from('spool_levantamientos')
+                .select('storage_location')
+                .eq('project_id', projectId)
+                .not('storage_location', 'is', null)
+                .order('storage_location') // Ordered list
+
+            if (locationsData) {
+                // Filter unique and non-empty
+                uniqueLocations = Array.from(new Set(
+                    locationsData
+                        .map(l => l.storage_location)
+                        .filter(l => l && l.trim() !== '')
+                )) as string[]
+            }
+        }
+
         // Initialize Admin Client for resolving users reliably
         const { createClient: createAdminClient } = await import('@supabase/supabase-js')
         const supabaseAdmin = createAdminClient(
@@ -131,7 +153,10 @@ export async function GET(
             })
         )
 
-        return NextResponse.json({ levantamientos: levantamientosWithDetails })
+        return NextResponse.json({
+            levantamientos: levantamientosWithDetails,
+            uniqueLocations
+        })
     } catch (error: any) {
         console.error('Error fetching levantamientos:', error)
         return NextResponse.json(

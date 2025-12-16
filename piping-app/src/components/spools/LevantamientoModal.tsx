@@ -63,7 +63,7 @@ export default function LevantamientoModal({
         try {
             const { data: { session } } = await supabase.auth.getSession()
             const response = await fetch(
-                `/api/spools/${encodeURIComponent(spoolNumber)}/levantamientos?revisionId=${revisionId}`,
+                `/api/spools/${encodeURIComponent(spoolNumber)}/levantamientos?revisionId=${revisionId}&projectId=${projectId}`,
                 { headers: { 'Authorization': `Bearer ${session?.access_token}` } }
             )
 
@@ -71,13 +71,18 @@ export default function LevantamientoModal({
                 const data = await response.json()
                 setLevantamientos(data.levantamientos || [])
 
-                // Extract unique locations
-                const locations = data.levantamientos
-                    .map((lev: LevantamientoItem) => lev.storage_location)
-                    .filter((loc: string | null) => loc && loc.trim() !== '')
+                // Use locations from API (project-wide) or extract from current history fallback
+                let locations = data.uniqueLocations || []
 
-                const uniqueLocations = Array.from(new Set(locations))
-                setExistingLocations(uniqueLocations as string[])
+                if (locations.length === 0 && data.levantamientos) {
+                    // Fallback to local history extraction if API didn't return any (e.g. backward compat)
+                    const localLocations = data.levantamientos
+                        .map((lev: LevantamientoItem) => lev.storage_location)
+                        .filter((loc: string | null) => loc && loc.trim() !== '')
+                    locations = Array.from(new Set(localLocations))
+                }
+
+                setExistingLocations(locations as string[])
             }
         } catch (err) {
             console.error('Error loading levantamientos:', err)
