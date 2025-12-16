@@ -43,6 +43,8 @@ export default function LevantamientoModal({
 
     // Form state
     const [storageLocation, setStorageLocation] = useState('')
+    const [showCustomLocation, setShowCustomLocation] = useState(false)
+    const [existingLocations, setExistingLocations] = useState<string[]>([])
     const [notes, setNotes] = useState('')
     const [selectedFiles, setSelectedFiles] = useState<File[]>([])
     const [previews, setPreviews] = useState<string[]>([])
@@ -68,6 +70,14 @@ export default function LevantamientoModal({
             if (response.ok) {
                 const data = await response.json()
                 setLevantamientos(data.levantamientos || [])
+
+                // Extract unique locations
+                const locations = data.levantamientos
+                    .map((lev: LevantamientoItem) => lev.storage_location)
+                    .filter((loc: string | null) => loc && loc.trim() !== '')
+
+                const uniqueLocations = Array.from(new Set(locations))
+                setExistingLocations(uniqueLocations as string[])
             }
         } catch (err) {
             console.error('Error loading levantamientos:', err)
@@ -129,6 +139,9 @@ export default function LevantamientoModal({
 
             const photos = await Promise.all(photoPromises)
 
+            // Convert location to uppercase
+            const finalLocation = storageLocation.trim().toUpperCase()
+
             const response = await fetch(
                 `/api/spools/${encodeURIComponent(spoolNumber)}/levantamientos`,
                 {
@@ -140,7 +153,7 @@ export default function LevantamientoModal({
                     body: JSON.stringify({
                         revisionId,
                         projectId,
-                        storageLocation: storageLocation.trim() || null,
+                        storageLocation: finalLocation || null,
                         notes: notes.trim() || null,
                         photos
                     })
@@ -154,6 +167,7 @@ export default function LevantamientoModal({
 
             // Reset form
             setStorageLocation('')
+            setShowCustomLocation(false)
             setNotes('')
             setSelectedFiles([])
             setPreviews([])
@@ -268,23 +282,60 @@ export default function LevantamientoModal({
                             <label className="block text-sm font-medium text-gray-700 mb-2">
                                 Ubicación de Acopio
                             </label>
-                            <input
-                                type="text"
-                                value={storageLocation}
-                                onChange={(e) => setStorageLocation(e.target.value)}
-                                placeholder="ej: Acopio Principal - Zona A"
-                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                            />
+
+                            {!showCustomLocation ? (
+                                <div className="space-y-2">
+                                    <select
+                                        value={storageLocation}
+                                        onChange={(e) => {
+                                            if (e.target.value === '__CUSTOM__') {
+                                                setShowCustomLocation(true)
+                                                setStorageLocation('')
+                                            } else {
+                                                setStorageLocation(e.target.value)
+                                            }
+                                        }}
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                                    >
+                                        <option value="">Seleccionar ubicación...</option>
+                                        {existingLocations.map((loc, idx) => (
+                                            <option key={idx} value={loc}>{loc}</option>
+                                        ))}
+                                        <option value="__CUSTOM__">+ Nueva ubicación...</option>
+                                    </select>
+                                </div>
+                            ) : (
+                                <div className="space-y-2">
+                                    <input
+                                        type="text"
+                                        value={storageLocation}
+                                        onChange={(e) => setStorageLocation(e.target.value.toUpperCase())}
+                                        placeholder="Ej: ACOPIO PRINCIPAL - ZONA A"
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 uppercase"
+                                        autoFocus
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setShowCustomLocation(false)
+                                            setStorageLocation('')
+                                        }}
+                                        className="text-sm text-gray-600 hover:text-gray-800 underline"
+                                    >
+                                        ← Volver a seleccionar
+                                    </button>
+                                </div>
+                            )}
                         </div>
 
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">
-                                Notas
+                                Observaciones
                             </label>
                             <textarea
                                 value={notes}
                                 onChange={(e) => setNotes(e.target.value)}
-                                placeholder="Observaciones adicionales..."
+                                placeholder="Notas adicionales sobre el levantamiento..."
                                 rows={2}
                                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
                             />
