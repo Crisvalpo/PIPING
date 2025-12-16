@@ -11,6 +11,9 @@ export default function BottomNavigation() {
     const isHome = pathname?.includes('/master-views')
     const isStats = pathname?.includes('stats') || pathname?.includes('estadisticas')
 
+    // Check full width pages to hide spacer
+    const isFullWidth = pathname?.includes('/cuadrillas/manage') || pathname?.includes('/reporte-diario') || pathname?.includes('/settings/personal') || pathname?.includes('/reportes') || pathname?.includes('/admin/roles')
+
     return (
         <>
             {/* Bottom Navigation Bar */}
@@ -56,7 +59,7 @@ export default function BottomNavigation() {
             </div>
 
             {/* Spacer to prevent content from being hidden behind fixed nav */}
-            <div className="h-20"></div>
+            {!isFullWidth && <div className="h-20"></div>}
         </>
     )
 }

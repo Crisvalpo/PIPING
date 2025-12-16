@@ -153,6 +153,7 @@ export interface SpoolWeld {
     thickness?: string;
     piping_class?: string;
     material?: string;
+    display_order?: number;
 
     created_at: string;
     created_by?: string;

@@ -471,11 +471,16 @@ function chunkArray<T>(array: T[], size: number): T[][] {
 /**
  * Sube un archivo físico a Supabase Storage y lo registra en revision_files
  */
+/**
+ * Sube un archivo físico a Supabase Storage y lo registra en revision_files
+ */
 export async function uploadPDFToRevision(
     revisionId: string,
     file: File,
     fileType: 'pdf' | 'idf' | 'dwg' | 'other' = 'pdf',
-    isPrimary: boolean = false
+    isPrimary: boolean = false,
+    isoCode?: string,
+    revisionCode?: string
 ): Promise<{ success: boolean; message: string; file?: RevisionFile }> {
     try {
         const allowedTypes: Record<string, string[]> = {
@@ -488,10 +493,36 @@ export async function uploadPDFToRevision(
             return { success: false, message: `El archivo debe ser de tipo ${fileType.toUpperCase()}` }
         }
 
-        const timestamp = Date.now()
-        const sanitizedFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_')
-        const storagePath = `revisions/${revisionId}/${fileType}/${timestamp}_${sanitizedFileName}`
+        // 1. Calcular siguiente versión (antes de subir)
+        const { data: existingFiles } = await supabase
+            .from('revision_files')
+            .select('version_number')
+            .eq('revision_id', revisionId)
+            .eq('file_type', fileType)
+            .order('version_number', { ascending: false })
+            .limit(1)
 
+        const nextVersion = existingFiles && existingFiles.length > 0
+            ? existingFiles[0].version_number + 1
+            : 1
+
+        // 2. Generar nombre de archivo estandarizado
+        // Formato: CODIGO-ISO_REV-X_v1.pdf
+        const fileExt = file.name.split('.').pop() || fileType
+        let finalFileName = file.name
+
+        if (isoCode && revisionCode) {
+            finalFileName = `${isoCode}_REV-${revisionCode}_v${nextVersion}.${fileExt}`
+        } else {
+            // Fallback si no hay códigos: timestamp_filename
+            const timestamp = Date.now()
+            const sanitized = file.name.replace(/[^a-zA-Z0-9.-]/g, '_')
+            finalFileName = `${timestamp}_${sanitized}`
+        }
+
+        const storagePath = `revisions/${revisionId}/${fileType}/${finalFileName}`
+
+        // 3. Subir a Storage
         const { data: uploadData, error: uploadError } = await supabase.storage
             .from('revision-files')
             .upload(storagePath, file, {
@@ -512,18 +543,6 @@ export async function uploadPDFToRevision(
             return { success: false, message: 'Error al generar URL del archivo' }
         }
 
-        const { data: existingFiles } = await supabase
-            .from('revision_files')
-            .select('version_number')
-            .eq('revision_id', revisionId)
-            .eq('file_type', fileType)
-            .order('version_number', { ascending: false })
-            .limit(1)
-
-        const nextVersion = existingFiles && existingFiles.length > 0
-            ? existingFiles[0].version_number + 1
-            : 1
-
         if (isPrimary) {
             await supabase
                 .from('revision_files')
@@ -534,13 +553,14 @@ export async function uploadPDFToRevision(
 
         const { data: { user } } = await supabase.auth.getUser()
 
+        // 4. Insertar registro en DB
         const { data: dbFile, error: dbError } = await supabase
             .from('revision_files')
             .insert({
                 revision_id: revisionId,
                 file_url: storagePath,
                 file_type: fileType,
-                file_name: file.name,
+                file_name: finalFileName, // Usamos el nombre estandarizado
                 version_number: nextVersion,
                 is_primary: isPrimary,
                 file_size_bytes: file.size,
@@ -642,7 +662,7 @@ export async function softDeleteRevision(revisionId: string): Promise<boolean> {
             newSpoolingStatus = 'N/A'
         } else {
             // Si ya tenía avance (SPOOLEADO, ENVIADO, etc.), marcamos como SPOOLEADO - ELIMINADA
-            newSpoolingStatus = 'SPOOLEADO - ELIMINADA'
+            newSpoolingStatus = 'SPOOLEADO - ELIMINADA' // O mantener el anterior, según preferencia
         }
 
         // 3. Actualizar estado y spooling_status
@@ -661,6 +681,131 @@ export async function softDeleteRevision(revisionId: string): Promise<boolean> {
         return true
     } catch (error) {
         console.error('Error in softDeleteRevision:', error)
+        return false
+    }
+}
+
+/**
+ * Elimina FÍSICAMENTE una revisión y sus archivos del Bucket
+ * @param revisionId 
+ */
+export async function hardDeleteRevision(revisionId: string): Promise<boolean> {
+    try {
+        // 1. Obtener archivos para borrar del Bucket
+        const files = await getRevisionFiles(revisionId)
+
+        if (files.length > 0) {
+            const filesToRemove = files.map(f => f.file_url)
+            console.log('Removing files from storage:', filesToRemove)
+
+            const { error: storageError } = await supabase.storage
+                .from('revision-files')
+                .remove(filesToRemove)
+
+            if (storageError) {
+                console.error('Error removing files from storage:', storageError)
+                // Continuamos igual para intentar borrar el registro de DB
+            }
+        }
+
+        // 1.5. Obtener ID del isométrico y buscar posible revisión anterior para restaurar
+        const { data: currentRev } = await supabase
+            .from('isometric_revisions')
+            .select('isometric_id')
+            .eq('id', revisionId)
+            .single()
+
+        let previousRevId: string | null = null
+
+        if (currentRev?.isometric_id) {
+            const { data: prevRev } = await supabase
+                .from('isometric_revisions')
+                .select('id')
+                .eq('isometric_id', currentRev.isometric_id)
+                .eq('estado', 'OBSOLETA')
+                .neq('id', revisionId) // Asegurar no seleccionar la misma
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .single()
+
+            if (prevRev) previousRevId = prevRev.id
+        }
+
+        // 2. Desvincular de la tabla isometrics (si es la revisión actual)
+        // Esto evita el error: violations foreign key constraint "isometrics_current_revision_id_fkey"
+        await supabase
+            .from('isometrics')
+            .update({ current_revision_id: null })
+            .eq('current_revision_id', revisionId)
+
+        // 3. Eliminar registro de DB (Cascade borrará spools, joints, etc.)
+        const { error: dbError } = await supabase
+            .from('isometric_revisions')
+            .delete()
+            .eq('id', revisionId)
+
+        if (dbError) {
+            console.error('Error deleting revision from DB:', dbError)
+            alert('Error al eliminar registro de base de datos: ' + dbError.message)
+            return false
+        }
+
+        // 4. Si había una revisión anterior, la restauramos como VIGENTE
+        if (previousRevId && currentRev?.isometric_id) {
+            console.log(`Restoring previous revision ${previousRevId} to VIGENTE`)
+            // A. Actualizar estado revisión
+            await supabase
+                .from('isometric_revisions')
+                .update({ estado: 'VIGENTE' })
+                .eq('id', previousRevId)
+
+            // B. Actualizar puntero en isometrics
+            await supabase
+                .from('isometrics')
+                .update({ current_revision_id: previousRevId })
+                .eq('id', currentRev.isometric_id)
+        }
+
+        return true
+    } catch (error) {
+        console.error('Error in hardDeleteRevision:', error)
+        return false
+    }
+}
+
+/**
+ * Elimina un archivo específico de una revisión (DB y Storage)
+ */
+export async function deleteRevisionFile(fileId: string, fileUrl: string): Promise<boolean> {
+    try {
+        console.log(`Deleting file ${fileId} from storage: ${fileUrl}`)
+
+        // 1. Borrar de Storage
+        // fileUrl es 'revisions/ID/type/name'
+        const { error: storageError } = await supabase.storage
+            .from('revision-files')
+            .remove([fileUrl])
+
+        if (storageError) {
+            console.error('Error removing file from storage:', storageError)
+            // No retornamos false aquí porque podría ya no existir y queremos limpiar la DB
+        }
+
+        // 2. Borrar registro de DB
+        const { error: dbError } = await supabase
+            .from('revision_files')
+            .delete()
+            .eq('id', fileId)
+
+        if (dbError) {
+            console.error('Error deleting file record:', dbError)
+            alert('Error al eliminar registro de archivo: ' + dbError.message)
+            return false
+        }
+
+        return true
+    } catch (error) {
+        console.error('Error in deleteRevisionFile:', error)
         return false
     }
 }

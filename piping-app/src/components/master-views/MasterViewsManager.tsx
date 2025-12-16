@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { searchIsometrics } from '@/services/engineering'
+import { uploadPDFToRevision, deleteRevisionFile } from '@/services/revision-announcement'
 import {
     getIsometricDetails,
     updateWeldExecution,
@@ -364,7 +365,7 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
     } | null>(null)
 
     const fileInputRef = useRef<HTMLInputElement>(null)
-    const [uploadingRevisionId, setUploadingRevisionId] = useState<string | null>(null)
+    const [uploadingContext, setUploadingContext] = useState<{ revisionId: string; isoCode: string; revCode: string } | null>(null)
 
     // User role for conditional rendering
     const [userRole, setUserRole] = useState<string>('')
@@ -806,39 +807,24 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
         setShowPdfViewer(true)
     }
 
-    const handleUploadClick = (revisionId: string) => {
-        setUploadingRevisionId(revisionId)
+    const handleUploadClick = (revisionId: string, isoCode: string, revCode: string) => {
+        setUploadingContext({ revisionId, isoCode, revCode })
         fileInputRef.current?.click()
     }
 
     const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0]
-        if (!file || !uploadingRevisionId) return
+        if (!file || !uploadingContext) return
 
         try {
-            const fileExt = file.name.split('.').pop()
-            const fileName = `${Math.random().toString(36).substring(2)}.${fileExt}`
-            const filePath = `${uploadingRevisionId}/${fileName}`
-
-            const { error: uploadError } = await supabase.storage
-                .from('revision-files')
-                .upload(filePath, file)
-
-            if (uploadError) throw uploadError
-
-            const { error: dbError } = await supabase
-                .from('revision_files')
-                .insert({
-                    revision_id: uploadingRevisionId,
-                    file_name: file.name,
-                    file_type: 'pdf',
-                    file_url: filePath,
-                    version_number: 1,
-                    uploaded_at: new Date().toISOString(),
-                    is_primary: false
-                })
-
-            if (dbError) throw dbError
+            await uploadPDFToRevision(
+                uploadingContext.revisionId,
+                file,
+                'pdf',
+                true,
+                uploadingContext.isoCode,
+                uploadingContext.revCode
+            )
 
             if (selectedIso) {
                 const allRevisionIds = selectedIso.revisions?.map((r: any) => r.id) || []
@@ -849,8 +835,28 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
             console.error('Error uploading file:', error)
             alert('Error al subir el archivo')
         } finally {
-            setUploadingRevisionId(null)
+            setUploadingContext(null)
             if (fileInputRef.current) fileInputRef.current.value = ''
+        }
+    }
+
+    const handleDeleteFile = async (fileId: string, fileUrl: string, fileName: string) => {
+        if (!confirm(`¿Estás seguro de eliminar el archivo "${fileName}"? Esta acción no se puede deshacer.`)) return
+
+        try {
+            const success = await deleteRevisionFile(fileId, fileUrl)
+            if (success) {
+                alert('Archivo eliminado correctamente')
+                if (selectedIso) {
+                    const allRevisionIds = selectedIso.revisions?.map((r: any) => r.id) || []
+                    await loadAllRevisionFiles(allRevisionIds)
+                }
+            } else {
+                alert('No se pudo eliminar el archivo')
+            }
+        } catch (error) {
+            console.error('Error deleting file:', error)
+            alert('Error al eliminar archivo')
         }
     }
 
@@ -1157,6 +1163,16 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
                                                                             >
                                                                                 Ver PDF
                                                                             </button>
+                                                                            <button
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation()
+                                                                                    handleDeleteFile(file.id, file.file_url, file.file_name)
+                                                                                }}
+                                                                                className="ml-2 px-2 py-1 bg-red-600 text-white rounded text-xs font-medium hover:bg-red-700 transition-colors flex-shrink-0"
+                                                                                title="Eliminar archivo"
+                                                                            >
+                                                                                ✕
+                                                                            </button>
                                                                         </div>
                                                                     ))}
                                                                 </div>
@@ -1168,7 +1184,7 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
                                                             <button
                                                                 onClick={(e) => {
                                                                     e.stopPropagation()
-                                                                    handleUploadClick(rev.id)
+                                                                    handleUploadClick(rev.id, iso.codigo, rev.codigo)
                                                                 }}
                                                                 className="w-full px-3 py-1.5 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-lg text-xs font-semibold hover:from-green-700 hover:to-green-800 transition-all flex items-center justify-center gap-2 shadow-sm"
                                                             >

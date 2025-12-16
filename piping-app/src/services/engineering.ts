@@ -111,7 +111,7 @@ export async function searchIsometrics(
             // Especificamos FK explícita: !isometric_id
             query = supabase
                 .from('isometrics')
-                .select('*, revisions:isometric_revisions!isometric_id!inner(*)', { count: 'exact' })
+                .select('*, revisions:isometric_revisions!isometric_id!inner(*, files:revision_files(*))', { count: 'exact' })
                 .eq('proyecto_id', projectId)
                 .eq('revisions.estado', 'VIGENTE')
                 .eq('revisions.spooling_status', statusToFilter)
@@ -140,7 +140,7 @@ export async function searchIsometrics(
             const isoIds = isometrics.map(i => i.id)
             const { data: revisions, error: revError } = await supabase
                 .from('isometric_revisions')
-                .select('*')
+                .select('*, files:revision_files(*)')
                 .in('isometric_id', isoIds)
 
             if (revError) throw revError

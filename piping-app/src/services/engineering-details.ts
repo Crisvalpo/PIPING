@@ -213,7 +213,8 @@ function mapSpoolWeldRow(
     excelRow: SpoolsWeldsExcelRow,
     revisionId: string,
     proyectoId: string,
-    userId?: string
+    userId: string | undefined,
+    displayOrder: number
 ): Omit<SpoolWeld, 'id' | 'created_at'> {
     return {
         revision_id: revisionId,
@@ -231,6 +232,7 @@ function mapSpoolWeldRow(
         thickness: excelRow['THICKNESS'] ? String(excelRow['THICKNESS']) : undefined,
         piping_class: excelRow['PIPING CLASS'] ? String(excelRow['PIPING CLASS']) : undefined,
         material: excelRow['MATERIAL'] ? String(excelRow['MATERIAL']) : undefined,
+        display_order: displayOrder,
         created_by: userId
     };
 }
@@ -345,7 +347,7 @@ export async function uploadSpoolsWelds(
     // 3. Mapear y validar filas
     const mappedRows = excelRows
         .filter(row => row['WELD NUMBER']) // Solo filas con weld number
-        .map(row => mapSpoolWeldRow(row, revisionId, proyectoId, userId));
+        .map((row, index) => mapSpoolWeldRow(row, revisionId, proyectoId, userId, index + 1));
 
     if (mappedRows.length === 0) {
         return {

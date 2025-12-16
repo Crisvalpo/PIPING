@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import * as XLSX from 'xlsx'
 import { processSpoolGenImport, getProjectStats, getProjectAreas, searchIsometrics } from '@/services/engineering'
-import { processRevisionAnnouncement, uploadPDFToRevision, softDeleteRevision, getRevisionFiles, getFileUrl } from '@/services/revision-announcement'
+import { processRevisionAnnouncement, uploadPDFToRevision, softDeleteRevision, hardDeleteRevision, getRevisionFiles, getFileUrl } from '@/services/revision-announcement'
 import { getImpactsByRevision, approveImpact, rejectImpact } from '@/services/impacts'
 import ImpactCard from '@/components/engineering/ImpactCard'
 import UploadEngineeringDetails from '@/components/engineering/UploadEngineeringDetails'
@@ -32,6 +32,46 @@ export default function EngineeringManager({ projectId }: EngineeringManagerProp
 
     // Filtros y Paginación
     const [searchTerm, setSearchTerm] = useState('')
+    // ... lines 35-200 unchanged ...
+    async function handleDeleteRevision(revisionId: string, estado: string) {
+        if (estado !== 'VIGENTE') {
+            alert('Solo se pueden eliminar revisiones VIGENTES.')
+            return
+        }
+        if (!confirm('¿Estás seguro de eliminar esta revisión? Pasará a estado ELIMINADA.')) return
+        try {
+            const success = await softDeleteRevision(revisionId)
+            if (success) {
+                addLog('✅ Revisión eliminada correctamente')
+                await loadIsometricsTable()
+                await loadDashboardMetrics()
+            } else {
+                alert('No se pudo eliminar la revisión')
+            }
+        } catch (error) {
+            console.error(error)
+            alert('Error al eliminar')
+        }
+    }
+
+    async function handleHardDeleteRevision(revisionId: string, isoCode: string) {
+        if (!confirm(`⚠️ PELIGRO:\n\nEstás a punto de borrar DE DEFINITIVAMENTE la revisión del isométrico ${isoCode}.\n\nSe eliminarán:\n- El registro de base de datos\n- Archivos PDF subidos\n- Spools y uniones asociadas\n\n¿Estás realmente seguro?`)) return
+
+        try {
+            const success = await hardDeleteRevision(revisionId)
+            if (success) {
+                alert('🗑️ Revisión eliminada del sistema permanentemente.')
+                addLog(`🗑️ Revisión de ${isoCode} eliminada físicamente`)
+                await loadIsometricsTable()
+                await loadDashboardMetrics()
+            } else {
+                alert('Hubo un error al eliminar la revisión.')
+            }
+        } catch (error) {
+            console.error(error)
+            alert('Error crítico al eliminar')
+        }
+    }
     const [areaFilter, setAreaFilter] = useState('ALL')
     const [statusFilter, setStatusFilter] = useState('ALL')
     const [showOnlyPendingSpooling, setShowOnlyPendingSpooling] = useState(false)
@@ -142,7 +182,7 @@ export default function EngineeringManager({ projectId }: EngineeringManagerProp
         }
     }
 
-    async function handlePDFUpload(revisionId: string, isoCode: string) {
+    async function handlePDFUpload(revisionId: string, isoCode: string, revisionCode: string) {
         if (!fileInputRef.current) return
 
         fileInputRef.current.onchange = async (e: Event) => {
@@ -153,7 +193,8 @@ export default function EngineeringManager({ projectId }: EngineeringManagerProp
             setUploadingPDF(revisionId)
 
             try {
-                const result = await uploadPDFToRevision(revisionId, file, 'pdf', true)
+                // Pasamos isoCode y revisionCode para el renombrado automático
+                const result = await uploadPDFToRevision(revisionId, file, 'pdf', true, isoCode, revisionCode)
 
                 if (result.success) {
                     alert(`✅ PDF subido exitosamente para ${isoCode}`)
@@ -583,6 +624,30 @@ export default function EngineeringManager({ projectId }: EngineeringManagerProp
                                                         ) : null
                                                     })()}
 
+                                                    {/* Botón Subir PDF */}
+                                                    {(() => {
+                                                        const showUploadBtn = isVigente && activeRev.spooling_status === 'PENDIENTE'
+
+                                                        return showUploadBtn ? (
+                                                            <button
+                                                                onClick={() => handlePDFUpload(activeRev.id, iso.codigo, activeRev.codigo)}
+                                                                className="p-2 hover:bg-blue-500/20 rounded transition-colors text-blue-400 border border-blue-500/30"
+                                                                title="Subir PDF"
+                                                            >
+                                                                {isUploading ? (
+                                                                    <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                                                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                                                    </svg>
+                                                                ) : (
+                                                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                                                                    </svg>
+                                                                )}
+                                                            </button>
+                                                        ) : null
+                                                    })()}
+
                                                     {/* Botón Historial */}
                                                     <button
                                                         onClick={() => setViewingHistory(iso)}
@@ -607,24 +672,40 @@ export default function EngineeringManager({ projectId }: EngineeringManagerProp
                                                     </button>
                                                     <button
                                                         className="p-2 hover:bg-white/10 rounded transition-colors text-green-400 hover:text-green-300"
-                                                        onClick={() => activeRev && handlePDFUpload(activeRev.id, iso.codigo)}
+                                                        onClick={() => activeRev && handlePDFUpload(activeRev.id, iso.codigo, activeRev.codigo)}
                                                         title="Subir PDF"
                                                     >
                                                         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
                                                         </svg>
                                                     </button>
-                                                    {isVigente && (
-                                                        <button
-                                                            className="p-2 hover:bg-white/10 rounded transition-colors text-red-400 hover:text-red-300"
-                                                            onClick={() => activeRev && handleDeleteRevision(activeRev.id, activeRev.estado)}
-                                                            title="Eliminar Revisión"
-                                                        >
-                                                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                                            </svg>
-                                                        </button>
-                                                    )}
+                                                    {/* Botón Eliminar (Soft o Hard) */}
+                                                    <button
+                                                        className={`p-2 hover:bg-white/10 rounded transition-colors ${isVigente || (activeRev.estado === 'ELIMINADA' && (userRole === 'ADMIN' || userRole === 'SUPER_ADMIN'))
+                                                                ? 'text-red-400 hover:bg-red-500/20'
+                                                                : 'opacity-30 cursor-not-allowed text-gray-500'
+                                                            }`}
+                                                        onClick={() => {
+                                                            if (activeRev.estado === 'ELIMINADA') {
+                                                                // Hard Delete - Solo Admin
+                                                                if (userRole === 'ADMIN' || userRole === 'SUPER_ADMIN') {
+                                                                    handleHardDeleteRevision(activeRev.id, iso.codigo)
+                                                                }
+                                                            } else if (isVigente) {
+                                                                // Soft Delete
+                                                                handleDeleteRevision(activeRev.id, activeRev.estado)
+                                                            }
+                                                        }}
+                                                        disabled={
+                                                            (!isVigente && activeRev.estado !== 'ELIMINADA') ||
+                                                            (activeRev.estado === 'ELIMINADA' && userRole !== 'ADMIN' && userRole !== 'SUPER_ADMIN')
+                                                        }
+                                                        title={activeRev.estado === 'ELIMINADA' ? "☠️ ELIMINAR PARA SIEMPRE (Solo Admin)" : "Eliminar Revisión"}
+                                                    >
+                                                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                        </svg>
+                                                    </button>
                                                 </div>
                                             </td>
                                         </tr>

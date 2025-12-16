@@ -326,6 +326,22 @@ function AdminProyectoContent() {
                             </div>
                         </div>
                     </div>
+                    {/* Gestión de Roles */}
+                    <Link href="/admin/roles" className="block h-full">
+                        <div className="backdrop-blur-xl bg-gradient-to-br from-pink-500/20 to-red-500/20 rounded-2xl shadow-xl border border-white/20 p-8 hover:scale-105 transition-all duration-200 cursor-pointer h-full flex flex-col justify-between">
+                            <div className="flex items-center space-x-4">
+                                <div className="p-4 bg-gradient-to-br from-pink-500 to-red-500 rounded-xl shrink-0">
+                                    <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                                    </svg>
+                                </div>
+                                <div>
+                                    <h3 className="text-2xl font-bold text-white mb-1">Roles y Permisos</h3>
+                                    <p className="text-purple-200">Configura accesos y permisos globales</p>
+                                </div>
+                            </div>
+                        </div>
+                    </Link>
                 </div>
 
                 {/* Week Config Modal */}
