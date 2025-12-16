@@ -73,42 +73,54 @@ export async function GET(
 
         if (historyError) throw historyError
 
+
+
+        // Initialize Admin Client for resolving users reliably
+        const { createClient: createAdminClient } = await import('@supabase/supabase-js')
+        const supabaseAdmin = createAdminClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            process.env.SUPABASE_SERVICE_ROLE_KEY!,
+            {
+                auth: {
+                    autoRefreshToken: false,
+                    persistSession: false
+                }
+            }
+        )
+
         // Fetch user details separately to avoid PostgREST relationship issues
         const historyWithUsers = await Promise.all(
             (history || []).map(async (item) => {
-                // Try to get user data from users table
-                const { data: userData, error: userError } = await supabase
-                    .from('users')
-                    .select('id, email, full_name')
-                    .eq('id', item.changed_by)
-                    .single()
-
-                if (userError) {
-                    console.error(`[History] Error fetching user ${item.changed_by}:`, userError)
+                let userInfo = {
+                    id: item.changed_by,
+                    email: 'unknown',
+                    full_name: null as string | null
                 }
 
-                // Fallback: try auth.users if users table fails
-                if (!userData && item.changed_by) {
-                    const { data: authUser } = await supabase.auth.admin.getUserById(item.changed_by)
-                    if (authUser?.user) {
-                        return {
-                            ...item,
-                            changed_by_user: {
-                                id: authUser.user.id,
-                                email: authUser.user.email || 'unknown',
-                                full_name: authUser.user.user_metadata?.full_name || null
-                            }
+                if (item.changed_by) {
+                    // 1. Try public.users with Admin privileges
+                    const { data: publicUser } = await supabaseAdmin
+                        .from('users')
+                        .select('email, full_name')
+                        .eq('id', item.changed_by)
+                        .single()
+
+                    if (publicUser) {
+                        userInfo.email = publicUser.email || 'unknown'
+                        userInfo.full_name = publicUser.full_name
+                    } else {
+                        // 2. Fallback to auth.users using Admin API
+                        const { data: authUser } = await supabaseAdmin.auth.admin.getUserById(item.changed_by)
+                        if (authUser?.user) {
+                            userInfo.email = authUser.user.email || 'unknown'
+                            userInfo.full_name = authUser.user.user_metadata?.full_name || null
                         }
                     }
                 }
 
                 return {
                     ...item,
-                    changed_by_user: userData || {
-                        id: item.changed_by,
-                        email: 'unknown',
-                        full_name: null
-                    }
+                    changed_by_user: userInfo
                 }
             })
         )

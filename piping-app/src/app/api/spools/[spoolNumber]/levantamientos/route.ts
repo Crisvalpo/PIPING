@@ -42,6 +42,19 @@ export async function GET(
 
         if (error) throw error
 
+        // Initialize Admin Client for resolving users reliably
+        const { createClient: createAdminClient } = await import('@supabase/supabase-js')
+        const supabaseAdmin = createAdminClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            process.env.SUPABASE_SERVICE_ROLE_KEY!,
+            {
+                auth: {
+                    autoRefreshToken: false,
+                    persistSession: false
+                }
+            }
+        )
+
         // For each levantamiento, fetch photos and user info
         const levantamientosWithDetails = await Promise.all(
             (levantamientos || []).map(async (lev) => {
@@ -52,12 +65,33 @@ export async function GET(
                     .eq('levantamiento_id', lev.id)
                     .order('created_at', { ascending: true })
 
-                // Fetch user info
-                const { data: userData } = await supabase
-                    .from('users')
-                    .select('id, email, full_name')
-                    .eq('id', lev.captured_by)
-                    .single()
+                // Fetch user info using Admin Client to bypass RLS and access auth
+                let userInfo = {
+                    id: lev.captured_by,
+                    email: 'unknown',
+                    full_name: null as string | null
+                }
+
+                if (lev.captured_by) {
+                    // 1. Try public.users with Admin privileges
+                    const { data: publicUser } = await supabaseAdmin
+                        .from('users')
+                        .select('email, full_name')
+                        .eq('id', lev.captured_by)
+                        .single()
+
+                    if (publicUser) {
+                        userInfo.email = publicUser.email || 'unknown'
+                        userInfo.full_name = publicUser.full_name
+                    } else {
+                        // 2. Fallback to auth.users using Admin API
+                        const { data: authUser } = await supabaseAdmin.auth.admin.getUserById(lev.captured_by)
+                        if (authUser?.user) {
+                            userInfo.email = authUser.user.email || 'unknown'
+                            userInfo.full_name = authUser.user.user_metadata?.full_name || null
+                        }
+                    }
+                }
 
                 // Generate signed URLs for photos
                 const photosWithUrls = await Promise.all(
@@ -76,11 +110,7 @@ export async function GET(
                 return {
                     ...lev,
                     photos: photosWithUrls,
-                    captured_by_user: userData || {
-                        id: lev.captured_by,
-                        email: 'unknown',
-                        full_name: null
-                    }
+                    captured_by_user: userInfo
                 }
             })
         )
