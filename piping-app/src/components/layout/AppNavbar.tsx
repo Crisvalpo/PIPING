@@ -40,6 +40,9 @@ export default function AppNavbar() {
                 }
                 if (userData?.rol) {
                     setUserRole(userData.rol.toUpperCase())
+                    console.log('✅ User role loaded:', userData.rol.toUpperCase())
+                } else {
+                    console.log('⚠️ No role found for user')
                 }
             } catch (error) {
                 console.error('Error getting user data:', error)
@@ -95,79 +98,83 @@ export default function AppNavbar() {
                         })}
 
                         {/* Settings Dropdown - Hidden for USUARIO role */}
-                        {userRole !== 'USUARIO' && (
-                            <div className="relative">
-                                <button
-                                    onClick={() => setShowSettingsMenu(!showSettingsMenu)}
-                                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${showSettingsMenu || pathname.includes('/settings')
-                                        ? 'bg-blue-50 text-blue-700'
-                                        : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
-                                        }`}
-                                >
-                                    <Settings className="w-4 h-4" />
-                                    Configuración
-                                </button>
+                        {(() => {
+                            const shouldShow = userRole !== 'USUARIO'
+                            console.log('🔍 Settings menu check:', { userRole, shouldShow })
+                            return shouldShow
+                        })() && (
+                                <div className="relative">
+                                    <button
+                                        onClick={() => setShowSettingsMenu(!showSettingsMenu)}
+                                        className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${showSettingsMenu || pathname.includes('/settings')
+                                            ? 'bg-blue-50 text-blue-700'
+                                            : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
+                                            }`}
+                                    >
+                                        <Settings className="w-4 h-4" />
+                                        Configuración
+                                    </button>
 
-                                {/* Settings Dropdown Menu */}
-                                {showSettingsMenu && (
-                                    <div className="absolute top-full right-0 mt-1 bg-white rounded-lg shadow-xl border border-gray-200 overflow-hidden min-w-[220px] z-50">
-                                        <button
-                                            onClick={handleCuadrillasClick}
-                                            className="w-full flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors text-sm"
-                                        >
-                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                                            </svg>
-                                            <span className="font-medium">Cuadrillas</span>
-                                        </button>
-                                        <Link
-                                            href="/settings/personal"
-                                            className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors border-t border-gray-100 text-sm"
-                                            onClick={() => setShowSettingsMenu(false)}
-                                        >
-                                            <Users className="w-4 h-4" />
-                                            <span className="font-medium">Personal</span>
-                                        </Link>
-                                        {userProjectId && (
+                                    {/* Settings Dropdown Menu */}
+                                    {showSettingsMenu && (
+                                        <div className="absolute top-full right-0 mt-1 bg-white rounded-lg shadow-xl border border-gray-200 overflow-hidden min-w-[220px] z-50">
+                                            <button
+                                                onClick={handleCuadrillasClick}
+                                                className="w-full flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors text-sm"
+                                            >
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                                                </svg>
+                                                <span className="font-medium">Cuadrillas</span>
+                                            </button>
                                             <Link
-                                                href={`/proyectos/${userProjectId}/reportes`}
+                                                href="/settings/personal"
                                                 className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors border-t border-gray-100 text-sm"
                                                 onClick={() => setShowSettingsMenu(false)}
                                             >
-                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                                </svg>
-                                                <span className="font-medium">Historial</span>
+                                                <Users className="w-4 h-4" />
+                                                <span className="font-medium">Personal</span>
                                             </Link>
-                                        )}
-                                        {userProjectId && (
-                                            <Link
-                                                href={`/proyectos/${userProjectId}/reporte-diario`}
-                                                className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors border-t border-gray-100 text-sm"
-                                                onClick={() => setShowSettingsMenu(false)}
+                                            {userProjectId && (
+                                                <Link
+                                                    href={`/proyectos/${userProjectId}/reportes`}
+                                                    className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors border-t border-gray-100 text-sm"
+                                                    onClick={() => setShowSettingsMenu(false)}
+                                                >
+                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                                    </svg>
+                                                    <span className="font-medium">Historial</span>
+                                                </Link>
+                                            )}
+                                            {userProjectId && (
+                                                <Link
+                                                    href={`/proyectos/${userProjectId}/reporte-diario`}
+                                                    className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors border-t border-gray-100 text-sm"
+                                                    onClick={() => setShowSettingsMenu(false)}
+                                                >
+                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                                                    </svg>
+                                                    <span className="font-medium">Reporte Diario</span>
+                                                </Link>
+                                            )}
+                                            <button
+                                                onClick={() => {
+                                                    setShowSettingsMenu(false)
+                                                    alert('Función de ayuda próximamente...')
+                                                }}
+                                                className="w-full flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors border-t border-gray-100 text-sm"
                                             >
                                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                                                 </svg>
-                                                <span className="font-medium">Reporte Diario</span>
-                                            </Link>
-                                        )}
-                                        <button
-                                            onClick={() => {
-                                                setShowSettingsMenu(false)
-                                                alert('Función de ayuda próximamente...')
-                                            }}
-                                            className="w-full flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors border-t border-gray-100 text-sm"
-                                        >
-                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                            </svg>
-                                            <span className="font-medium">Ayuda</span>
-                                        </button>
-                                    </div>
-                                )}
-                            </div>
-                        )}
+                                                <span className="font-medium">Ayuda</span>
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                     </div>
 
                     {/* Botón logout desktop */}
