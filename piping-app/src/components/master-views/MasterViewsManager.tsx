@@ -2278,6 +2278,20 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
     const [addWeldAdjacentWelds, setAddWeldAdjacentWelds] = useState<{ prev?: any; next?: any }>({})
     const [addWeldContext, setAddWeldContext] = useState<{ revisionId: string; projectId: string; isoNumber: string; rev: string } | null>(null)
 
+    // Levantamiento modal state
+    const [levantamientoModal, setLevantamientoModal] = useState<{
+        isOpen: boolean
+        spoolNumber: string
+        revisionId: string
+        projectId: string
+    } | null>(null)
+
+    // Photo viewer modal state
+    const [photoViewer, setPhotoViewer] = useState<{
+        isOpen: boolean
+        spool: any
+    } | null>(null)
+
     // Estado para spools agrupados
     const [weldsBySpool, setWeldsBySpool] = useState<WeldsBySpool[]>([])
     const [fabricationSpools, setFabricationSpools] = useState<any[]>([])
@@ -2799,6 +2813,29 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
             console.error('Error loading revision details:', error)
         }
         setLoadingDetails(false)
+    }
+
+    // Levantamiento and photo viewer handlers
+    const handleOpenLevantamientoModal = (spool: any) => {
+        if (!selectedRevisionId) return
+
+        setLevantamientoModal({
+            isOpen: true,
+            spoolNumber: spool.spool_number,
+            revisionId: selectedRevisionId,
+            projectId: projectId
+        })
+    }
+
+    const handleCloseLevantamientoModal = () => {
+        setLevantamientoModal(null)
+    }
+
+    const handleOpenPhotoViewer = (spool: any) => {
+        setPhotoViewer({
+            isOpen: true,
+            spool: spool
+        })
     }
 
     // Toggle spool expansion in Unions view
@@ -3810,6 +3847,96 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
                         onUpdate={handleModalUpdate}
                     />
                 </>
+            )}
+
+            {/* Levantamiento Modal */}
+            {levantamientoModal && (
+                <LevantamientoModal
+                    isOpen={levantamientoModal.isOpen}
+                    onClose={handleCloseLevantamientoModal}
+                    spoolNumber={levantamientoModal.spoolNumber}
+                    revisionId={levantamientoModal.revisionId}
+                    projectId={levantamientoModal.projectId}
+                    onUpdate={handleModalUpdate}
+                />
+            )}
+
+            {/* Photo Viewer Modal */}
+            {photoViewer && photoViewer.spool.levantamiento_photo_url && (
+                <div
+                    className="fixed inset-0 bg-black bg-opacity-95 flex items-center justify-center z-[60]"
+                    onClick={() => setPhotoViewer(null)}
+                >
+                    <button
+                        className="absolute top-4 right-4 text-white text-3xl hover:text-gray-300 z-10"
+                        onClick={() => setPhotoViewer(null)}
+                    >
+                        ×
+                    </button>
+
+                    <div className="relative max-w-6xl max-h-[90vh] w-full h-full flex items-center justify-center p-8">
+                        <img
+                            src={photoViewer.spool.levantamiento_photo_url}
+                            alt={`Levantamiento ${photoViewer.spool.spool_number}`}
+                            className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
+                        />
+
+                        {/* Data overlay */}
+                        <div className="absolute bottom-8 left-8 right-8 bg-gradient-to-t from-black/90 via-black/70 to-transparent p-6 rounded-lg text-white backdrop-blur-sm">
+                            <div className="flex items-start justify-between">
+                                <div>
+                                    <div className="text-2xl font-bold mb-2">{photoViewer.spool.spool_number}</div>
+                                    <div className="space-y-2">
+                                        <div className="flex items-center gap-2">
+                                            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                                <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
+                                            </svg>
+                                            <span className="text-lg">{photoViewer.spool.levantamiento_location || 'Sin ubicación'}</span>
+                                        </div>
+                                        <div className="flex items-center gap-4 text-sm text-gray-300">
+                                            <div className="flex items-center gap-1">
+                                                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                                    <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
+                                                </svg>
+                                                {photoViewer.spool.levantamiento_date}
+                                            </div>
+                                            <div className="flex items-center gap-1">
+                                                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                                    <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+                                                </svg>
+                                                {photoViewer.spool.levantamiento_user}
+                                            </div>
+                                        </div>
+                                        {photoViewer.spool.levantamiento_notes && (
+                                            <div className="mt-3 pt-3 border-t border-gray-600 text-gray-200 italic">
+                                                "{photoViewer.spool.levantamiento_notes}"
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                                <div className="text-right">
+                                    <div className="text-sm text-gray-300 mb-1">Levantamiento</div>
+                                    <div className="text-3xl font-bold">{photoViewer.spool.levantamiento_photos_count || 1}</div>
+                                    <div className="text-sm text-gray-400">fotos</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Click "Ver todas" button */}
+                        {photoViewer.spool.levantamiento_photos_count > 1 && (
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation()
+                                    setPhotoViewer(null)
+                                    handleOpenLevantamientoModal(photoViewer.spool)
+                                }}
+                                className="absolute top-8 left-8 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-medium shadow-lg transition-colors"
+                            >
+                                📷 Ver todas las fotos
+                            </button>
+                        )}
+                    </div>
+                </div>
             )}
         </div >
     )
