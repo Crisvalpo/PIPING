@@ -16,6 +16,75 @@ interface SpoolPhaseModalProps {
 }
 
 // ... helper constants
+const PHASE_LABELS: Record<string, string> = {
+    ndt: 'END / NDE',
+    pwht: 'Tratamiento Térmico',
+    surface_treatment: 'Tratamiento Superficial',
+    dispatch: 'Despacho',
+    field_erection: 'Montaje en Terreno'
+}
+
+const STATUS_COLORS = {
+    PENDING: 'border-gray-300 text-gray-500 bg-gray-50',
+    IN_PROGRESS: 'border-blue-400 text-blue-600 bg-blue-50',
+    COMPLETED: 'border-green-500 text-green-700 bg-green-50',
+    HOLD: 'border-amber-400 text-amber-600 bg-amber-50',
+    REJECTED: 'border-red-500 text-red-700 bg-red-50'
+}
+
+const STATUS_ICONS = {
+    PENDING: '⏱️',
+    IN_PROGRESS: '🔨',
+    COMPLETED: '✅',
+    HOLD: '⚠️',
+    REJECTED: '❌'
+}
+
+const STATUS_LABELS = {
+    PENDING: 'Pendiente',
+    IN_PROGRESS: 'En Progreso',
+    COMPLETED: 'Completado',
+    HOLD: 'En Espera',
+    REJECTED: 'Rechazado'
+}
+
+// Helper function to format relative time
+const formatRelativeTime = (dateString: string): string => {
+    const date = new Date(dateString)
+    const now = new Date()
+    const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000)
+
+    if (diffInSeconds < 60) return 'Hace un momento'
+    if (diffInSeconds < 3600) {
+        const minutes = Math.floor(diffInSeconds / 60)
+        return `Hace ${minutes} min${minutes > 1 ? 's' : ''}`
+    }
+    if (diffInSeconds < 86400) {
+        const hours = Math.floor(diffInSeconds / 3600)
+        return `Hace ${hours} hora${hours > 1 ? 's' : ''}`
+    }
+    const days = Math.floor(diffInSeconds / 86400)
+    if (days < 30) {
+        return `Hace ${days} día${days > 1 ? 's' : ''}`
+    }
+    return date.toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: 'numeric' })
+}
+
+interface HistoryItem {
+    id: string
+    phase: string
+    old_status: string
+    new_status: string
+    changed_at: string
+    notes?: string
+    metadata?: any
+    changed_by: string
+    changed_by_user?: {
+        id: string
+        email: string
+        full_name: string | null
+    }
+}
 
 export default function SpoolPhaseModal({
     onClose,
@@ -49,6 +118,25 @@ export default function SpoolPhaseModal({
     useEffect(() => {
         loadHistory()
     }, [phase, revisionId])
+
+    const loadHistory = async () => {
+        if (!revisionId) return
+
+        setLoadingHistory(true)
+        try {
+            const res = await fetch(`/api/spools/${encodeURIComponent(spoolNumber)}/fabrication/history?revisionId=${revisionId}&phase=${phase}`)
+            if (res.ok) {
+                const data = await res.json()
+                setHistory(data.history || [])
+            } else {
+                console.error('Error fetching history:', await res.text())
+            }
+        } catch (err) {
+            console.error('Error loading history:', err)
+        } finally {
+            setLoadingHistory(false)
+        }
+    }
     // ... continuation of component
 
     const handleSubmit = async (e: React.FormEvent) => {
