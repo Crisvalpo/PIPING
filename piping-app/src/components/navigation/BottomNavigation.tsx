@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useParams, usePathname, useRouter } from 'next/navigation'
 import { Users } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { useUIStore } from '@/store/ui-store'
 
 export default function BottomNavigation() {
     const params = useParams()
@@ -12,6 +13,7 @@ export default function BottomNavigation() {
     const [showSettingsMenu, setShowSettingsMenu] = useState(false)
     const [userProjectId, setUserProjectId] = useState<string | null>(null)
     const [userRole, setUserRole] = useState<string>('')
+    const isFocusMode = useUIStore((state) => state.isFocusMode)
 
     // Detectar páginas activas
     const isHome = pathname?.includes('/master-views')
@@ -62,7 +64,8 @@ export default function BottomNavigation() {
     return (
         <>
             {/* Bottom Navigation Bar */}
-            <div className="fixed bottom-0 left-0 right-0 z-40">
+            <div className={`fixed bottom-0 left-0 right-0 z-40 transition-all duration-300 ease-in-out ${isFocusMode ? 'translate-y-full opacity-0 pointer-events-none' : 'translate-y-0 opacity-100'
+                }`}>
                 <div className="flex items-center justify-around border-t border-gray-200/80 bg-white/90 px-2 pb-4 pt-2 backdrop-blur-lg dark:border-gray-800/80 dark:bg-gray-900/90">
                     {/* Home Button */}
                     <a

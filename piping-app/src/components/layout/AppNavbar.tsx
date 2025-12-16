@@ -4,10 +4,12 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Home, Users, FolderKanban, Settings, Menu, X, LogOut } from 'lucide-react'
 import { useState } from 'react'
+import { useUIStore } from '@/store/ui-store'
 
 export default function AppNavbar() {
     const pathname = usePathname()
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+    const isFocusMode = useUIStore((state) => state.isFocusMode)
 
     const navigation = [
         { name: 'Dashboard', href: '/dashboard', icon: Home },
@@ -24,7 +26,8 @@ export default function AppNavbar() {
     const isActive = (path: string) => pathname.startsWith(path)
 
     return (
-        <nav className="bg-white border-b border-gray-200 sticky top-0 z-40 shadow-sm">
+        <nav className={`bg-white border-b border-gray-200 sticky top-0 z-40 shadow-sm transition-all duration-300 ease-in-out ${isFocusMode ? '-translate-y-full opacity-0 pointer-events-none' : 'translate-y-0 opacity-100'
+            }`}>
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div className="flex justify-between h-16">
                     {/* Logo y nombre */}

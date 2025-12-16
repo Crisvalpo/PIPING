@@ -6,6 +6,7 @@ export interface IsometricDetails {
     materials: any[];
     joints: any[];
     fabricationTracking: any[];
+    levantamientos: any[];
 }
 
 export async function getIsometricDetails(revisionId: string): Promise<IsometricDetails> {
@@ -39,13 +40,78 @@ export async function getIsometricDetails(revisionId: string): Promise<Isometric
 
     if (jointsError) throw jointsError;
 
-    // Fetch Spool Fabrication Tracking
     const { data: fabricationTracking, error: fabError } = await supabase
         .from('spool_fabrication_tracking')
         .select('*')
         .eq('revision_id', revisionId);
 
     if (fabError) throw fabError;
+
+    // Fetch Levantamientos with Photos
+    const { data: levantamientosData, error: levError } = await supabase
+        .from('spool_levantamientos')
+        .select(`
+            *,
+            spool_levantamiento_photos (
+                storage_path,
+                created_at
+            )
+        `)
+        .eq('revision_id', revisionId)
+        .order('captured_at', { ascending: false });
+
+    // Process levantamientos to get latest photo URL per spool
+    const userIds = Array.from(new Set((levantamientosData || []).map(l => l.captured_by).filter(Boolean)));
+
+    // Fetch profiles for these users
+    let userProfiles: Record<string, any> = {};
+    if (userIds.length > 0) {
+        const { data: profiles } = await supabase
+            .from('users')
+            .select('id, nombre, correo')
+            .in('id', userIds);
+
+        if (profiles) {
+            userProfiles = profiles.reduce((acc, profile) => {
+                acc[profile.id] = profile;
+                return acc;
+            }, {} as Record<string, any>);
+        }
+    }
+
+    const levantamientos = await Promise.all((levantamientosData || []).map(async (lev) => {
+        // Sort photos desc
+        const rawPhotos = (lev.spool_levantamiento_photos || []).sort((a: any, b: any) =>
+            new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        );
+
+        // Sign URLs for all photos
+        const photos = await Promise.all(rawPhotos.map(async (photo: any) => {
+            const { data } = await supabase.storage
+                .from('spool-levantamientos')
+                .createSignedUrl(photo.storage_path, 3600); // 1 hour
+
+            return {
+                ...photo,
+                url: data?.signedUrl
+            };
+        }));
+
+        const latestPhotoUrl = photos[0]?.url || null;
+
+        const profile = userProfiles[lev.captured_by];
+        const userName = profile ? (profile.nombre || profile.correo) : 'Desconocido';
+
+        return {
+            ...lev,
+            latest_photo_url: latestPhotoUrl,
+            photos_count: photos.length,
+            photos: photos, // Return all photos with URLs
+            captured_by_user: userName
+        };
+    }));
+
+    if (levError) console.error('Error fetching levantamientos:', levError);
 
     // Derive Spools from Welds (group by spool_number)
     // Note: This is a simplification. Ideally we should have a 'spools' table if we want to track spool status independently.
@@ -78,7 +144,8 @@ export async function getIsometricDetails(revisionId: string): Promise<Isometric
         spools,
         materials: materials || [],
         joints: joints || [],
-        fabricationTracking: fabricationTracking || []
+        fabricationTracking: fabricationTracking || [],
+        levantamientos: levantamientos || []
     };
 }
 
@@ -212,7 +279,7 @@ export async function markWeldForRework(
  */
 export async function registerWeldExecution(
     weldId: string,
-    welderId: string,
+    welderId: string | null,
     foremanId: string,
     executionDate?: string,
     reportedByUserId?: string
@@ -376,7 +443,7 @@ export interface NewWeldData {
 
 export interface FieldExecutionData {
     fecha: string;
-    welderId: string;
+    welderId: string | null;
     foremanId: string;
 }
 

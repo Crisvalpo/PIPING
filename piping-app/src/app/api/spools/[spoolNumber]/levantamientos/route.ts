@@ -209,6 +209,19 @@ export async function POST(
 
         const spoolNumber = decodeURIComponent(params.spoolNumber)
 
+        // Initialize Admin Client for update (bypassing RLS for storage)
+        const { createClient: createAdminClient } = await import('@supabase/supabase-js')
+        const supabaseAdmin = createAdminClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            process.env.SUPABASE_SERVICE_ROLE_KEY!,
+            {
+                auth: {
+                    autoRefreshToken: false,
+                    persistSession: false
+                }
+            }
+        )
+
         // Create levantamiento record
         const { data: levantamiento, error: levError } = await supabase
             .from('spool_levantamientos')
@@ -236,8 +249,8 @@ export async function POST(
             const base64Data = photo.fileData.replace(/^data:image\/\w+;base64,/, '')
             const buffer = Buffer.from(base64Data, 'base64')
 
-            // Upload to storage
-            const { data: uploadData, error: uploadError } = await supabase.storage
+            // Upload to storage using Admin Client to bypass RLS
+            const { data: uploadData, error: uploadError } = await supabaseAdmin.storage
                 .from('spool-levantamientos')
                 .upload(storagePath, buffer, {
                     contentType: photo.mimeType || 'image/jpeg',
@@ -246,7 +259,7 @@ export async function POST(
 
             if (uploadError) {
                 console.error('Error uploading photo:', uploadError)
-                continue
+                throw new Error(`Error al subir imagen a Storage: ${uploadError.message}`)
             }
 
             // Create photo record
@@ -263,7 +276,7 @@ export async function POST(
                 .select()
                 .single()
 
-            if (!photoRecord) {
+            if (photoRecord) {
                 uploadedPhotos.push(photoRecord)
             }
         }
