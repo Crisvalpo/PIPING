@@ -247,7 +247,24 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const [loadingConfigs, setLoadingConfigs] = useState(false)
 
+    // User role state for permission checks
+    const [userRole, setUserRole] = useState<string | null>(null)
 
+    // Fetch user role on mount
+    useEffect(() => {
+        async function fetchUserRole() {
+            const { data: { user } } = await supabase.auth.getUser()
+            if (user) {
+                const { data } = await supabase
+                    .from('users')
+                    .select('rol')
+                    .eq('id', user.id)
+                    .single()
+                if (data?.rol) setUserRole(data.rol.toUpperCase())
+            }
+        }
+        fetchUserRole()
+    }, [])
 
     // Load configs on mount
     useEffect(() => {
