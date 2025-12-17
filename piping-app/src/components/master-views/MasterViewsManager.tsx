@@ -1183,21 +1183,23 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
                                                             </div>
                                                         )}
 
-                                                        {/* Upload Button */}
-                                                        <div className="border-t border-gray-100 bg-white px-3 py-2">
-                                                            <button
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation()
-                                                                    handleUploadClick(rev.id, iso.codigo, rev.codigo)
-                                                                }}
-                                                                className="w-full px-3 py-1.5 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-lg text-xs font-semibold hover:from-green-700 hover:to-green-800 transition-all flex items-center justify-center gap-2 shadow-sm"
-                                                            >
-                                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                                                                </svg>
-                                                                Subir Archivo
-                                                            </button>
-                                                        </div>
+                                                        {/* Upload Button - only show if user has create permission */}
+                                                        {hasPermission(userRole, 'isometricos', 'create') && (
+                                                            <div className="border-t border-gray-100 bg-white px-3 py-2">
+                                                                <button
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation()
+                                                                        handleUploadClick(rev.id, iso.codigo, rev.codigo)
+                                                                    }}
+                                                                    className="w-full px-3 py-1.5 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-lg text-xs font-semibold hover:from-green-700 hover:to-green-800 transition-all flex items-center justify-center gap-2 shadow-sm"
+                                                                >
+                                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                                                                    </svg>
+                                                                    Subir Archivo
+                                                                </button>
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 )
                                             })}
