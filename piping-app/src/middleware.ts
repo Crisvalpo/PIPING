@@ -6,6 +6,11 @@ export async function middleware(request: NextRequest) {
 
     // Only protect /api/admin/* routes
     if (request.nextUrl.pathname.startsWith('/api/admin')) {
+        // Allow GET requests to /api/admin/roles without authentication (needed for login)
+        if (request.method === 'GET' && request.nextUrl.pathname === '/api/admin/roles') {
+            return response
+        }
+
         try {
             // Create Supabase client
             const supabase = createServerClient(
