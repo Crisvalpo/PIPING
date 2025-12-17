@@ -385,25 +385,6 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
     const fileInputRef = useRef<HTMLInputElement>(null)
     const [uploadingContext, setUploadingContext] = useState<{ revisionId: string; isoCode: string; revCode: string } | null>(null)
 
-    // User role for conditional rendering
-    const [userRole, setUserRole] = useState<string>('')
-
-    // Fetch user role on mount
-    useEffect(() => {
-        async function fetchUserRole() {
-            const { data: { user } } = await supabase.auth.getUser()
-            if (user) {
-                const { data } = await supabase
-                    .from('users')
-                    .select('rol')
-                    .eq('id', user.id)
-                    .single()
-                if (data?.rol) setUserRole(data.rol.toUpperCase())
-            }
-        }
-        fetchUserRole()
-    }, [])
-
     useEffect(() => {
         loadIsometrics()
     }, [projectId, searchTerm])
@@ -1182,7 +1163,7 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
                                                                                 Ver PDF
                                                                             </button>
                                                                             {/* Delete button - only show if user has delete permission */}
-                                                                            {hasPermission(userRole, 'isometricos', 'delete') && (
+                                                                            {userRole && hasPermission(userRole, 'isometricos', 'delete') && (
                                                                                 <button
                                                                                     onClick={(e) => {
                                                                                         e.stopPropagation()
@@ -1201,7 +1182,7 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
                                                         )}
 
                                                         {/* Upload Button - only show if user has create permission */}
-                                                        {hasPermission(userRole, 'isometricos', 'create') && (
+                                                        {userRole && hasPermission(userRole, 'isometricos', 'create') && (
                                                             <div className="border-t border-gray-100 bg-white px-3 py-2">
                                                                 <button
                                                                     onClick={(e) => {
