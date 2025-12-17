@@ -2,11 +2,13 @@ import { useState, useEffect } from 'react'
 import { useUIStore } from '@/store/ui-store'
 import { supabase } from '@/lib/supabase'
 import { getWeldExecutions, type WeldExecution } from '@/services/master-views'
+import { hasPermission } from '@/config/roles'
 
 interface WeldDetailModalProps {
     weld: any
     projectId: string
     requiresWelder: (type: string) => boolean
+    userRole: string | null
     onClose: () => void
     onUpdate: (weldId: string, updates: any) => void
     onRework: (weld: any) => void
@@ -16,7 +18,7 @@ interface WeldDetailModalProps {
     onRefresh: () => void
 }
 
-export default function WeldDetailModal({ weld, projectId, requiresWelder, onClose, onUpdate, onRework, onDelete, onRestore, onUndo, onRefresh }: WeldDetailModalProps) {
+export default function WeldDetailModal({ weld, projectId, requiresWelder, userRole, onClose, onUpdate, onRework, onDelete, onRestore, onUndo, onRefresh }: WeldDetailModalProps) {
     const [editMode, setEditMode] = useState(false)
     const [formData, setFormData] = useState({
         weld_number: weld.weld_number,
@@ -434,15 +436,18 @@ export default function WeldDetailModal({ weld, projectId, requiresWelder, onClo
                     ) : (
                         <>
                             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 w-full">
-                                <button
-                                    onClick={() => setEditMode(true)}
-                                    className="px-3 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors flex items-center justify-center gap-1"
-                                >
-                                    <span>✏️</span>
-                                    <span>Editar</span>
-                                </button>
-                                {/* Rework button - only for executed welds (not deleted) */}
-                                {weld.executed && !weld.deleted && (
+                                {/* Edit button - Only show if user has update permission */}
+                                {userRole && hasPermission(userRole, 'juntas', 'update') && (
+                                    <button
+                                        onClick={() => setEditMode(true)}
+                                        className="px-3 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors flex items-center justify-center gap-1"
+                                    >
+                                        <span>✏️</span>
+                                        <span>Editar</span>
+                                    </button>
+                                )}
+                                {/* Rework button - only for executed welds with delete permission */}
+                                {weld.executed && !weld.deleted && userRole && hasPermission(userRole, 'juntas', 'delete') && (
                                     <button
                                         onClick={() => onRework(weld)}
                                         className="px-3 py-2 bg-orange-500 text-white rounded-lg text-sm font-medium hover:bg-orange-600 transition-colors flex items-center justify-center gap-1"
@@ -453,8 +458,8 @@ export default function WeldDetailModal({ weld, projectId, requiresWelder, onClo
                                         <span>Retrabajo</span>
                                     </button>
                                 )}
-                                {/* Delete button - only for non-deleted welds */}
-                                {!weld.deleted && (
+                                {/* Delete button - only for non-deleted welds and with delete permission */}
+                                {!weld.deleted && userRole && hasPermission(userRole, 'juntas', 'delete') && (
                                     <button
                                         onClick={() => onDelete(weld)}
                                         className="px-3 py-2 bg-red-500 text-white rounded-lg text-sm font-medium hover:bg-red-600 transition-colors flex items-center justify-center gap-1"
@@ -465,8 +470,8 @@ export default function WeldDetailModal({ weld, projectId, requiresWelder, onClo
                                         <span>Eliminar</span>
                                     </button>
                                 )}
-                                {/* Restore button - only for deleted welds */}
-                                {weld.deleted && (
+                                {/* Restore button - only for deleted welds with delete permission */}
+                                {weld.deleted && userRole && hasPermission(userRole, 'juntas', 'delete') && (
                                     <button
                                         onClick={() => onRestore(weld)}
                                         className="px-3 py-2 bg-green-500 text-white rounded-lg text-sm font-medium hover:bg-green-600 transition-colors flex items-center justify-center gap-1"
@@ -477,8 +482,8 @@ export default function WeldDetailModal({ weld, projectId, requiresWelder, onClo
                                         <span>Restaurar</span>
                                     </button>
                                 )}
-                                {/* Undo execution button - only for executed welds (not deleted) */}
-                                {weld.executed && !weld.deleted && (
+                                {/* Undo execution button - only for executed welds with delete permission */}
+                                {weld.executed && !weld.deleted && userRole && hasPermission(userRole, 'juntas', 'delete') && (
                                     <button
                                         onClick={() => onUndo(weld)}
                                         className="px-3 py-2 bg-amber-500 text-white rounded-lg text-sm font-medium hover:bg-amber-600 transition-colors flex items-center justify-center gap-1"

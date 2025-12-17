@@ -251,61 +251,37 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
     // User role state for permission checks
     const [userRole, setUserRole] = useState<string | null>(null)
 
-    // Fetch user role on mount
-    useEffect(() => {
-        async function fetchUserRole() {
-            console.log('🔍 DEBUG: Fetching user role...')
-            const { data: { user } } = await supabase.auth.getUser()
-            console.log('👤 DEBUG: User from auth:', user?.email, user?.id)
-            if (user) {
-                const { data, error } = await supabase
-                    .from('users')
-                    .select('rol')
-                    .eq('id', user.id)
-                    .single()
-                console.log('🎭 DEBUG: User role from DB:', data?.rol, 'Error:', error)
-                if (data?.rol) {
-                    const roleUpper = data.rol.toUpperCase()
-                    console.log('✅ DEBUG: Setting userRole to:', roleUpper)
-                    setUserRole(roleUpper)
-                } else {
-                    console.warn('⚠️ DEBUG: No rol found for user')
-                }
-            } else {
-                console.warn('⚠️ DEBUG: No user authenticated')
-            }
-        }
-        fetchUserRole()
-    }, [])
-
     // Fetch roles from database on mount for dynamic permissions
     const fetchRolesFromStore = useRolesStore(state => state.fetchRoles)
+
+    // Consolidated initialization: Fetch user role and roles store in parallel
     useEffect(() => {
-        console.log('📥 DEBUG: Fetching roles from store...')
-        fetchRolesFromStore().then(() => {
-            console.log('✅ DEBUG: Roles loaded from database')
-        })
-    }, [])
+        async function initialize() {
+            // Load user role and roles store in parallel for better performance
+            const [userRoleResult] = await Promise.all([
+                (async () => {
+                    const { data: { user } } = await supabase.auth.getUser()
+                    if (!user) return null
 
-    // Debug: Log whenever userRole changes
-    useEffect(() => {
-        console.log('🎯 DEBUG: userRole changed to:', userRole)
-        if (userRole) {
-            // Import store to check its state
-            const { useRolesStore } = require('@/store/roles-store')
-            const storeState = useRolesStore.getState()
+                    const { data } = await supabase
+                        .from('users')
+                        .select('rol')
+                        .eq('id', user.id)
+                        .single()
 
-            console.log('🏪 DEBUG: Roles store state:', {
-                rolesKeys: Object.keys(storeState.roles),
-                hasUserRole: !!storeState.roles[userRole],
-                userRoleData: storeState.roles[userRole]
-            })
+                    return data?.rol?.toUpperCase() || null
+                })(),
+                fetchRolesFromStore()
+            ])
 
-            console.log(`📋 DEBUG: Testing permissions for role "${userRole}":`)
-            console.log(`  - hasPermission(${userRole}, 'isometricos', 'create'):`, hasPermission(userRole, 'isometricos', 'create'))
-            console.log(`  - hasPermission(${userRole}, 'isometricos', 'delete'):`, hasPermission(userRole, 'isometricos', 'delete'))
+            if (userRoleResult) {
+                setUserRole(userRoleResult)
+            }
         }
-    }, [userRole])
+
+        initialize()
+    }, [fetchRolesFromStore])
+
 
     // Load configs on mount
     useEffect(() => {
@@ -445,7 +421,7 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
     async function loadIsometrics() {
         setLoading(true)
         try {
-            const result = await searchIsometrics(projectId, searchTerm, 0, 50, { status: 'ALL' })
+            const result = await searchIsometrics(projectId, searchTerm, 0, 10, { status: 'ALL' })
             setIsometrics(result.data)
         } catch (error) {
             console.error('Error loading isometrics:', error)
@@ -1070,7 +1046,29 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
             {/* Isometric List */}
             <div className="grid grid-cols-1 gap-4">
                 {loading ? (
-                    <div className="text-center py-8 text-gray-700">Cargando...</div>
+                    // Skeleton loader matching exact dimensions of real cards to prevent CLS
+                    <div className="space-y-4">
+                        {[...Array(3)].map((_, i) => (
+                            <div
+                                key={i}
+                                className="bg-white rounded-xl shadow-sm border border-gray-300 overflow-hidden animate-pulse"
+                                style={{ minHeight: '76px' }} // Match real card height
+                            >
+                                <div className="p-4 flex justify-between items-center">
+                                    <div className="flex-1">
+                                        {/* Skeleton for h3 title - text-lg font-bold = ~28px height */}
+                                        <div className="h-7 bg-gray-200 rounded w-32 mb-2"></div>
+                                        {/* Skeleton for metadata - text-sm = ~20px height */}
+                                        <div className="flex items-center gap-2 mt-1">
+                                            <div className="h-5 bg-gray-200 rounded w-24"></div>
+                                            <div className="h-5 bg-gray-200 rounded w-16"></div>
+                                        </div>
+                                    </div>
+                                    <div className="text-gray-300 text-sm">▼</div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
                 ) : isometrics.length === 0 ? (
                     <div className="text-center py-8 text-gray-700">No se encontraron isométricos.</div>
                 ) : (
@@ -1264,20 +1262,26 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
                                                     >
                                                         Materiales ({details.materials.length})
                                                     </button>
-                                                    <button
-                                                        onClick={() => setActiveTab('UNIONS')}
-                                                        className={`flex-1 py-3 px-4 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${activeTab === 'UNIONS' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-700 hover:text-gray-700'
-                                                            }`}
-                                                    >
-                                                        Uniones ({details.welds.length})
-                                                    </button>
-                                                    <button
-                                                        onClick={() => setActiveTab('SPOOLS')}
-                                                        className={`flex-1 py-3 px-4 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${activeTab === 'SPOOLS' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-700 hover:text-gray-700'
-                                                            }`}
-                                                    >
-                                                        Spools ({details.spools.length})
-                                                    </button>
+                                                    {/* Unions tab - Only show if user has read permission */}
+                                                    {userRole && hasPermission(userRole, 'juntas', 'read') && (
+                                                        <button
+                                                            onClick={() => setActiveTab('UNIONS')}
+                                                            className={`flex-1 py-3 px-4 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${activeTab === 'UNIONS' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-700 hover:text-gray-700'
+                                                                }`}
+                                                        >
+                                                            Uniones ({details.welds.length})
+                                                        </button>
+                                                    )}
+                                                    {/* Spools tab - Only show if user has read permission */}
+                                                    {userRole && hasPermission(userRole, 'spools', 'read') && (
+                                                        <button
+                                                            onClick={() => setActiveTab('SPOOLS')}
+                                                            className={`flex-1 py-3 px-4 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${activeTab === 'SPOOLS' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-700 hover:text-gray-700'
+                                                                }`}
+                                                        >
+                                                            Spools ({details.spools.length})
+                                                        </button>
+                                                    )}
                                                     <button
                                                         onClick={() => setActiveTab('TORQUES')}
                                                         className={`flex-1 py-3 px-4 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${activeTab === 'TORQUES' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-700 hover:text-gray-700'
@@ -1322,181 +1326,187 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
                                                     )}
 
                                                     {activeTab === 'UNIONS' && (
-                                                        <div className="space-y-4">
-                                                            {weldsBySpool.map(spool => {
-                                                                const isExpanded = expandedSpools.has(spool.spool_number)
-                                                                return (
-                                                                    <div key={spool.spool_number} className="bg-white rounded-lg border border-gray-300 shadow-sm overflow-hidden">
-                                                                        {/* Spool Header */}
-                                                                        <div
-                                                                            onClick={() => toggleSpoolExpanded(spool.spool_number)}
-                                                                            className="p-3 cursor-pointer hover:bg-gray-50 transition-colors flex justify-between items-center"
-                                                                        >
-                                                                            <div className="flex-1">
-                                                                                <div className="flex items-center gap-2">
-                                                                                    <span className="font-bold text-gray-900">Spool: {spool.spool_number}</span>
-                                                                                    <span
-                                                                                        className={`px-2 py-0.5 rounded text-xs font-bold ${spool.fabrication_status === 'COMPLETO'
-                                                                                            ? 'bg-emerald-100 text-emerald-700'
-                                                                                            : spool.fabrication_status === 'FABRICADO'
-                                                                                                ? 'bg-green-100 text-green-700'
-                                                                                                : spool.fabrication_status === 'EN PROCESO'
-                                                                                                    ? 'bg-yellow-100 text-yellow-700'
-                                                                                                    : spool.fabrication_status === 'N/A'
-                                                                                                        ? 'bg-gray-200 text-gray-700'
-                                                                                                        : 'bg-orange-100 text-orange-700'
-                                                                                            }`}
-                                                                                    >
-                                                                                        {spool.fabrication_status}
-                                                                                    </span>
+                                                        userRole && hasPermission(userRole, 'juntas', 'read') ? (
+                                                            <div className="space-y-4">
+                                                                {weldsBySpool.map(spool => {
+                                                                    const isExpanded = expandedSpools.has(spool.spool_number)
+                                                                    return (
+                                                                        <div key={spool.spool_number} className="bg-white rounded-lg border border-gray-300 shadow-sm overflow-hidden">
+                                                                            {/* Spool Header */}
+                                                                            <div
+                                                                                onClick={() => toggleSpoolExpanded(spool.spool_number)}
+                                                                                className="p-3 cursor-pointer hover:bg-gray-50 transition-colors flex justify-between items-center"
+                                                                            >
+                                                                                <div className="flex-1">
+                                                                                    <div className="flex items-center gap-2">
+                                                                                        <span className="font-bold text-gray-900">Spool: {spool.spool_number}</span>
+                                                                                        <span
+                                                                                            className={`px-2 py-0.5 rounded text-xs font-bold ${spool.fabrication_status === 'COMPLETO'
+                                                                                                ? 'bg-emerald-100 text-emerald-700'
+                                                                                                : spool.fabrication_status === 'FABRICADO'
+                                                                                                    ? 'bg-green-100 text-green-700'
+                                                                                                    : spool.fabrication_status === 'EN PROCESO'
+                                                                                                        ? 'bg-yellow-100 text-yellow-700'
+                                                                                                        : spool.fabrication_status === 'N/A'
+                                                                                                            ? 'bg-gray-200 text-gray-700'
+                                                                                                            : 'bg-orange-100 text-orange-700'
+                                                                                                }`}
+                                                                                        >
+                                                                                            {spool.fabrication_status}
+                                                                                        </span>
+                                                                                    </div>
+                                                                                    <div className="text-xs text-gray-700 mt-1">
+                                                                                        Taller: {spool.shop_welds_executed}/{spool.shop_welds_total} •
+                                                                                        Campo: {spool.field_welds_executed}/{spool.field_welds_total} •
+                                                                                        Total: {spool.welds.filter((w: any) => !w.deleted).length} uniones
+                                                                                    </div>
                                                                                 </div>
-                                                                                <div className="text-xs text-gray-700 mt-1">
-                                                                                    Taller: {spool.shop_welds_executed}/{spool.shop_welds_total} •
-                                                                                    Campo: {spool.field_welds_executed}/{spool.field_welds_total} •
-                                                                                    Total: {spool.welds.filter((w: any) => !w.deleted).length} uniones
-                                                                                </div>
+                                                                                <div className="text-gray-600">{isExpanded ? '▲' : '▼'}</div>
                                                                             </div>
-                                                                            <div className="text-gray-600">{isExpanded ? '▲' : '▼'}</div>
-                                                                        </div>
 
-                                                                        {/* Welds List */}
-                                                                        {isExpanded && (
-                                                                            <div className="border-t border-gray-300 bg-gray-50 p-2">
-                                                                                {spool.welds.map((weld, weldIndex) => {
-                                                                                    // Get adjacent welds for add button
-                                                                                    const prevWeld = weldIndex > 0 ? spool.welds[weldIndex - 1] : null
-                                                                                    const nextWeld = weld
+                                                                            {/* Welds List */}
+                                                                            {isExpanded && (
+                                                                                <div className="border-t border-gray-300 bg-gray-50 p-2">
+                                                                                    {spool.welds.map((weld, weldIndex) => {
+                                                                                        // Get adjacent welds for add button
+                                                                                        const prevWeld = weldIndex > 0 ? spool.welds[weldIndex - 1] : null
+                                                                                        const nextWeld = weld
 
-                                                                                    // Determine card background color
-                                                                                    const getCardBgClass = () => {
-                                                                                        if (weld.deleted) return 'bg-red-50 border-red-200'
-                                                                                        if (weld.executed) return 'bg-green-50 border-green-200'
-                                                                                        if (weld.rework_count > 0) return 'bg-orange-50 border-orange-200'
-                                                                                        return 'bg-white border-gray-300'
-                                                                                    }
+                                                                                        // Determine card background color
+                                                                                        const getCardBgClass = () => {
+                                                                                            if (weld.deleted) return 'bg-red-50 border-red-200'
+                                                                                            if (weld.executed) return 'bg-green-50 border-green-200'
+                                                                                            if (weld.rework_count > 0) return 'bg-orange-50 border-orange-200'
+                                                                                            return 'bg-white border-gray-300'
+                                                                                        }
 
-                                                                                    return (
-                                                                                        <div key={weld.id} className="relative group/weld">
-                                                                                            {/* Invisible hover zone for add button - between cards */}
-                                                                                            <div className="relative h-2 -mt-1 mb-1 first:mt-0 group/add">
-                                                                                                <button
-                                                                                                    onClick={(e) => {
-                                                                                                        e.stopPropagation()
-                                                                                                        const firstWeld = spool.welds[0]
-                                                                                                        handleAddWeld(prevWeld, nextWeld, firstWeld?.revision_id || '', firstWeld?.iso_number || '', firstWeld?.rev || '')
-                                                                                                    }}
-                                                                                                    className="absolute inset-x-0 -top-1 h-5 z-0 flex justify-center items-center transition-opacity"
-                                                                                                >
-                                                                                                    <div className="w-6 h-6 rounded-full bg-white border border-gray-300 opacity-30 hover:opacity-70 shadow-sm flex items-center justify-center transition-all">
-                                                                                                        <svg className="w-3.5 h-3.5 text-gray-600" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
-                                                                                                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-                                                                                                        </svg>
-                                                                                                    </div>
-                                                                                                </button>
-                                                                                            </div>
-
-                                                                                            {/* Weld Card */}
-                                                                                            <div
-                                                                                                draggable={isDragDropEnabled}
-                                                                                                onDragStart={(e) => handleWeldDragStart(e, weld.id)}
-                                                                                                onDragOver={handleWeldDragOver}
-                                                                                                onDrop={(e) => handleWeldDrop(e, weld.id, spool.welds)}
-                                                                                                onClick={() => !isDragDropEnabled && setSelectedWeld(weld)}
-                                                                                                className={`p-3 rounded-lg border flex justify-between items-center shadow-sm transition-all ${getCardBgClass()} ${isDragDropEnabled
-                                                                                                    ? 'cursor-grab active:cursor-grabbing hover:scale-[1.02]'
-                                                                                                    : 'cursor-pointer hover:shadow-md'
-                                                                                                    } ${draggedWeldId === weld.id ? 'opacity-50' : ''}`}
-                                                                                            >
-                                                                                                <div className="flex items-center gap-2">
-                                                                                                    {/* Drag Handle - Only visible when draggable */}
-                                                                                                    {isDragDropEnabled && (
-                                                                                                        <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                                                                                            <path strokeLinecap="round" strokeLinejoin="round" d="M4 8h16M4 16h16" />
-                                                                                                        </svg>
-                                                                                                    )}
-                                                                                                    <div>
-                                                                                                        <div className="font-bold text-gray-800 flex items-center gap-2">
-                                                                                                            {weld.weld_number}
-                                                                                                            <span className={`px-1.5 py-0.5 rounded text-xs font-bold ${weld.destination === 'S' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'
-                                                                                                                }`}>
-                                                                                                                {weld.destination === 'S' ? 'Taller' : 'Campo'}
-                                                                                                            </span>
-                                                                                                            {/* Rework Badge */}
-                                                                                                            {weld.rework_count > 0 && (
-                                                                                                                <span className="px-1.5 py-0.5 rounded text-xs font-bold bg-orange-100 text-orange-700 border border-orange-200">
-                                                                                                                    R{weld.rework_count}
-                                                                                                                </span>
-                                                                                                            )}
-                                                                                                        </div>
-                                                                                                        <div className="text-xs text-gray-600 flex items-center gap-1">
-                                                                                                            {weld.type_weld}
-                                                                                                            {!requiresWelder(weld.type_weld || '') && (
-                                                                                                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-800 border border-gray-200" title="No requiere soldador">
-                                                                                                                    No Soldada
-                                                                                                                </span>
-                                                                                                            )}
-                                                                                                            - {weld.nps}"
-                                                                                                        </div>
-                                                                                                    </div>
-                                                                                                </div>
-
-                                                                                                <div className="flex flex-col items-end gap-2">
-                                                                                                    <span
-                                                                                                        className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all ${weld.deleted
-                                                                                                            ? 'bg-red-100 text-red-700 border border-red-200'
-                                                                                                            : weld.executed
-                                                                                                                ? 'bg-green-100 text-green-700 border border-green-200'
-                                                                                                                : 'bg-gray-200 text-gray-700 border border-gray-300'
-                                                                                                            }`}
+                                                                                        return (
+                                                                                            <div key={weld.id} className="relative group/weld">
+                                                                                                {/* Invisible hover zone for add button - between cards */}
+                                                                                                <div className="relative h-2 -mt-1 mb-1 first:mt-0 group/add">
+                                                                                                    <button
+                                                                                                        onClick={(e) => {
+                                                                                                            e.stopPropagation()
+                                                                                                            const firstWeld = spool.welds[0]
+                                                                                                            handleAddWeld(prevWeld, nextWeld, firstWeld?.revision_id || '', firstWeld?.iso_number || '', firstWeld?.rev || '')
+                                                                                                        }}
+                                                                                                        className="absolute inset-x-0 -top-1 h-5 z-0 flex justify-center items-center transition-opacity"
                                                                                                     >
-                                                                                                        {weld.deleted ? 'ELIMINADA' : weld.executed ? 'EJECUTADO' : 'PENDIENTE'}
-                                                                                                    </span>
-                                                                                                    {/* Reportar button for pending welds (not deleted) */}
-                                                                                                    {!weld.executed && !weld.deleted && (
-                                                                                                        <button
-                                                                                                            onClick={(e) => {
-                                                                                                                e.stopPropagation()
-                                                                                                                setWeldForExecution(weld)
-                                                                                                                setShowExecutionModal(true)
-                                                                                                            }}
-                                                                                                            className="px-3 py-1 bg-green-600 text-white rounded-lg text-xs font-medium hover:bg-green-700 transition-colors flex items-center gap-1"
-                                                                                                        >
-                                                                                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                                                                                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                                                                                        <div className="w-6 h-6 rounded-full bg-white border border-gray-300 opacity-30 hover:opacity-70 shadow-sm flex items-center justify-center transition-all">
+                                                                                                            <svg className="w-3.5 h-3.5 text-gray-600" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
+                                                                                                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
                                                                                                             </svg>
-                                                                                                            Reportar
-                                                                                                        </button>
-                                                                                                    )}
+                                                                                                        </div>
+                                                                                                    </button>
+                                                                                                </div>
+
+                                                                                                {/* Weld Card */}
+                                                                                                <div
+                                                                                                    draggable={isDragDropEnabled}
+                                                                                                    onDragStart={(e) => handleWeldDragStart(e, weld.id)}
+                                                                                                    onDragOver={handleWeldDragOver}
+                                                                                                    onDrop={(e) => handleWeldDrop(e, weld.id, spool.welds)}
+                                                                                                    onClick={() => !isDragDropEnabled && setSelectedWeld(weld)}
+                                                                                                    className={`p-3 rounded-lg border flex justify-between items-center shadow-sm transition-all ${getCardBgClass()} ${isDragDropEnabled
+                                                                                                        ? 'cursor-grab active:cursor-grabbing hover:scale-[1.02]'
+                                                                                                        : 'cursor-pointer hover:shadow-md'
+                                                                                                        } ${draggedWeldId === weld.id ? 'opacity-50' : ''}`}
+                                                                                                >
+                                                                                                    <div className="flex items-center gap-2">
+                                                                                                        {/* Drag Handle - Only visible when draggable */}
+                                                                                                        {isDragDropEnabled && (
+                                                                                                            <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                                                                                                <path strokeLinecap="round" strokeLinejoin="round" d="M4 8h16M4 16h16" />
+                                                                                                            </svg>
+                                                                                                        )}
+                                                                                                        <div>
+                                                                                                            <div className="font-bold text-gray-800 flex items-center gap-2">
+                                                                                                                {weld.weld_number}
+                                                                                                                <span className={`px-1.5 py-0.5 rounded text-xs font-bold ${weld.destination === 'S' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'
+                                                                                                                    }`}>
+                                                                                                                    {weld.destination === 'S' ? 'Taller' : 'Campo'}
+                                                                                                                </span>
+                                                                                                                {/* Rework Badge */}
+                                                                                                                {weld.rework_count > 0 && (
+                                                                                                                    <span className="px-1.5 py-0.5 rounded text-xs font-bold bg-orange-100 text-orange-700 border border-orange-200">
+                                                                                                                        R{weld.rework_count}
+                                                                                                                    </span>
+                                                                                                                )}
+                                                                                                            </div>
+                                                                                                            <div className="text-xs text-gray-600 flex items-center gap-1">
+                                                                                                                {weld.type_weld}
+                                                                                                                {!requiresWelder(weld.type_weld || '') && (
+                                                                                                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-800 border border-gray-200" title="No requiere soldador">
+                                                                                                                        No Soldada
+                                                                                                                    </span>
+                                                                                                                )}
+                                                                                                                - {weld.nps}"
+                                                                                                            </div>
+                                                                                                        </div>
+                                                                                                    </div>
+
+                                                                                                    <div className="flex flex-col items-end gap-2">
+                                                                                                        <span
+                                                                                                            className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all ${weld.deleted
+                                                                                                                ? 'bg-red-100 text-red-700 border border-red-200'
+                                                                                                                : weld.executed
+                                                                                                                    ? 'bg-green-100 text-green-700 border border-green-200'
+                                                                                                                    : 'bg-gray-200 text-gray-700 border border-gray-300'
+                                                                                                                }`}
+                                                                                                        >
+                                                                                                            {weld.deleted ? 'ELIMINADA' : weld.executed ? 'EJECUTADO' : 'PENDIENTE'}
+                                                                                                        </span>
+                                                                                                        {/* Reportar button for pending welds (not  deleted) - Only show if user has create permission */}
+                                                                                                        {!weld.executed && !weld.deleted && userRole && hasPermission(userRole, 'juntas', 'create') && (
+                                                                                                            <button
+                                                                                                                onClick={(e) => {
+                                                                                                                    e.stopPropagation()
+                                                                                                                    setWeldForExecution(weld)
+                                                                                                                    setShowExecutionModal(true)
+                                                                                                                }}
+                                                                                                                className="px-3 py-1 bg-green-600 text-white rounded-lg text-xs font-medium hover:bg-green-700 transition-colors flex items-center gap-1"
+                                                                                                            >
+                                                                                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                                                                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                                                                                                </svg>
+                                                                                                                Reportar
+                                                                                                            </button>
+                                                                                                        )}
+                                                                                                    </div>
                                                                                                 </div>
                                                                                             </div>
-                                                                                        </div>
-                                                                                    )
-                                                                                })}
+                                                                                        )
+                                                                                    })}
 
-                                                                                {/* Add Button at the end - appears on hover near bottom */}
-                                                                                <div className="relative h-3 mt-1 group/add">
-                                                                                    <button
-                                                                                        onClick={(e) => {
-                                                                                            e.stopPropagation()
-                                                                                            const lastWeld = spool.welds[spool.welds.length - 1]
-                                                                                            const firstWeld = spool.welds[0]
-                                                                                            handleAddWeld(lastWeld || null, null, firstWeld?.revision_id || '', firstWeld?.iso_number || '', firstWeld?.rev || '')
-                                                                                        }}
-                                                                                        className="absolute inset-x-0 top-0 h-5 z-0 flex justify-center items-center transition-opacity"
-                                                                                    >
-                                                                                        <div className="w-6 h-6 rounded-full bg-white border border-gray-300 opacity-30 hover:opacity-70 shadow-sm flex items-center justify-center transition-all">
-                                                                                            <svg className="w-3.5 h-3.5 text-gray-600" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
-                                                                                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-                                                                                            </svg>
-                                                                                        </div>
-                                                                                    </button>
+                                                                                    {/* Add Button at the end - appears on hover near bottom */}
+                                                                                    <div className="relative h-3 mt-1 group/add">
+                                                                                        <button
+                                                                                            onClick={(e) => {
+                                                                                                e.stopPropagation()
+                                                                                                const lastWeld = spool.welds[spool.welds.length - 1]
+                                                                                                const firstWeld = spool.welds[0]
+                                                                                                handleAddWeld(lastWeld || null, null, firstWeld?.revision_id || '', firstWeld?.iso_number || '', firstWeld?.rev || '')
+                                                                                            }}
+                                                                                            className="absolute inset-x-0 top-0 h-5 z-0 flex justify-center items-center transition-opacity"
+                                                                                        >
+                                                                                            <div className="w-6 h-6 rounded-full bg-white border border-gray-300 opacity-30 hover:opacity-70 shadow-sm flex items-center justify-center transition-all">
+                                                                                                <svg className="w-3.5 h-3.5 text-gray-600" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
+                                                                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                                                                                                </svg>
+                                                                                            </div>
+                                                                                        </button>
+                                                                                    </div>
                                                                                 </div>
-                                                                            </div>
-                                                                        )}
-                                                                    </div>
-                                                                )
-                                                            })}
-                                                        </div>
+                                                                            )}
+                                                                        </div>
+                                                                    )
+                                                                })
+                                                                }</div>
+                                                        ) : (
+                                                            <div className="p-8 text-center">
+                                                                <p className="text-gray-600">No tienes permisos para ver uniones.</p>
+                                                            </div>
+                                                        )
                                                     )}
 
                                                     {activeTab === 'SPOOLS' && (
@@ -1674,12 +1684,16 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
                                                                                             </div>
                                                                                             <button
                                                                                                 onClick={(e) => {
-                                                                                                    if (phase.click) {
+                                                                                                    if (phase.click && userRole && hasPermission(userRole, 'spools', 'update')) {
                                                                                                         e.stopPropagation()
                                                                                                         phase.click()
                                                                                                     }
                                                                                                 }}
-                                                                                                className={`text-xs font-bold px-2 py-1 rounded border ${getStatusColor(phase.status)} ${phase.click ? 'hover:brightness-95 cursor-pointer' : 'cursor-default'}`}
+                                                                                                disabled={!userRole || !hasPermission(userRole, 'spools', 'update')}
+                                                                                                className={`text-xs font-bold px-2 py-1 rounded border ${getStatusColor(phase.status)} ${!userRole || !hasPermission(userRole, 'spools', 'update')
+                                                                                                        ? 'opacity-50 cursor-not-allowed'
+                                                                                                        : (phase.click ? 'hover:brightness-95 cursor-pointer' : 'cursor-default')
+                                                                                                    }`}
                                                                                             >
                                                                                                 {getStatusLabel(phase.status)}
                                                                                             </button>
@@ -1688,18 +1702,24 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
 
                                                                                     {/* Action Buttons */}
                                                                                     <div className="mt-4 pt-3 border-t border-gray-300 flex gap-2">
-                                                                                        <button
-                                                                                            onClick={() => handleOpenSpoolInfoModal(spool)}
-                                                                                            className="flex-1 px-3 py-2 text-sm font-medium text-blue-700 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
-                                                                                        >
-                                                                                            📏 Información del Spool
-                                                                                        </button>
-                                                                                        <button
-                                                                                            onClick={() => handleOpenLevantamientoModal(spool)}
-                                                                                            className="flex-1 px-3 py-2 text-sm font-medium text-purple-700 bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors"
-                                                                                        >
-                                                                                            📷 Levantamiento
-                                                                                        </button>
+                                                                                        {/* Edit Info - requires UPDATE permission */}
+                                                                                        {userRole && hasPermission(userRole, 'spools', 'update') && (
+                                                                                            <button
+                                                                                                onClick={() => handleOpenSpoolInfoModal(spool)}
+                                                                                                className="flex-1 px-3 py-2 text-sm font-medium text-blue-700 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
+                                                                                            >
+                                                                                                📏 Información del Spool
+                                                                                            </button>
+                                                                                        )}
+                                                                                        {/* Levantamiento - requires CREATE permission */}
+                                                                                        {userRole && hasPermission(userRole, 'spools', 'create') && (
+                                                                                            <button
+                                                                                                onClick={() => handleOpenLevantamientoModal(spool)}
+                                                                                                className="flex-1 px-3 py-2 text-sm font-medium text-purple-700 bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors"
+                                                                                            >
+                                                                                                📷 Levantamiento
+                                                                                            </button>
+                                                                                        )}
                                                                                     </div>
                                                                                 </div>
                                                                             )}
@@ -1753,6 +1773,7 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
                         weld={selectedWeld}
                         projectId={projectId}
                         requiresWelder={requiresWelder}
+                        userRole={userRole}
                         onClose={() => setSelectedWeld(null)}
                         onUpdate={handleWeldUpdate}
                         onRework={(weld) => {

@@ -24,7 +24,7 @@ export default function MasterViewsPage() {
     return (
         <ProtectedRoute requireAuth requireActive>
             {/* Full-screen white background for mobile field use - with top padding for navbar */}
-            <div className="fixed inset-0 top-16 bg-white overflow-auto px-3 py-4">
+            <div className="fixed inset-0 top-16 bg-white overflow-auto px-3 py-4 min-h-screen">
                 {proyecto ? (
                     <MasterViewsManager projectId={proyecto.id} />
                 ) : (
