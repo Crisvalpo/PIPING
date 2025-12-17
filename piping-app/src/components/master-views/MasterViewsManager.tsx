@@ -22,6 +22,7 @@ import {
 import type { IsometricDetails } from '@/services/master-views'
 import { supabase } from '@/lib/supabase'
 import { hasPermission } from '@/config/roles'
+import { useRolesStore } from '@/store/roles-store'
 import SpoolPhaseModal from '@/components/spools/SpoolPhaseModal'
 import SpoolInfoModal from '@/components/spools/SpoolInfoModal'
 import LevantamientoModal from '@/components/spools/LevantamientoModal'
@@ -253,18 +254,58 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
     // Fetch user role on mount
     useEffect(() => {
         async function fetchUserRole() {
+            console.log('🔍 DEBUG: Fetching user role...')
             const { data: { user } } = await supabase.auth.getUser()
+            console.log('👤 DEBUG: User from auth:', user?.email, user?.id)
             if (user) {
-                const { data } = await supabase
+                const { data, error } = await supabase
                     .from('users')
                     .select('rol')
                     .eq('id', user.id)
                     .single()
-                if (data?.rol) setUserRole(data.rol.toUpperCase())
+                console.log('🎭 DEBUG: User role from DB:', data?.rol, 'Error:', error)
+                if (data?.rol) {
+                    const roleUpper = data.rol.toUpperCase()
+                    console.log('✅ DEBUG: Setting userRole to:', roleUpper)
+                    setUserRole(roleUpper)
+                } else {
+                    console.warn('⚠️ DEBUG: No rol found for user')
+                }
+            } else {
+                console.warn('⚠️ DEBUG: No user authenticated')
             }
         }
         fetchUserRole()
     }, [])
+
+    // Fetch roles from database on mount for dynamic permissions
+    const fetchRolesFromStore = useRolesStore(state => state.fetchRoles)
+    useEffect(() => {
+        console.log('📥 DEBUG: Fetching roles from store...')
+        fetchRolesFromStore().then(() => {
+            console.log('✅ DEBUG: Roles loaded from database')
+        })
+    }, [])
+
+    // Debug: Log whenever userRole changes
+    useEffect(() => {
+        console.log('🎯 DEBUG: userRole changed to:', userRole)
+        if (userRole) {
+            // Import store to check its state
+            const { useRolesStore } = require('@/store/roles-store')
+            const storeState = useRolesStore.getState()
+
+            console.log('🏪 DEBUG: Roles store state:', {
+                rolesKeys: Object.keys(storeState.roles),
+                hasUserRole: !!storeState.roles[userRole],
+                userRoleData: storeState.roles[userRole]
+            })
+
+            console.log(`📋 DEBUG: Testing permissions for role "${userRole}":`)
+            console.log(`  - hasPermission(${userRole}, 'isometricos', 'create'):`, hasPermission(userRole, 'isometricos', 'create'))
+            console.log(`  - hasPermission(${userRole}, 'isometricos', 'delete'):`, hasPermission(userRole, 'isometricos', 'delete'))
+        }
+    }, [userRole])
 
     // Load configs on mount
     useEffect(() => {
