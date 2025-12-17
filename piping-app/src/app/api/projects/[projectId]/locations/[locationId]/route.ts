@@ -12,10 +12,10 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey || process.env.NEX
  */
 export async function PUT(
     request: NextRequest,
-    { params }: { params: { projectId: string; locationId: string } }
+    { params }: { params: Promise<{ projectId: string; locationId: string }> }
 ) {
     try {
-        const { projectId, locationId } = params
+        const { projectId, locationId } = await params
         const body = await request.json()
 
         const {
@@ -99,10 +99,10 @@ export async function PUT(
  */
 export async function DELETE(
     request: NextRequest,
-    { params }: { params: { projectId: string; locationId: string } }
+    { params }: { params: Promise<{ projectId: string; locationId: string }> }
 ) {
     try {
-        const { projectId, locationId } = params
+        const { projectId, locationId } = await params
         const { searchParams } = new URL(request.url)
         const hardDelete = searchParams.get('hard') === 'true'
 

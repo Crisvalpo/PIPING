@@ -55,6 +55,8 @@ export default function LocationForm({ projectId, location, onClose, onSuccess }
 
             const method = location ? 'PUT' : 'POST'
 
+            console.log('[LocationForm] Sending request:', { url, method, payload, projectId })
+
             const response = await fetch(url, {
                 method,
                 headers: {
@@ -63,13 +65,20 @@ export default function LocationForm({ projectId, location, onClose, onSuccess }
                 body: JSON.stringify(payload),
             })
 
+            console.log('[LocationForm] Response status:', response.status)
+
             if (!response.ok) {
-                const error = await response.json()
-                throw new Error(error.error || 'Error al guardar')
+                const errorData = await response.json()
+                console.error('[LocationForm] Error response:', errorData)
+                throw new Error(errorData.error || `Error ${response.status}: ${response.statusText}`)
             }
+
+            const result = await response.json()
+            console.log('[LocationForm] Success:', result)
 
             onSuccess()
         } catch (error: any) {
+            console.error('[LocationForm] Exception:', error)
             setError(error.message)
         } finally {
             setSaving(false)

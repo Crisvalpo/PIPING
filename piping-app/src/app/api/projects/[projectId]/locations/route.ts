@@ -11,10 +11,12 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey || process.env.NEX
  */
 export async function GET(
     request: NextRequest,
-    { params }: { params: { projectId: string } }
+    { params }: { params: Promise<{ projectId: string }> }
 ) {
     try {
-        const { projectId } = params
+        const { projectId } = await params
+
+        console.log('[GET locations] Request for projectId:', projectId)
 
         const { data, error } = await supabase
             .from('project_locations')
@@ -24,13 +26,14 @@ export async function GET(
             .order('name', { ascending: true })
 
         if (error) {
-            console.error('[GET locations] Error:', error)
+            console.error('[GET locations] Supabase error:', error)
             return NextResponse.json(
-                { error: 'Error al obtener ubicaciones' },
+                { error: `Error al obtener ubicaciones: ${error.message || error.code || 'Error desconocido'}`, details: error },
                 { status: 500 }
             )
         }
 
+        console.log('[GET locations] Success, found', data?.length || 0, 'locations')
         return NextResponse.json(data || [])
 
     } catch (error: any) {
@@ -49,10 +52,10 @@ export async function GET(
  */
 export async function POST(
     request: NextRequest,
-    { params }: { params: { projectId: string } }
+    { params }: { params: Promise<{ projectId: string }> }
 ) {
     try {
-        const { projectId } = params
+        const { projectId } = await params
         const body = await request.json()
 
         const {
@@ -107,7 +110,7 @@ export async function POST(
             }
 
             return NextResponse.json(
-                { error: 'Error al crear ubicación' },
+                { error: `Error al crear ubicación: ${error.message || error.code || 'Error desconocido'}`, details: error },
                 { status: 500 }
             )
         }
