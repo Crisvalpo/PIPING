@@ -21,6 +21,7 @@ import {
 } from '@/services/master-views'
 import type { IsometricDetails } from '@/services/master-views'
 import { supabase } from '@/lib/supabase'
+import { hasPermission } from '@/config/roles'
 import SpoolPhaseModal from '@/components/spools/SpoolPhaseModal'
 import SpoolInfoModal from '@/components/spools/SpoolInfoModal'
 import LevantamientoModal from '@/components/spools/LevantamientoModal'
@@ -1163,16 +1164,19 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
                                                                             >
                                                                                 Ver PDF
                                                                             </button>
-                                                                            <button
-                                                                                onClick={(e) => {
-                                                                                    e.stopPropagation()
-                                                                                    handleDeleteFile(file.id, file.file_url, file.file_name)
-                                                                                }}
-                                                                                className="ml-2 px-2 py-1 bg-red-600 text-white rounded text-xs font-medium hover:bg-red-700 transition-colors flex-shrink-0"
-                                                                                title="Eliminar archivo"
-                                                                            >
-                                                                                ✕
-                                                                            </button>
+                                                                            {/* Delete button - only show if user has delete permission */}
+                                                                            {hasPermission(userRole, 'isometricos', 'delete') && (
+                                                                                <button
+                                                                                    onClick={(e) => {
+                                                                                        e.stopPropagation()
+                                                                                        handleDeleteFile(file.id, file.file_url, file.file_name)
+                                                                                    }}
+                                                                                    className="ml-2 px-2 py-1 bg-red-600 text-white rounded text-xs font-medium hover:bg-red-700 transition-colors flex-shrink-0"
+                                                                                    title="Eliminar archivo"
+                                                                                >
+                                                                                    ✕
+                                                                                </button>
+                                                                            )}
                                                                         </div>
                                                                     ))}
                                                                 </div>
