@@ -45,24 +45,24 @@ export default function Home() {
       <div
         className="absolute inset-0 z-0"
         style={{
-          backgroundImage: 'url("https://png.pngtree.com/background/20250124/original/pngtree-oil-gas-pipeline-background-images-picture-image_15885396.jpg")',
+          backgroundImage: 'url("https://images.unsplash.com/photo-1581094794329-c8112a89af12?w=1920&q=60&auto=format&fit=crop")',
           backgroundSize: 'cover',
           backgroundPosition: 'center',
           backgroundRepeat: 'no-repeat',
         }}
       >
-        <div className="absolute inset-0 bg-gradient-to-br from-indigo-900/90 via-purple-900/90 to-black/80 backdrop-blur-sm"></div>
+        <div className="absolute inset-0 bg-gradient-to-br from-indigo-900/90 via-purple-900/90 to-black/80"></div>
       </div>
 
       <div className="w-full max-w-6xl mx-auto text-center relative z-10">
         {/* Hero Section */}
-        <div className="backdrop-blur-xl bg-white/10 rounded-3xl shadow-2xl border border-white/20 p-6 md:p-12 mb-12 relative overflow-hidden animate-fade-in">
+        <div className="backdrop-blur-md bg-white/10 rounded-3xl shadow-2xl border border-white/20 p-6 md:p-12 mb-12 relative overflow-hidden animate-fade-in">
 
           <div className="inline-block p-4 bg-gradient-to-br from-blue-500 to-purple-500 rounded-3xl mb-6 shadow-lg transform hover:scale-105 transition-transform duration-300">
             <Logo className="text-white" size={80} />
           </div>
 
-          <h1 className="text-4xl md:text-7xl font-bold text-white mb-6 leading-tight break-words drop-shadow-lg">
+          <h1 className="text-4xl md:text-7xl font-bold text-white mb-6 leading-tight break-words drop-shadow-md">
             Bienvenido a <br className="md:hidden" />
             <span className="bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">LukeAPP</span>
           </h1>
@@ -137,7 +137,7 @@ export default function Home() {
 
         {/* Sección Para Empresas */}
         <div className="mb-12 animate-fade-in-up delay-200">
-          <div className="backdrop-blur-xl bg-gradient-to-r from-gray-900/60 to-slate-900/60 rounded-2xl border border-yellow-500/30 p-8 max-w-3xl mx-auto transform hover:scale-[1.02] transition-all duration-300 shadow-2xl shadow-yellow-900/20">
+          <div className="backdrop-blur-md bg-gradient-to-r from-gray-900/60 to-slate-900/60 rounded-2xl border border-yellow-500/30 p-8 max-w-3xl mx-auto transform hover:scale-[1.02] transition-all duration-300 shadow-2xl shadow-yellow-900/20">
             <div className="flex flex-col md:flex-row items-center justify-between gap-6">
               <div className="text-left">
                 <div className="flex items-center gap-2 mb-2">
@@ -166,7 +166,7 @@ export default function Home() {
 
         {/* Features Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 animate-fade-in-up delay-300">
-          <div className="backdrop-blur-xl bg-white/10 rounded-2xl shadow-xl border border-white/20 p-6 transform transition-all duration-200 hover:scale-105 hover:bg-white/15">
+          <div className="backdrop-blur-md bg-white/10 rounded-2xl shadow-xl border border-white/20 p-6 transform transition-all duration-200 hover:scale-105 hover:bg-white/15">
             <div className="p-3 bg-gradient-to-br from-green-500 to-emerald-500 rounded-xl inline-block mb-4 shadow-lg shadow-green-500/20">
               <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
@@ -176,7 +176,7 @@ export default function Home() {
             <p className="text-purple-200 text-sm">Tus datos están protegidos con la mejor tecnología de encriptación</p>
           </div>
 
-          <div className="backdrop-blur-xl bg-white/10 rounded-2xl shadow-xl border border-white/20 p-6 transform transition-all duration-200 hover:scale-105 hover:bg-white/15">
+          <div className="backdrop-blur-md bg-white/10 rounded-2xl shadow-xl border border-white/20 p-6 transform transition-all duration-200 hover:scale-105 hover:bg-white/15">
             <div className="p-3 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-xl inline-block mb-4 shadow-lg shadow-blue-500/20">
               <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
@@ -186,7 +186,7 @@ export default function Home() {
             <p className="text-purple-200 text-sm">Experiencia fluida y optimizada para máxima velocidad</p>
           </div>
 
-          <div className="backdrop-blur-xl bg-white/10 rounded-2xl shadow-xl border border-white/20 p-6 transform transition-all duration-200 hover:scale-105 hover:bg-white/15">
+          <div className="backdrop-blur-md bg-white/10 rounded-2xl shadow-xl border border-white/20 p-6 transform transition-all duration-200 hover:scale-105 hover:bg-white/15">
             <div className="p-3 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl inline-block mb-4 shadow-lg shadow-purple-500/20">
               <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5" />
@@ -196,7 +196,7 @@ export default function Home() {
             <p className="text-purple-200 text-sm">Interfaz intuitiva diseñada para tu comodidad</p>
           </div>
 
-          <div className="backdrop-blur-xl bg-white/10 rounded-2xl shadow-xl border border-white/20 p-6 transform transition-all duration-200 hover:scale-105 hover:bg-white/15">
+          <div className="backdrop-blur-md bg-white/10 rounded-2xl shadow-xl border border-white/20 p-6 transform transition-all duration-200 hover:scale-105 hover:bg-white/15">
             <div className="p-3 bg-gradient-to-br from-orange-500 to-red-500 rounded-xl inline-block mb-4 shadow-lg shadow-orange-500/20">
               <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />

@@ -680,32 +680,35 @@ export default function EngineeringManager({ projectId }: EngineeringManagerProp
                                                         </svg>
                                                     </button>
                                                     {/* Botón Eliminar (Soft o Hard) */}
-                                                    <button
-                                                        className={`p-2 hover:bg-white/10 rounded transition-colors ${isVigente || (activeRev.estado === 'ELIMINADA' && (userRole === 'ADMIN' || userRole === 'SUPER_ADMIN'))
+                                                    {/* Botón Eliminar (Soft o Hard) */}
+                                                    {hasPermission(userRole, 'isometricos', 'delete') && (
+                                                        <button
+                                                            className={`p-2 hover:bg-white/10 rounded transition-colors ${isVigente || (activeRev.estado === 'ELIMINADA' && (userRole === 'ADMIN' || userRole === 'SUPER_ADMIN'))
                                                                 ? 'text-red-400 hover:bg-red-500/20'
                                                                 : 'opacity-30 cursor-not-allowed text-gray-500'
-                                                            }`}
-                                                        onClick={() => {
-                                                            if (activeRev.estado === 'ELIMINADA') {
-                                                                // Hard Delete - Solo Admin
-                                                                if (userRole === 'ADMIN' || userRole === 'SUPER_ADMIN') {
-                                                                    handleHardDeleteRevision(activeRev.id, iso.codigo)
+                                                                }`}
+                                                            onClick={() => {
+                                                                if (activeRev.estado === 'ELIMINADA') {
+                                                                    // Hard Delete - Solo Admin
+                                                                    if (userRole === 'ADMIN' || userRole === 'SUPER_ADMIN') {
+                                                                        handleHardDeleteRevision(activeRev.id, iso.codigo)
+                                                                    }
+                                                                } else if (isVigente) {
+                                                                    // Soft Delete
+                                                                    handleDeleteRevision(activeRev.id, activeRev.estado)
                                                                 }
-                                                            } else if (isVigente) {
-                                                                // Soft Delete
-                                                                handleDeleteRevision(activeRev.id, activeRev.estado)
+                                                            }}
+                                                            disabled={
+                                                                (!isVigente && activeRev.estado !== 'ELIMINADA') ||
+                                                                (activeRev.estado === 'ELIMINADA' && userRole !== 'ADMIN' && userRole !== 'SUPER_ADMIN')
                                                             }
-                                                        }}
-                                                        disabled={
-                                                            (!isVigente && activeRev.estado !== 'ELIMINADA') ||
-                                                            (activeRev.estado === 'ELIMINADA' && userRole !== 'ADMIN' && userRole !== 'SUPER_ADMIN')
-                                                        }
-                                                        title={activeRev.estado === 'ELIMINADA' ? "☠️ ELIMINAR PARA SIEMPRE (Solo Admin)" : "Eliminar Revisión"}
-                                                    >
-                                                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                                        </svg>
-                                                    </button>
+                                                            title={activeRev.estado === 'ELIMINADA' ? "☠️ ELIMINAR PARA SIEMPRE (Solo Admin)" : "Eliminar Revisión"}
+                                                        >
+                                                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                            </svg>
+                                                        </button>
+                                                    )}
                                                 </div>
                                             </td>
                                         </tr>

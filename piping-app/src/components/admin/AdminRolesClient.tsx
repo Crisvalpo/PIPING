@@ -142,7 +142,79 @@ export default function AdminRolesClient() {
         return 'Otros'
     }
 
-    if (loading) return <div className="p-8 text-center text-white">Cargando roles...</div>
+    // Skeleton loader that matches the final layout structure
+    const LoadingSkeleton = () => (
+        <div className="flex flex-col lg:flex-row h-[calc(100vh-80px)] gap-6 pb-20 lg:pb-0">
+            {/* Sidebar Skeleton */}
+            <div className="w-full lg:w-1/4 bg-white/5 border border-white/10 rounded-xl overflow-hidden flex flex-col">
+                <div className="p-4 border-b border-white/10 bg-white/5">
+                    <div className="h-5 bg-white/10 rounded w-32 mb-2 animate-pulse"></div>
+                    <div className="h-3 bg-white/5 rounded w-40 animate-pulse"></div>
+                </div>
+                <div className="flex-1 overflow-y-auto">
+                    {/* Role group skeleton */}
+                    {[1, 2, 3].map(group => (
+                        <div key={group}>
+                            <div className="px-4 py-2 bg-white/5">
+                                <div className="h-3 bg-white/10 rounded w-24 animate-pulse"></div>
+                            </div>
+                            {/* Role items skeleton */}
+                            {[1, 2, 3].map(item => (
+                                <div key={item} className="p-4 border-b border-white/5">
+                                    <div className="h-4 bg-white/10 rounded w-48 mb-2 animate-pulse"></div>
+                                    <div className="h-4 bg-white/5 rounded w-16 animate-pulse"></div>
+                                </div>
+                            ))}
+                        </div>
+                    ))}
+                </div>
+            </div>
+
+            {/* Main Panel Skeleton */}
+            <div className="flex-1 bg-white/5 border border-white/10 rounded-xl flex flex-col overflow-hidden">
+                {/* Header Skeleton */}
+                <div className="p-6 border-b border-white/10 bg-white/5">
+                    <div className="h-6 bg-white/10 rounded w-56 mb-2 animate-pulse"></div>
+                    <div className="h-4 bg-white/5 rounded w-72 animate-pulse"></div>
+                </div>
+
+                {/* Table Skeleton */}
+                <div className="flex-1 overflow-auto p-6">
+                    <div className="w-full">
+                        {/* Table Header */}
+                        <div className="flex border-b border-white/10 pb-3 mb-3">
+                            <div className="w-1/3 px-4">
+                                <div className="h-3 bg-white/10 rounded w-20 animate-pulse"></div>
+                            </div>
+                            {[1, 2, 3, 4, 5].map(col => (
+                                <div key={col} className="flex-1 px-4 text-center">
+                                    <div className="h-3 bg-white/10 rounded w-12 mx-auto animate-pulse"></div>
+                                </div>
+                            ))}
+                        </div>
+                        {/* Table Rows */}
+                        {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(row => (
+                            <div key={row} className="flex border-b border-white/5 py-3">
+                                <div className="w-1/3 px-4">
+                                    <div className="h-4 bg-white/10 rounded w-32 animate-pulse"></div>
+                                </div>
+                                {[1, 2, 3, 4].map(col => (
+                                    <div key={col} className="flex-1 px-4 flex justify-center">
+                                        <div className="h-4 w-4 bg-white/10 rounded animate-pulse"></div>
+                                    </div>
+                                ))}
+                                <div className="flex-1 px-4 flex justify-center">
+                                    <div className="h-6 bg-white/10 rounded w-20 animate-pulse"></div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </div>
+        </div>
+    )
+
+    if (loading) return <LoadingSkeleton />
 
     // Group roles for display
     const rolesByGroup = ROLE_GROUPS.map(group => ({
