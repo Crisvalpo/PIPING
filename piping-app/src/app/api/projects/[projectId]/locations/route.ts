@@ -14,7 +14,7 @@ export async function GET(
     { params }: { params: { projectId: string } }
 ) {
     try {
-        const { project Id } = params
+        const { projectId } = params
 
         const { data, error } = await supabase
             .from('project_locations')

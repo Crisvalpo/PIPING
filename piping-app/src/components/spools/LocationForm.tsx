@@ -101,7 +101,7 @@ export default function LocationForm({ projectId, location, onClose, onSuccess }
                             type="text"
                             value={formData.name}
                             onChange={(e) => handleChange('name', e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
                             placeholder="Bodega Central, Terreno Sector A, etc."
                             required
                         />
@@ -116,7 +116,7 @@ export default function LocationForm({ projectId, location, onClose, onSuccess }
                             type="text"
                             value={formData.code}
                             onChange={(e) => handleChange('code', e.target.value.toUpperCase())}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-gray-900"
                             placeholder="BC, TSA, etc."
                             maxLength={10}
                         />
@@ -130,7 +130,7 @@ export default function LocationForm({ projectId, location, onClose, onSuccess }
                         <select
                             value={formData.type}
                             onChange={(e) => handleChange('type', e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
                             required
                         >
                             <option value="workshop">🏭 Maestranza</option>
@@ -150,7 +150,7 @@ export default function LocationForm({ projectId, location, onClose, onSuccess }
                         <textarea
                             value={formData.description}
                             onChange={(e) => handleChange('description', e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
                             placeholder="Descripción de la ubicación..."
                             rows={3}
                         />
@@ -166,7 +166,7 @@ export default function LocationForm({ projectId, location, onClose, onSuccess }
                                 type="number"
                                 value={formData.capacity}
                                 onChange={(e) => handleChange('capacity', e.target.value)}
-                                className="w-32 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                className="w-32 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
                                 placeholder="100"
                                 min="0"
                             />
