@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useUIStore } from '@/store/ui-store'
+import { useNetworkStatus } from '@/hooks/useNetworkStatus'
 
 // ... imports
 
@@ -108,6 +109,9 @@ export default function SpoolPhaseModal({
     const [history, setHistory] = useState<HistoryItem[]>([])
     const [loadingHistory, setLoadingHistory] = useState(false)
 
+    // Offline Check
+    const isOnline = useNetworkStatus()
+
     // Handle Focus Mode
     useEffect(() => {
         setFocusMode(true)
@@ -145,24 +149,27 @@ export default function SpoolPhaseModal({
         setError(null)
 
         try {
-            // Get current user
-            const { data: { user }, error: userError } = await supabase.auth.getUser()
-            if (userError || !user) {
-                throw new Error('No se pudo obtener el usuario actual')
+            // Offline handling: check user first safely
+            let userId = 'offline';
+            let userEmail = 'offline@user';
+
+            if (isOnline) {
+                const { data: { user }, error: userError } = await supabase.auth.getUser()
+                if (userError || !user) throw new Error('No se pudo obtener el usuario actual')
+
+                // Verify user belongs to project
+                const { data: userData, error: userDataError } = await supabase
+                    .from('users')
+                    .select('proyecto_id, rol')
+                    .eq('id', user.id)
+                    .single()
+
+                if (userDataError || !userData) throw new Error('Usuario no encontrado en el sistema')
+                userId = user.id;
+                userEmail = user.email || 'unknown';
             }
 
-            // Verify user belongs to project
-            const { data: userData, error: userDataError } = await supabase
-                .from('users')
-                .select('proyecto_id, rol')
-                .eq('id', user.id)
-                .single()
-
-            if (userDataError || !userData) {
-                throw new Error('Usuario no encontrado en el sistema')
-            }
-
-            // Build request body
+            // Build payload
             const requestBody: any = {
                 revisionId,
                 projectId,
@@ -179,22 +186,82 @@ export default function SpoolPhaseModal({
                 requestBody.dispatchTrackingNumber = dispatchTrackingNumber.trim()
             }
 
-            // Get current session for token
-            const { data: { session } } = await supabase.auth.getSession()
+            if (!isOnline) {
+                // --- OFFLINE FLOW ---
+                console.log('Modo Offline: Guardando tracking de spool en cola pendientes...');
+                const { db } = await import('@/lib/db');
 
-            // Call API to update phase
-            const response = await fetch(`/api/spools/${encodeURIComponent(spoolNumber)}/fabrication`, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${session?.access_token}`
-                },
-                body: JSON.stringify(requestBody)
-            })
+                // 1. Guardar Pending Action
+                await db.pendingActions.add({
+                    id: crypto.randomUUID(),
+                    type: 'UPDATE_SPOOL_PHASE',
+                    project_id: projectId,
+                    payload: {
+                        spoolNumber, // Need spoolNumber for API URL construction in SyncManager
+                        ...requestBody
+                    },
+                    created_at: new Date().toISOString(),
+                    status: 'PENDING',
+                    retry_count: 0
+                });
 
-            if (!response.ok) {
-                const errorData = await response.json()
-                throw new Error(errorData.error || 'Error al actualizar la fase')
+                // 2. Actualización Optimista Local (Opcional pero recomendada para ver cambio inmediato)
+                // Necesitamos actualizar db.spools si tenemos tabla de tracking local separada
+                // Actualmente db.spools stores "LocalSpool" structure. 
+                // We should update the specific field corresponding to the phase.
+                // Mapping phase to field columns:
+                // ndt -> ndt_status? 
+                // LocalSpool interface needs to support these status fields if not already.
+                // Assuming LocalSpool mirrors the structure used in groupSpoolsForFabrication/MasterViewsManager logic.
+                // Let's inspect LocalSpool definition later if update fails. For now, pending action is enough for system sync.
+                // But for UI feedback, MasterViewsManager relies on 'details' state or re-fetch.
+                // onUpdate() callback in parent triggers re-fetch.
+                // We need to ensure MasterViewsManager.loadIsometrics/loadDetails reads the PENDING state or specific local overrides?
+                // MasterViewsManager implementation (viewed earlier) re-reads locally if offline.
+                // We should update 'db.spools' record for this spool.
+
+                // Update local spool record if exists
+                // LocalSpool uses 'spool_number' as primary key in Dexie schema: 'spool_number, revision_id, ...'
+                // So update() should use spoolNumber as key, OR use modify() on collection.
+
+                const existingSpool = await db.spools.where('spool_number').equals(spoolNumber).first();
+                if (existingSpool) {
+                    const updateData: any = {};
+                    const statusFieldMap: Record<string, string> = {
+                        'ndt': 'ndt_status',
+                        'pwht': 'pwht_status',
+                        'surface_treatment': 'surface_treatment_status',
+                        'dispatch': 'dispatch_status',
+                        'field_erection': 'field_erection_status'
+                    };
+
+                    if (statusFieldMap[phase]) {
+                        updateData[statusFieldMap[phase]] = status;
+                        // Use put to update the object since spool_number is key
+                        await db.spools.put({ ...existingSpool, ...updateData });
+                        console.log('Spool local actualizado:', updateData);
+                    }
+                }
+
+                alert('💾 Cambio de fase guardado localmente (se sincronizará al conectar)');
+
+            } else {
+                // --- ONLINE FLOW ---
+                const { data: { session } } = await supabase.auth.getSession()
+
+                const response = await fetch(`/api/spools/${encodeURIComponent(spoolNumber)}/fabrication`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${session?.access_token}`
+                    },
+                    body: JSON.stringify(requestBody)
+                })
+
+                if (!response.ok) {
+                    const errorData = await response.json()
+                    throw new Error(errorData.error || 'Error al actualizar la fase')
+                }
             }
 
             // Success
@@ -280,7 +347,7 @@ export default function SpoolPhaseModal({
 
                                                 <div className="text-xs text-gray-600 flex items-center gap-1 mt-1">
                                                     <span className="font-medium">
-                                                        👤 {item.changed_by_user.full_name || item.changed_by_user.email}
+                                                        👤 {item.changed_by_user?.full_name || item.changed_by_user?.email || item.changed_by}
                                                     </span>
                                                 </div>
 

@@ -356,20 +356,52 @@ export default function LevantamientoModal({
                 alert('💾 Levantamiento guardado localmente (se subirá al conectar)')
 
             } else {
-                // --- PROCEED WITH ONLINE FLOW ---
-                const { data: { session } } = await supabase.auth.getSession() // Only call if online
+                // --- ONLINE FLOW (NOW UNIFIED WITH OFFLINE) ---
+                const { data: { session } } = await supabase.auth.getSession()
 
-                // Convert files to base64
+                // Extract isometric code and revision code for naming
+                const isometricCode = spoolNumber.split('-').slice(0, -1).join('-');
+                const revisionCode = 'Rev1'; // TODO: Get actual revision code
+
+                // Helper: Generate safe filename (same as offline)
+                const generateSafeFileName = (index: number): string => {
+                    const parts = [
+                        isometricCode || spoolNumber,
+                        revisionCode,
+                        spoolNumber.split('-').pop() || spoolNumber,
+                        String(index + 1).padStart(3, '0')
+                    ];
+
+                    return parts
+                        .join('_')
+                        .replace(/[^a-zA-Z0-9_-]/g, '')
+                        .replace(/_{2,}/g, '_') + '.jpg';
+                };
+
+                // Compress images and generate safe names
                 const photoPromises = selectedFiles.map(async (file, index) => {
-                    const base64 = previews[index]
-                    return {
-                        fileName: file.name,
-                        fileData: base64,
-                        fileSize: file.size,
-                        mimeType: file.type,
-                        description: null
-                    }
-                })
+                    // Compress to preview quality (800x600 @ 40%)
+                    const { previewBlob } = await compressImageForOffline(file);
+
+                    // Convert preview blob to base64
+                    return new Promise<{ fileName: string, fileData: string, fileSize: number, mimeType: string, description: null }>((resolve) => {
+                        const reader = new FileReader();
+                        reader.onloadend = () => {
+                            const safeFileName = generateSafeFileName(index);
+
+                            console.log(`[Online Upload] Compressed: ${file.name} → ${safeFileName} (${(previewBlob.size / 1024).toFixed(0)}KB)`);
+
+                            resolve({
+                                fileName: safeFileName, // Safe generated name
+                                fileData: reader.result as string, // Base64 of compressed preview
+                                fileSize: previewBlob.size,
+                                mimeType: 'image/jpeg',
+                                description: null
+                            });
+                        };
+                        reader.readAsDataURL(previewBlob);
+                    });
+                });
 
                 const photos = await Promise.all(photoPromises)
 

@@ -290,6 +290,11 @@ class PipingDB extends Dexie {
             dailyReports: 'id, project_id, cuadrilla_id, date, synced, [project_id+date], [project_id+synced]',
             conflicts: 'id, table_name, record_id, resolved, project_id, [project_id+resolved]'
         });
+
+        // Versión 4: Agregar índice compuesto para levantamientos query performance
+        this.version(4).stores({
+            levantamientos: 'id, spool_number, revision_id, project_id, synced, [spool_number+project_id], [project_id+synced]'
+        });
     }
 }
 

@@ -10,6 +10,8 @@ import UploadEngineeringDetails from '@/components/engineering/UploadEngineering
 import ImpactVerificationView from '@/components/engineering/ImpactVerificationView'
 import type { Impacto } from '@/types/impacts'
 import type { AnnouncementExcelRow } from '@/types/engineering'
+import { getCurrentUser } from '@/services/auth'
+import { hasPermission } from '@/config/roles'
 
 type UploadMode = 'ANNOUNCEMENT' | 'SPOOLGEN'
 
@@ -22,6 +24,7 @@ export default function EngineeringManager({ projectId }: EngineeringManagerProp
     const [isUploading, setIsUploading] = useState(false)
     const [uploadStatus, setUploadStatus] = useState<string | null>(null)
     const [logs, setLogs] = useState<string[]>([])
+    const [userRole, setUserRole] = useState<string>('')
 
     const [impacts, setImpacts] = useState<Impacto[]>([])
 
@@ -109,6 +112,12 @@ export default function EngineeringManager({ projectId }: EngineeringManagerProp
             loadIsometricsTable()
         }
     }, [projectId, page, searchTerm, areaFilter, statusFilter, showOnlyPendingSpooling])
+
+    useEffect(() => {
+        getCurrentUser().then(user => {
+            if (user) setUserRole(user.rol)
+        })
+    }, [])
 
     // Efecto para mantener el modal de historial sincronizado con los cambios en la tabla
     useEffect(() => {

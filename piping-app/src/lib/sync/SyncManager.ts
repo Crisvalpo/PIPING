@@ -720,7 +720,7 @@ export class SyncManager {
 
                 case 'CREATE_LEVANTAMIENTO':
                     console.log('[SyncManager] Subiendo levantamiento offline...');
-                    const { levantamientoId, spoolNumber, revisionId, storageLocation, notes, photoIds, isometricCode, revisionCode } = action.payload;
+                    const { levantamientoId, spoolNumber, revisionId, storageLocation, notes, photoIds, isometricCode, revisionCode, levNum, randomSuffix } = action.payload;
 
                     // Helper: Generate safe filename from spool context
                     const generateSafeFileName = (index: number, originalExt: string): string => {
