@@ -14,7 +14,8 @@ interface LevantamientoModalProps {
     isOpen: boolean
     onClose: () => void
     spoolNumber: string
-    isometricCode?: string  // Full isometric code (e.g., "3800PR-SW-380-5260-1")
+    isometricCode: string
+    revisionCode: string
     revisionId: string
     projectId: string
     onUpdate: () => void
@@ -43,6 +44,7 @@ export default function LevantamientoModal({
     onClose,
     spoolNumber,
     isometricCode,
+    revisionCode,
     revisionId,
     projectId,
     onUpdate
@@ -368,7 +370,6 @@ export default function LevantamientoModal({
 
                 // Extract isometric code and revision code for naming
                 const finalIsometricCode = isometricCode || spoolNumber.split('-').slice(0, -1).join('-') || spoolNumber;
-                const revisionCode = 'Rev1'; // TODO: Get actual revision code
 
                 // Get naming parameters
                 const levNum = await getLevantamientoNumber(spoolNumber, projectId, db);

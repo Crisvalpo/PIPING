@@ -374,6 +374,7 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
         isOpen: boolean
         spoolNumber: string
         isometricCode: string
+        revisionCode: string
         revisionId: string
         projectId: string
     } | null>(null)
@@ -1133,10 +1134,14 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
     const handleOpenLevantamientoModal = (spool: any) => {
         if (!selectedRevisionId || !selectedIso) return
 
+        // Find revision code
+        const revisionCode = selectedIso.revisions.find((r: any) => r.id === selectedRevisionId)?.codigo || 'Rev1';
+
         setLevantamientoModal({
             isOpen: true,
             spoolNumber: spool.spool_number,
             isometricCode: selectedIso.codigo,
+            revisionCode: revisionCode,
             revisionId: selectedRevisionId,
             projectId: projectId
         })
@@ -2237,6 +2242,7 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
                         onClose={handleCloseLevantamientoModal}
                         spoolNumber={levantamientoModal.spoolNumber}
                         isometricCode={levantamientoModal.isometricCode}
+                        revisionCode={levantamientoModal.revisionCode}
                         revisionId={levantamientoModal.revisionId}
                         projectId={levantamientoModal.projectId}
                         onUpdate={handleModalUpdate}

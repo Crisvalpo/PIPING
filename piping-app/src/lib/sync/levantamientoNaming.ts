@@ -23,7 +23,7 @@ export function generateLevantamientoFileName(params: {
         params.randomSuffix
     ];
 
-    return parts.join('-') + '.' + ext;
+    return parts.join('_') + '.' + ext;
 }
 
 /**
