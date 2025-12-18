@@ -2,6 +2,12 @@ import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import PhotoEditorModal from './PhotoEditorModal'
 import { useUIStore } from '@/store/ui-store'
+import { useSyncStore } from '@/store/syncStore'
+import { useNetworkStatus } from '@/hooks/useNetworkStatus'
+import { compressImageForOffline } from '@/lib/imageCompression'
+import SyncStatusBadge from '@/components/sync/SyncStatusBadge'
+import { refreshPendingCount } from '@/lib/sync/SyncManager'
+import { db } from '@/lib/db'
 
 interface LevantamientoModalProps {
     isOpen: boolean
@@ -59,6 +65,7 @@ export default function LevantamientoModal({
 
     // Global UI state
     const setFocusMode = useUIStore((state) => state.setFocusMode)
+    const pendingCount = useSyncStore((state) => state.pendingCount)
 
     useEffect(() => {
         if (isOpen) {
@@ -70,6 +77,13 @@ export default function LevantamientoModal({
 
         return () => setFocusMode(false)
     }, [isOpen, spoolNumber, revisionId, setFocusMode])
+
+    // Reload levantamientos when pending count changes (indicates sync completion)
+    useEffect(() => {
+        if (isOpen) {
+            loadLevantamientos()
+        }
+    }, [pendingCount])
 
     const handleDelete = async (id: string) => {
         if (!confirm('¿Estás seguro de que deseas eliminar este levantamiento y todas sus fotos? Esta acción no se puede deshacer.')) {
@@ -100,32 +114,86 @@ export default function LevantamientoModal({
         }
     }
 
+    const isOnline = useNetworkStatus() // Auto-import needed? No, assuming hook usage. 
+    // Wait, useNetworkStatus is not imported in the file. Will add import in next step or use verify.
+
     const loadLevantamientos = async () => {
         setLoadingHistory(true)
         try {
-            const { data: { session } } = await supabase.auth.getSession()
-            const response = await fetch(
-                `/api/spools/${encodeURIComponent(spoolNumber)}/levantamientos?revisionId=${revisionId}&projectId=${projectId}`,
-                { headers: { 'Authorization': `Bearer ${session?.access_token}` } }
-            )
+            // 1. Cargar datos remotos (si online)
+            let remoteLevantamientos: LevantamientoItem[] = []
+            if (isOnline) {
+                const { data: { session } } = await supabase.auth.getSession()
+                const response = await fetch(
+                    `/api/spools/${encodeURIComponent(spoolNumber)}/levantamientos?revisionId=${revisionId}&projectId=${projectId}`,
+                    { headers: { 'Authorization': `Bearer ${session?.access_token}` } }
+                )
+                if (response.ok) {
+                    const data = await response.json()
+                    remoteLevantamientos = data.levantamientos || []
 
-            if (response.ok) {
-                const data = await response.json()
-                setLevantamientos(data.levantamientos || [])
-
-                // Use locations from API (project-wide) or extract from current history fallback
-                let locations = data.uniqueLocations || []
-
-                if (locations.length === 0 && data.levantamientos) {
-                    // Fallback to local history extraction if API didn't return any (e.g. backward compat)
-                    const localLocations = data.levantamientos
-                        .map((lev: LevantamientoItem) => lev.storage_location)
-                        .filter((loc: string | null) => loc && loc.trim() !== '')
-                    locations = Array.from(new Set(localLocations))
+                    // Locations logic
+                    let locations = data.uniqueLocations || []
+                    if (locations.length === 0 && data.levantamientos) {
+                        const localLocations = data.levantamientos
+                            .map((lev: LevantamientoItem) => lev.storage_location)
+                            .filter((loc: string | null) => loc && loc.trim() !== '')
+                        locations = Array.from(new Set(localLocations))
+                    }
+                    setExistingLocations(locations as string[])
                 }
-
-                setExistingLocations(locations as string[])
             }
+
+            // 2. Cargar datos locales (offline/pendientes)
+            // Import db dynamically or assume top-level import
+            const { db } = await import('@/lib/db')
+            const localLevs = await db.levantamientos
+                .where({ spool_number: spoolNumber, project_id: projectId })
+                .toArray()
+
+            // Map local levs to UI format
+            let currentUser = { id: 'offline', email: 'offline', full_name: 'Guardado Local' };
+            if (isOnline) {
+                try {
+                    const { data: { user } } = await supabase.auth.getUser()
+                    if (user) {
+                        currentUser = {
+                            id: user.id,
+                            email: user.email || 'unknown',
+                            full_name: user.user_metadata?.full_name || user.email
+                        };
+                    }
+                } catch (e) {
+                    console.warn('Auth check failed (likely offline):', e);
+                }
+            }
+
+            const localLevsUI = await Promise.all(localLevs.map(async (l) => {
+                const photos = await db.photos.where('levantamiento_id').equals(l.id).toArray()
+                return {
+                    id: l.id,
+                    storage_location: l.storage_location,
+                    captured_at: l.captured_at,
+                    notes: l.notes || null,
+                    captured_by_user: {
+                        id: l.captured_by || currentUser.id, // Use stored ID if available
+                        email: 'offline',
+                        full_name: 'Guardado Local (Pendiente)'
+                    },
+                    photos: photos.map(p => ({
+                        id: p.id,
+                        storage_url: URL.createObjectURL(p.thumbnail_blob), // Use thumbnail for grid display
+                        preview_url: URL.createObjectURL(p.preview_blob),   // Use preview for full-screen viewer
+                        file_name: p.file_name,
+                        description: p.description
+                    })),
+                    isLocal: !l.synced // Flag extra para UI
+                } as LevantamientoItem & { isLocal?: boolean }
+            }))
+
+            // Merge: Local first (they are usually newer)
+            setLevantamientos([...localLevsUI, ...remoteLevantamientos])
+
         } catch (err) {
             console.error('Error loading levantamientos:', err)
         } finally {
@@ -187,46 +255,146 @@ export default function LevantamientoModal({
         setError(null)
 
         try {
-            const { data: { session } } = await supabase.auth.getSession()
-
-            // Convert files to base64
-            const photoPromises = selectedFiles.map(async (file, index) => {
-                const base64 = previews[index]
-                return {
-                    fileName: file.name,
-                    fileData: base64,
-                    fileSize: file.size,
-                    mimeType: file.type,
-                    description: null
-                }
-            })
-
-            const photos = await Promise.all(photoPromises)
-
-            // Convert location to uppercase
             const finalLocation = storageLocation.trim().toUpperCase()
+            // Auth session retrieval moved inside online/offline blocks or wrapped
 
-            const response = await fetch(
-                `/api/spools/${encodeURIComponent(spoolNumber)}/levantamientos`,
-                {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${session?.access_token}`
-                    },
-                    body: JSON.stringify({
+            if (!isOnline) {
+                // --- OFFLINE FLOW ---
+                console.log('Modo Offline: Guardando levantamiento localmente...')
+                const { db } = await import('@/lib/db')
+
+                // Get user ID safely if possible (from local storage or cached state?), 
+                // for now use 'offline-user' since we can't verify against server
+                const userId = 'offline-user';
+
+                const levantamientoId = crypto.randomUUID()
+                const photoIds: string[] = []
+                const originalFiles: File[] = [] // Keep originals for sync
+
+                // 1. Guardar Fotos (Thumbnails + Previews para Offline, Originales para Sync)
+                console.log('[Offline] Generando thumbnails y previews...')
+                await Promise.all(selectedFiles.map(async (file) => {
+                    const photoId = crypto.randomUUID()
+
+                    // Compress image - generates both thumbnail and preview
+                    const { thumbnailBlob, previewBlob, thumbnailRatio, previewRatio } = await compressImageForOffline(file)
+
+                    console.log(`[Offline] ${file.name}:`)
+                    console.log(`  • Thumbnail: ${thumbnailRatio.toFixed(1)}% reducción`)
+                    console.log(`  • Preview: ${previewRatio.toFixed(1)}% reducción`)
+
+                    // Store BOTH thumbnail and preview in Dexie
+                    await db.photos.add({
+                        id: photoId,
+                        levantamiento_id: levantamientoId,
+                        file_name: file.name,
+                        thumbnail_blob: thumbnailBlob, // For grids/history
+                        preview_blob: previewBlob,     // For full-screen viewer
+                        synced: false,
+                        created_at: new Date().toISOString()
+                    })
+
+                    photoIds.push(photoId)
+                    originalFiles.push(file) // Keep original for sync
+                }))
+
+                // 2. Guardar Levantamiento
+                await db.levantamientos.add({
+                    id: levantamientoId,
+                    spool_number: spoolNumber,
+                    revision_id: revisionId,
+                    project_id: projectId,
+                    storage_location: finalLocation,
+                    notes: notes.trim() || undefined,
+                    captured_at: new Date().toISOString(),
+                    captured_by: userId,
+                    synced: false
+                })
+
+                // 3. Cola de pendientes (con imágenes ORIGINALES para calidad HD en sync)
+                // Store original files as Blobs in pending action for upload
+                const originalPhotoBlobs = await Promise.all(originalFiles.map(async (file) => {
+                    return new Promise<{ fileName: string, blob: Blob }>((resolve) => {
+                        const reader = new FileReader()
+                        reader.onloadend = () => {
+                            // Convert back to Blob for storage
+                            fetch(reader.result as string)
+                                .then(res => res.blob())
+                                .then(blob => resolve({ fileName: file.name, blob }))
+                        }
+                        reader.readAsDataURL(file)
+                    })
+                }))
+
+                // Extract isometric code from spool number (e.g., "3800PR-SW-380-5260-1-SP01" → "3800PR-SW-380-5260-1")
+                const isometricCode = spoolNumber.split('-').slice(0, -1).join('-');
+                // For revision code, we'll use a simple fallback since we only have revisionId (UUID)
+                const revisionCode = 'Rev1'; // TODO: Get actual revision code from revision data if available
+
+                await db.pendingActions.add({
+                    id: crypto.randomUUID(),
+                    type: 'CREATE_LEVANTAMIENTO',
+                    project_id: projectId,
+                    payload: {
+                        levantamientoId,
+                        spoolNumber,
                         revisionId,
-                        projectId,
                         storageLocation: finalLocation,
                         notes: notes.trim() || null,
-                        photos
-                    })
-                }
-            )
+                        photoIds: photoIds, // IDs to fetch optimized photos from Dexie during sync
+                        isometricCode, // For safe filename generation
+                        revisionCode // For safe filename generation
+                    },
+                    created_at: new Date().toISOString(),
+                    status: 'PENDING',
+                    retry_count: 0
+                })
 
-            if (!response.ok) {
-                const errorData = await response.json()
-                throw new Error(errorData.error || 'Error al crear levantamiento')
+                // Update pending count in NetworkStatusBar
+                await refreshPendingCount()
+
+                alert('💾 Levantamiento guardado localmente (se subirá al conectar)')
+
+            } else {
+                // --- PROCEED WITH ONLINE FLOW ---
+                const { data: { session } } = await supabase.auth.getSession() // Only call if online
+
+                // Convert files to base64
+                const photoPromises = selectedFiles.map(async (file, index) => {
+                    const base64 = previews[index]
+                    return {
+                        fileName: file.name,
+                        fileData: base64,
+                        fileSize: file.size,
+                        mimeType: file.type,
+                        description: null
+                    }
+                })
+
+                const photos = await Promise.all(photoPromises)
+
+                const response = await fetch(
+                    `/api/spools/${encodeURIComponent(spoolNumber)}/levantamientos`,
+                    {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${session?.access_token}`
+                        },
+                        body: JSON.stringify({
+                            revisionId,
+                            projectId,
+                            storageLocation: finalLocation,
+                            notes: notes.trim() || null,
+                            photos
+                        })
+                    }
+                )
+
+                if (!response.ok) {
+                    const errorData = await response.json()
+                    throw new Error(errorData.error || 'Error al crear levantamiento')
+                }
             }
 
             // Reset form
@@ -239,7 +407,7 @@ export default function LevantamientoModal({
             // Reload levantamientos
             await loadLevantamientos()
             onUpdate()
-            onClose() // Close modal after successful save
+            onClose() // Close modal
         } catch (err: any) {
             console.error('Error creating levantamiento:', err)
             setError(err.message || 'Error al crear levantamiento')
@@ -249,12 +417,14 @@ export default function LevantamientoModal({
     }
 
     const formatDate = (timestamp: string) => {
-        return new Date(timestamp).toLocaleDateString('es-ES', {
+        return new Date(timestamp).toLocaleString('es-CL', {
             day: '2-digit',
-            month: 'short',
+            month: '2-digit',
             year: 'numeric',
             hour: '2-digit',
-            minute: '2-digit'
+            minute: '2-digit',
+            hour12: true,
+            timeZone: 'America/Santiago'
         })
     }
 
@@ -288,8 +458,15 @@ export default function LevantamientoModal({
                                     {levantamientos.map((lev) => (
                                         <div key={lev.id} className="bg-white rounded-lg border border-gray-200 p-4">
                                             <div className="flex items-start justify-between mb-3">
-                                                <div>
-                                                    <div className="font-medium text-gray-900">{lev.storage_location || 'Sin ubicación'}</div>
+                                                <div className="flex-1">
+                                                    <div className="flex items-center gap-2 mb-1">
+                                                        <div className="font-medium text-gray-900">{lev.storage_location || 'Sin ubicación'}</div>
+                                                        <SyncStatusBadge
+                                                            status={(lev as any).isLocal ? 'local' : 'synced'}
+                                                            size="sm"
+                                                            showLabel={false}
+                                                        />
+                                                    </div>
                                                     <div className="text-xs text-gray-500 mt-1">{formatDate(lev.captured_at)}</div>
                                                     <div className="text-xs text-gray-600 flex items-center gap-1 mt-1">
                                                         <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">

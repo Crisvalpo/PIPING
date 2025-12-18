@@ -2,6 +2,7 @@
 
 import ProtectedRoute from '@/components/ProtectedRoute'
 import MasterViewsManager from '@/components/master-views/MasterViewsManager'
+import NetworkStatusBar from '@/components/offline/NetworkStatusBar'
 import { useState, useEffect } from 'react'
 import { getMyProyecto } from '@/services/proyectos'
 import type { ProyectoWithEmpresa } from '@/types'
@@ -24,14 +25,20 @@ export default function MasterViewsPage() {
     return (
         <ProtectedRoute requireAuth requireActive>
             {/* Full-screen white background for mobile field use - with top padding for navbar */}
-            <div className="fixed inset-0 top-16 bg-white overflow-auto px-3 py-4 min-h-screen">
-                {proyecto ? (
-                    <MasterViewsManager projectId={proyecto.id} />
-                ) : (
-                    <div className="flex justify-center items-center h-full">
-                        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-600"></div>
-                    </div>
-                )}
+            <div className="fixed inset-0 top-16 bg-white overflow-auto min-h-screen">
+                {/* NetworkStatusBar con projectId */}
+                <NetworkStatusBar projectId={proyecto?.id} />
+
+                {/* Main Content */}
+                <div className="px-3 py-4">
+                    {proyecto ? (
+                        <MasterViewsManager projectId={proyecto.id} />
+                    ) : (
+                        <div className="flex justify-center items-center h-full">
+                            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-600"></div>
+                        </div>
+                    )}
+                </div>
             </div>
         </ProtectedRoute>
     )
