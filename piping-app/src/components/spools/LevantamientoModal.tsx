@@ -7,6 +7,7 @@ import { useNetworkStatus } from '@/hooks/useNetworkStatus'
 import { compressImageForOffline } from '@/lib/imageCompression'
 import SyncStatusBadge from '@/components/sync/SyncStatusBadge'
 import { refreshPendingCount } from '@/lib/sync/SyncManager'
+import { generateLevantamientoFileName, getLevantamientoNumber, generateRandomSuffix } from '@/lib/sync/levantamientoNaming'
 import { db } from '@/lib/db'
 
 interface LevantamientoModalProps {
