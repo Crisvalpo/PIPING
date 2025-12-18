@@ -2,6 +2,7 @@ import { db, PendingAction, LocalIsometric, LocalSpool, LocalWeld, LocalLevantam
 import { supabase } from '@/lib/supabase';
 import { useSyncStore } from '@/store/syncStore';
 import { markActionAsFailed, markActionAsCompleted, getActionsReadyForRetry } from '@/lib/sync/RetryQueue';
+import { generateLevantamientoFileName } from '@/lib/sync/levantamientoNaming';
 
 export class SyncManager {
     private static instance: SyncManager;
@@ -720,29 +721,19 @@ export class SyncManager {
 
                 case 'CREATE_LEVANTAMIENTO':
                     console.log('[SyncManager] Subiendo levantamiento offline...');
-                    const { levantamientoId, spoolNumber, revisionId, storageLocation, notes, photoIds, isometricCode, revisionCode, levNum, randomSuffix } = action.payload;
+                    const { levantamientoId, spoolNumber, revisionId, storageLocation, notes, photoIds, isometricCode, revisionCode, levNum, randomSuffix, spoolCode } = action.payload;
 
-                    // Helper: Generate safe filename from spool context
+                    // Helper: Generate safe filename using centralized logic
                     const generateSafeFileName = (index: number, originalExt: string): string => {
-                        // Extract clean extension
-                        const ext = originalExt.toLowerCase().replace(/^\./, '');
-
-                        // Build descriptive name: ISO-REV-SPOOL-INDEX.ext
-                        // Example: 3800PR-SW-380-5260-1_Rev2_SP01_001.jpg
-                        const parts = [
-                            isometricCode || spoolNumber.split('-').slice(0, -1).join('-'), // Isometric code
-                            revisionCode || 'Rev1', // Revision code
-                            spoolNumber.split('-').pop() || spoolNumber, // Spool number (last part)
-                            String(index + 1).padStart(3, '0') // Photo index: 001, 002, etc.
-                        ];
-
-                        // Join with underscores and sanitize
-                        const safeName = parts
-                            .join('_')
-                            .replace(/[^a-zA-Z0-9_-]/g, '') // Remove special chars
-                            .replace(/_{2,}/g, '_'); // Remove multiple underscores
-
-                        return `${safeName}.${ext}`;
+                        return generateLevantamientoFileName({
+                            isometricCode,
+                            revisionCode,
+                            spoolCode: spoolCode || spoolNumber.split('-').pop() || spoolNumber,
+                            levNum,
+                            photoIndex: index,
+                            randomSuffix,
+                            extension: originalExt
+                        });
                     };
 
                     // 1. Use OPTIMIZED preview photos from Dexie (not 4MB originals)

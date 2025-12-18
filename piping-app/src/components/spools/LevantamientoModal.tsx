@@ -14,6 +14,7 @@ interface LevantamientoModalProps {
     isOpen: boolean
     onClose: () => void
     spoolNumber: string
+    isometricCode?: string  // Full isometric code (e.g., "3800PR-SW-380-5260-1")
     revisionId: string
     projectId: string
     onUpdate: () => void
@@ -41,6 +42,7 @@ export default function LevantamientoModal({
     isOpen,
     onClose,
     spoolNumber,
+    isometricCode,
     revisionId,
     projectId,
     onUpdate
@@ -327,8 +329,9 @@ export default function LevantamientoModal({
                     })
                 }))
 
-                // Extract isometric code from spool number (e.g., "3800PR-SW-380-5260-1-SP01" → "3800PR-SW-380-5260-1")
-                const isometricCode = spoolNumber.split('-').slice(0, -1).join('-');
+                // Use isometric code from prop or fallback to spool extraction
+                const finalIsometricCode = isometricCode || spoolNumber.split('-').slice(0, -1).join('-') || spoolNumber;
+                const spoolCode = spoolNumber.split('-').pop() || spoolNumber;
                 // For revision code, we'll use a simple fallback since we only have revisionId (UUID)
                 const revisionCode = 'Rev1'; // TODO: Get actual revision code from revision data if available
 
@@ -343,7 +346,10 @@ export default function LevantamientoModal({
                         storageLocation: finalLocation,
                         notes: notes.trim() || null,
                         photoIds: photoIds, // IDs to fetch optimized photos from Dexie during sync
-                        isometricCode, // For safe filename generation
+                        isometricCode: finalIsometricCode, // For safe filename generation
+                        spoolCode, // Spool code (last part)
+                        levNum: await getLevantamientoNumber(spoolNumber, projectId, db),
+                        randomSuffix: generateRandomSuffix(),
                         revisionCode // For safe filename generation
                     },
                     created_at: new Date().toISOString(),
@@ -361,22 +367,24 @@ export default function LevantamientoModal({
                 const { data: { session } } = await supabase.auth.getSession()
 
                 // Extract isometric code and revision code for naming
-                const isometricCode = spoolNumber.split('-').slice(0, -1).join('-');
+                const finalIsometricCode = isometricCode || spoolNumber.split('-').slice(0, -1).join('-') || spoolNumber;
                 const revisionCode = 'Rev1'; // TODO: Get actual revision code
 
-                // Helper: Generate safe filename (same as offline)
-                const generateSafeFileName = (index: number): string => {
-                    const parts = [
-                        isometricCode || spoolNumber,
-                        revisionCode,
-                        spoolNumber.split('-').pop() || spoolNumber,
-                        String(index + 1).padStart(3, '0')
-                    ];
+                // Get naming parameters
+                const levNum = await getLevantamientoNumber(spoolNumber, projectId, db);
+                const randomSuffix = generateRandomSuffix();
+                const spoolCode = spoolNumber.split('-').pop() || spoolNumber;
 
-                    return parts
-                        .join('_')
-                        .replace(/[^a-zA-Z0-9_-]/g, '')
-                        .replace(/_{2,}/g, '_') + '.jpg';
+                // Helper: Generate safe filename using centralized logic
+                const generateSafeFileName = (index: number): string => {
+                    return generateLevantamientoFileName({
+                        isometricCode: finalIsometricCode,
+                        revisionCode,
+                        spoolCode,
+                        levNum,
+                        photoIndex: index,
+                        randomSuffix
+                    });
                 };
 
                 // Compress images and generate safe names
