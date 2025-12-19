@@ -1,4 +1,4 @@
-import { db, PendingAction, LocalIsometric, LocalSpool, LocalWeld, LocalLevantamiento } from '@/lib/db';
+import { db, PendingAction, LocalIsometric, LocalSpool, LocalWeld, LocalLevantamiento, LocalPhoto } from '@/lib/db';
 import { supabase } from '@/lib/supabase';
 import { useSyncStore } from '@/store/syncStore';
 import { markActionAsFailed, markActionAsCompleted, getActionsReadyForRetry } from '@/lib/sync/RetryQueue';
@@ -246,6 +246,78 @@ export class SyncManager {
             }
 
             console.log('[SyncManager] ✅ Sincronización completada exitosamente');
+
+            // 5. PHOTOS (Caching) - NEW STEP
+            if (levantamientos && levantamientos.length > 0) {
+                console.log('[SyncManager] Paso 5: Verificando cache de fotografías offline...');
+                const levIds = levantamientos.map((l: any) => l.id);
+
+                // Chunk IDs to avoid query limits (e.g., 20 items per chunk for photo fetch)
+                // We'll fetch photos for these levantamientos
+                const PHOTO_CHUNK_SIZE = 50;
+                for (let i = 0; i < levIds.length; i += PHOTO_CHUNK_SIZE) {
+                    const chunkIds = levIds.slice(i, i + PHOTO_CHUNK_SIZE);
+
+                    const { data: photos, error: photoError } = await supabase
+                        .from('spool_levantamiento_photos')
+                        .select('*')
+                        .in('levantamiento_id', chunkIds);
+
+                    if (photoError) {
+                        console.error('[SyncManager] Error fetching photos metadata:', photoError);
+                        continue;
+                    }
+
+                    if (photos && photos.length > 0) {
+                        let cachedCount = 0;
+                        await Promise.all(photos.map(async (p: any) => {
+                            try {
+                                const existing = await db.photos.get(p.id);
+                                // If missing or missing blobs (we check thumbnail_blob mainly)
+                                if (!existing || !existing.thumbnail_blob) {
+                                    // Download THUMBNAIL preferred (lighter)
+                                    // If thumbnail_path is null, fallback to storage_path (original) but warning: heavy
+                                    const targetPath = p.thumbnail_path || p.storage_path;
+                                    if (!targetPath) return;
+
+                                    const { data: blob, error: downloadError } = await supabase.storage
+                                        .from('spool-levantamientos')
+                                        .download(targetPath);
+
+                                    if (downloadError) {
+                                        console.warn(`[SyncManager] Failed to download photo ${p.file_name}:`, downloadError);
+                                        return;
+                                    }
+
+                                    if (blob) {
+                                        // Save to Dexie
+                                        // We use the same blob for preview if unique available, 
+                                        // or if we downloaded original (fallback) we use it for both.
+                                        await db.photos.put({
+                                            id: p.id,
+                                            levantamiento_id: p.levantamiento_id,
+                                            file_name: p.file_name,
+                                            thumbnail_blob: blob,
+                                            preview_blob: blob, // Duplicate blob ref (cheap) or same blob
+                                            description: p.description,
+                                            synced: true,
+                                            storage_path: p.storage_path,
+                                            thumbnail_path: p.thumbnail_path,
+                                            created_at: p.created_at || new Date().toISOString()
+                                        });
+                                        cachedCount++;
+                                    }
+                                }
+                            } catch (err) {
+                                console.error(`[SyncManager] Cache error for photo ${p.id}:`, err);
+                            }
+                        }));
+                        if (cachedCount > 0) {
+                            console.log(`[SyncManager] 📸 Cheadas ${cachedCount} nuevas fotos en chunk ${i}`);
+                        }
+                    }
+                }
+            }
             store.setLastSyncTime(new Date());
 
         } catch (error: any) {
@@ -539,6 +611,16 @@ export class SyncManager {
                 currentTable: 'spool_statuses'
             });
         } catch (error: any) {
+            // Ignorar error si la tabla de estatus no existe aún (Tech Debt)
+            if (error.code === 'PGRST205' || error.message?.includes('project_spool_statuses')) {
+                console.warn('[SyncManager] Tabla de estatus de spools no configurada en DB (Feature opcional omitida)');
+                store.setSyncProgress({
+                    phase: 'Configuración',
+                    percentage: 100,
+                    currentTable: 'spool_statuses'
+                });
+                return;
+            }
             console.error('[SyncManager] Error sincronizando configuraciones:', error);
             throw error;
         }
@@ -741,26 +823,32 @@ export class SyncManager {
                     const dexiePhotos = await db.photos.where('id').anyOf(photoIds).toArray();
 
                     // Convert preview blobs to base64
+                    // Convert blobs to base64 (Preview + Thumbnail)
                     const photos = await Promise.all(dexiePhotos.map(async (photo, index) => {
-                        return new Promise<{ fileName: string, fileData: string, fileSize: number, mimeType: string, description: string | null }>((resolve, reject) => {
-                            const reader = new FileReader();
-                            reader.onloadend = () => {
-                                // Generate safe, descriptive filename
-                                const safeFileName = generateSafeFileName(index, 'jpg');
+                        const blobToBase64 = (blob: Blob): Promise<string> => {
+                            return new Promise((resolve, reject) => {
+                                const reader = new FileReader();
+                                reader.onloadend = () => resolve(reader.result as string);
+                                reader.onerror = reject;
+                                reader.readAsDataURL(blob);
+                            });
+                        };
 
-                                console.log(`[SyncManager] Uploading optimized preview (~300KB): "${safeFileName}"`);
+                        // Helper: Generate safe, descriptive filename
+                        const safeFileName = generateSafeFileName(index, 'jpg');
+                        console.log(`[SyncManager] Uploading optimized media: "${safeFileName}"`);
 
-                                resolve({
-                                    fileName: safeFileName, // Use safe generated name
-                                    fileData: reader.result as string, // Base64 of PREVIEW quality
-                                    fileSize: photo.preview_blob!.size,
-                                    mimeType: photo.preview_blob!.type,
-                                    description: null
-                                });
-                            };
-                            reader.onerror = reject;
-                            reader.readAsDataURL(photo.preview_blob!); // Use preview, not original
-                        });
+                        const fileData = await blobToBase64(photo.preview_blob!);
+                        const thumbnailData = photo.thumbnail_blob ? await blobToBase64(photo.thumbnail_blob) : undefined;
+
+                        return {
+                            fileName: safeFileName,
+                            fileData: fileData, // Base64 of PREVIEW
+                            thumbnailData: thumbnailData, // Base64 of THUMBNAIL
+                            fileSize: photo.preview_blob!.size,
+                            mimeType: photo.preview_blob!.type,
+                            description: null
+                        };
                     }));
 
                     // 2. Enviar a API

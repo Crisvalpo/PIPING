@@ -77,6 +77,7 @@ export interface LocalPhoto {
     description?: string;
     synced: boolean;
     storage_path?: string; // Remote path after sync
+    thumbnail_path?: string; // Remote thumbnail path
     created_at: string;
 }
 
@@ -294,6 +295,10 @@ class PipingDB extends Dexie {
         // Versión 4: Agregar índice compuesto para levantamientos query performance
         this.version(4).stores({
             levantamientos: 'id, spool_number, revision_id, project_id, synced, [spool_number+project_id], [project_id+synced]'
+        });
+        // Versión 5: Re-index photos table to ensure offline visibility
+        this.version(5).stores({
+            photos: 'id, levantamiento_id, synced, [levantamiento_id+synced]'
         });
     }
 }

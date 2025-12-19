@@ -34,6 +34,7 @@ interface LevantamientoItem {
     photos: Array<{
         id: string
         storage_url: string | null
+        thumbnail_url?: string | null
         file_name: string
         description: string | null
     }>
@@ -390,27 +391,33 @@ export default function LevantamientoModal({
 
                 // Compress images and generate safe names
                 const photoPromises = selectedFiles.map(async (file, index) => {
-                    // Compress to preview quality (800x600 @ 40%)
-                    const { previewBlob } = await compressImageForOffline(file);
+                    // Compress to preview quality + thumbnail
+                    const { previewBlob, thumbnailBlob } = await compressImageForOffline(file);
 
-                    // Convert preview blob to base64
-                    return new Promise<{ fileName: string, fileData: string, fileSize: number, mimeType: string, description: null }>((resolve) => {
-                        const reader = new FileReader();
-                        reader.onloadend = () => {
-                            const safeFileName = generateSafeFileName(index);
+                    // Helper to convert blob to base64
+                    const blobToBase64 = (blob: Blob): Promise<string> => {
+                        return new Promise((resolve) => {
+                            const reader = new FileReader();
+                            reader.onloadend = () => resolve(reader.result as string);
+                            reader.readAsDataURL(blob);
+                        });
+                    };
 
-                            console.log(`[Online Upload] Compressed: ${file.name} → ${safeFileName} (${(previewBlob.size / 1024).toFixed(0)}KB)`);
+                    const fileData = await blobToBase64(previewBlob);
+                    const thumbnailData = thumbnailBlob ? await blobToBase64(thumbnailBlob) : undefined;
 
-                            resolve({
-                                fileName: safeFileName, // Safe generated name
-                                fileData: reader.result as string, // Base64 of compressed preview
-                                fileSize: previewBlob.size,
-                                mimeType: 'image/jpeg',
-                                description: null
-                            });
-                        };
-                        reader.readAsDataURL(previewBlob);
-                    });
+                    // Generate safe filename
+                    const safeFileName = generateSafeFileName(index);
+                    console.log(`[Online Upload] Compressed: ${file.name} → ${safeFileName} (${(previewBlob.size / 1024).toFixed(0)}KB)`);
+
+                    return {
+                        fileName: safeFileName,
+                        fileData: fileData,
+                        thumbnailData: thumbnailData,
+                        fileSize: previewBlob.size,
+                        mimeType: 'image/jpeg',
+                        description: null
+                    };
                 });
 
                 const photos = await Promise.all(photoPromises)
@@ -547,8 +554,9 @@ export default function LevantamientoModal({
                                                     >
                                                         {photo.storage_url ? (
                                                             <img
-                                                                src={photo.storage_url}
+                                                                src={photo.thumbnail_url || photo.storage_url}
                                                                 alt={photo.file_name}
+                                                                loading="lazy"
                                                                 className="w-full h-full object-cover"
                                                             />
                                                         ) : (

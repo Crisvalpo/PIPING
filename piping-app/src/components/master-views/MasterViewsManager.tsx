@@ -267,10 +267,18 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
     const { isSyncing, lastSyncTime } = useSyncStore()
 
     // Sync Effect: Auto-upload pending actions when online
+    // Sync Effect: Auto-upload pending actions when online (once per mount/connection)
+    const hasSyncRun = useRef(false);
+
     useEffect(() => {
-        if (isOnline && projectId) {
+        if (isOnline && projectId && !hasSyncRun.current) {
+            hasSyncRun.current = true;
             console.log('[MasterViews] Online detectado: Procesando cola de cambios pendientes...');
             syncManager.processPendingActions().catch(console.error);
+        }
+        // Reset flag if we go offline, so we can sync again if we come back online
+        if (!isOnline) {
+            hasSyncRun.current = false;
         }
     }, [isOnline, projectId])
 
@@ -431,7 +439,9 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
     const [uploadingContext, setUploadingContext] = useState<{ revisionId: string; isoCode: string; revCode: string } | null>(null)
 
     useEffect(() => {
-        loadIsometrics()
+        const controller = new AbortController();
+        loadIsometrics(controller.signal);
+        return () => controller.abort();
     }, [projectId, searchTerm])
 
     // Agrupar soldaduras cuando cambian los detalles
@@ -446,11 +456,11 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
         }
     }, [details])
 
-    async function loadIsometrics() {
+    async function loadIsometrics(signal?: AbortSignal) {
         setLoading(true)
         try {
             if (isOnline) {
-                const result = await searchIsometrics(projectId, searchTerm, 0, 10, { status: 'ALL' })
+                const result = await searchIsometrics(projectId, searchTerm, 0, 10, { status: 'ALL' }, signal)
                 setIsometrics(result.data)
             } else {
                 // Offline fallback - Read from Dexie
@@ -564,7 +574,14 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
                     setIsometrics(mappedIsos);
                 }
             }
-        } catch (error) {
+        } catch (error: any) {
+            const isAbort =
+                error.name === 'AbortError' ||
+                error.message?.includes('AbortError') ||
+                JSON.stringify(error).includes('AbortError')
+
+            if (isAbort) return
+
             console.error('Error loading isometrics:', error)
             // Fallback retry local if API failed despite being "online"
             try {
@@ -572,7 +589,10 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
                 if (localIsos.length > 0) setIsometrics(localIsos)
             } catch (e) { console.error(e) }
         } finally {
-            setLoading(false)
+            // Only turn off loading if not aborted (race condition check)
+            if (!signal?.aborted) {
+                setLoading(false)
+            }
         }
     }
 
@@ -628,8 +648,27 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
                     // LocalSpool has 'revision_id'
                     const localSpools = await db.spools.where('revision_id').equals(targetRevisionId).toArray()
 
-                    // 3. Get Levantamientos
-                    const localLevs = await db.levantamientos.where('revision_id').equals(targetRevisionId).toArray()
+                    // 3. Get Levantamientos & Photos
+                    const localLevsList = await db.levantamientos.where('revision_id').equals(targetRevisionId).toArray()
+
+                    // Enrich Levantamientos with Photos (for Spool Card display)
+                    const localLevs = await Promise.all(localLevsList.map(async (l) => {
+                        const photos = await db.photos.where('levantamiento_id').equals(l.id).toArray()
+                        // Sort by created_at desc? Dexie returns primary key order usually, which is UUID.
+                        // Filter for valid blobs
+                        const validPhoto = photos.find(p => p.thumbnail_blob || p.preview_blob)
+                        let photoUrl = null
+                        if (validPhoto) {
+                            const blob = validPhoto.thumbnail_blob || validPhoto.preview_blob
+                            if (blob) photoUrl = URL.createObjectURL(blob)
+                        }
+
+                        return {
+                            ...l,
+                            latest_photo_url: photoUrl,
+                            captured_by_user: 'Usuario Local'
+                        }
+                    }))
 
                     // Construct details object compatible with MasterViewsManager
                     // Note: Adapting data shapes might be needed if Local types differ from API response
@@ -642,13 +681,32 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
                         })) || [],
                         materials: [], // TODO: Sync materials offline if needed
                         boltedJoints: [],
-                        spools: localSpools || [], // Usamos localSpools como base para la lista plana de spools
+                        spools: (localSpools || []).map(s => {
+                            // Find latest levantamiento for this spool
+                            // Logic: Spool 1-to-Many Levs. We take the most recent?
+                            // localLevs is already filtered by revision_id (which usually implies spool scope if strictly linked, but 
+                            // actually revision_id is Isometric Revision. So we need to filter by spool_number too.)
+                            const spoolLevs = localLevs.filter(l => l.spool_number === s.spool_number)
+                            // Sort by captured_at desc
+                            spoolLevs.sort((a, b) => new Date(b.captured_at).getTime() - new Date(a.captured_at).getTime())
+                            const latestLev = spoolLevs[0]
+
+                            return {
+                                ...s,
+                                welds: localWelds
+                                    .filter(w => w.spool_number === s.spool_number)
+                                    .map(w => ({
+                                        ...w,
+                                        diameter_inches: w.diameter,
+                                        name: w.weld_number,
+                                        destination: w.destination
+                                    })),
+                                levantamiento_photo_url: latestLev?.latest_photo_url || null,
+                                levantamiento_count: spoolLevs.length
+                            }
+                        }),
                         fabricationTracking: localSpools || [],
-                        levantamientos: localLevs.map(l => ({
-                            ...l,
-                            latest_photo_url: null, // Blobs handling needed for photos
-                            captured_by_user: 'Usuario Local'
-                        })) || []
+                        levantamientos: localLevs
                     }
 
                     setDetails(offlineDetails)
@@ -1916,16 +1974,18 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
                                                                                 {/* Photo section (if image exists) */}
                                                                                 {spool.levantamiento_photo_url && (
                                                                                     <div
-                                                                                        className="relative h-48 bg-gray-100 group cursor-pointer"
+                                                                                        className={`relative h-48 bg-gray-100 group ${spool.photos?.length > 0 ? 'cursor-pointer' : ''}`}
                                                                                         onClick={(e) => {
                                                                                             e.stopPropagation()
-                                                                                            setPhotoViewer({ isOpen: true, spool })
+                                                                                            if (spool.photos && spool.photos.length > 0) {
+                                                                                                setPhotoViewer({ isOpen: true, spool })
+                                                                                            }
                                                                                         }}
                                                                                     >
                                                                                         <img
                                                                                             src={spool.levantamiento_photo_url}
                                                                                             alt={`Levantamiento ${spool.spool_number}`}
-                                                                                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                                                                            className={`w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 ${(!spool.photos || spool.photos.length === 0) ? 'blur-sm' : ''}`}
                                                                                         />
                                                                                         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
                                                                                             <div className="absolute bottom-3 left-3 right-3 text-white">

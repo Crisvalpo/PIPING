@@ -80,7 +80,8 @@ export async function searchIsometrics(
     searchTerm: string = '',
     page: number = 0,
     pageSize: number = 50,
-    filters: { area?: string; status?: string; showPending?: boolean } = {}
+    filters: { area?: string; status?: string; showPending?: boolean } = {},
+    signal?: AbortSignal
 ) {
     try {
         if (!projectId) {
@@ -95,6 +96,8 @@ export async function searchIsometrics(
             .from('isometrics')
             .select('*', { count: 'estimated' })
             .eq('proyecto_id', projectId)
+
+        if (signal) query = query.abortSignal(signal)
 
         if (searchTerm && searchTerm.trim()) {
             query = query.ilike('codigo', `%${searchTerm.trim()}%`)
@@ -116,6 +119,8 @@ export async function searchIsometrics(
                 .eq('revisions.estado', 'VIGENTE')
                 .eq('revisions.spooling_status', statusToFilter)
 
+            if (signal) query = query.abortSignal(signal)
+
             if (searchTerm && searchTerm.trim()) query = query.ilike('codigo', `%${searchTerm.trim()}%`)
             if (filters.area && filters.area !== 'ALL') query = query.eq('area', filters.area)
         }
@@ -127,7 +132,13 @@ export async function searchIsometrics(
             .range(from, to)
 
         if (isoError) {
-            console.error('[searchIsometrics] Query error:', isoError)
+            // Check if it's an abort error (Supabase wraps it)
+            const isAbort = isoError.message?.includes('AbortError') ||
+                JSON.stringify(isoError).includes('AbortError')
+
+            if (!isAbort) {
+                console.error('[searchIsometrics] Query error:', isoError)
+            }
             throw isoError
         }
         if (!isometrics || isometrics.length === 0) return { data: [], count: 0 }
@@ -138,10 +149,15 @@ export async function searchIsometrics(
 
         if (needsRevisions) {
             const isoIds = isometrics.map(i => i.id)
-            const { data: revisions, error: revError } = await supabase
+            let revisionsQuery = supabase
                 .from('isometric_revisions')
                 .select('*, files:revision_files(*)')
                 .in('isometric_id', isoIds)
+
+            if (signal) revisionsQuery = revisionsQuery.abortSignal(signal)
+
+            const { data: revisions, error: revError } = await revisionsQuery
+
 
             if (revError) throw revError
 
@@ -167,7 +183,18 @@ export async function searchIsometrics(
 
         return { data: processedData, count: count || 0 }
 
-    } catch (err) {
+    } catch (err: any) {
+        // Brute force check for AbortError in various formats
+        const isAbort =
+            err.name === 'AbortError' ||
+            err.message?.includes('AbortError') ||
+            (typeof err === 'object' && JSON.stringify(err).includes('AbortError'))
+
+        if (isAbort) {
+            // Request cancelled, suppress error logging
+            console.debug('[searchIsometrics] Request aborted')
+            throw err
+        }
         console.error('[searchIsometrics] Error:', JSON.stringify(err, null, 2))
         throw err
     }

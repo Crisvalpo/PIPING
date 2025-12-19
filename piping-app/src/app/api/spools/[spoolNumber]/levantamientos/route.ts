@@ -138,9 +138,18 @@ export async function GET(
                             .from('spool-levantamientos')
                             .createSignedUrl(photo.storage_path, 3600) // 1 hour expiry
 
+                        let thumbnailUrl = null
+                        if (photo.thumbnail_path) {
+                            const { data: thumbData } = await supabase.storage
+                                .from('spool-levantamientos')
+                                .createSignedUrl(photo.thumbnail_path, 3600)
+                            thumbnailUrl = thumbData?.signedUrl || null
+                        }
+
                         return {
                             ...photo,
-                            storage_url: urlData?.signedUrl || null
+                            storage_url: urlData?.signedUrl || null,
+                            thumbnail_url: thumbnailUrl
                         }
                     })
                 )
@@ -246,12 +255,12 @@ export async function POST(
             const fileName = photo.fileName
             const storagePath = `${levantamiento.id}/${fileName}`
 
-            // Convert base64 to buffer
+            // 1. Upload Preview/Original
             const base64Data = photo.fileData.replace(/^data:image\/\w+;base64,/, '')
             const buffer = Buffer.from(base64Data, 'base64')
 
             // Upload to storage using Admin Client to bypass RLS
-            const { data: uploadData, error: uploadError } = await supabaseAdmin.storage
+            const { error: uploadError } = await supabaseAdmin.storage
                 .from('spool-levantamientos')
                 .upload(storagePath, buffer, {
                     contentType: photo.mimeType || 'image/jpeg',
@@ -263,12 +272,36 @@ export async function POST(
                 throw new Error(`Error al subir imagen a Storage: ${uploadError.message}`)
             }
 
-            // Create photo record
+            // 2. Upload Thumbnail (if exists)
+            let thumbnailPath = null
+            if (photo.thumbnailData) {
+                // Insert _thumb before extension
+                const thumbName = fileName.replace(/(\.[\w\d_-]+)$/i, '_thumb$1')
+                thumbnailPath = `${levantamiento.id}/${thumbName}`
+
+                const thumbBase64 = photo.thumbnailData.replace(/^data:image\/\w+;base64,/, '')
+                const thumbBuffer = Buffer.from(thumbBase64, 'base64')
+
+                const { error: thumbError } = await supabaseAdmin.storage
+                    .from('spool-levantamientos')
+                    .upload(thumbnailPath, thumbBuffer, {
+                        contentType: 'image/jpeg',
+                        upsert: false
+                    })
+
+                if (thumbError) {
+                    console.warn('Error uploading thumbnail (non-fatal):', thumbError)
+                    // We don't throw here to allow the main photo to succeed, just log warning
+                }
+            }
+
+            // 3. Create photo record
             const { data: photoRecord, error: photoError } = await supabase
                 .from('spool_levantamiento_photos')
                 .insert({
                     levantamiento_id: levantamiento.id,
                     storage_path: storagePath,
+                    thumbnail_path: thumbnailPath, // Store thumbnail path
                     file_name: photo.fileName,
                     file_size_bytes: photo.fileSize || null,
                     mime_type: photo.mimeType || 'image/jpeg',
