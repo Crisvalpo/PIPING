@@ -200,7 +200,7 @@ export async function POST(
         }
 
         const body = await request.json()
-        const { revisionId, projectId, storageLocation, notes, photos } = body
+        const { id, revisionId, projectId, storageLocation, notes, photos } = body
 
         if (!revisionId || !projectId) {
             return NextResponse.json(
@@ -235,6 +235,7 @@ export async function POST(
         const { data: levantamiento, error: levError } = await supabase
             .from('spool_levantamientos')
             .insert({
+                ...(id ? { id } : {}), // Use client-provided ID if available
                 spool_number: spoolNumber,
                 revision_id: revisionId,
                 project_id: projectId,

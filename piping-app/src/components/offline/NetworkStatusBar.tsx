@@ -98,18 +98,28 @@ export default function NetworkStatusBar({ projectId: propProjectId }: NetworkSt
     // Offline state
     if (!isOnline) {
         return (
-            <div className="bg-red-500 text-white px-4 py-2 text-sm font-medium flex items-center justify-between shadow-sm z-50">
-                <div className="flex items-center gap-2">
-                    <WifiOff className="w-4 h-4" />
-                    <span>Sin conexión a internet - Modo offline</span>
-                </div>
-                {pendingCount > 0 && (
-                    <div className="flex items-center gap-1 bg-red-600 px-2 py-1 rounded text-xs">
-                        <CloudUpload className="w-3 h-3" />
-                        <span>{pendingCount} cambios pendientes</span>
+            <>
+                <div className="bg-red-500 text-white px-4 py-2 text-sm font-medium flex items-center justify-between shadow-sm z-50">
+                    <div className="flex items-center gap-2">
+                        <WifiOff className="w-4 h-4" />
+                        <span>Sin conexión a internet - Modo offline</span>
                     </div>
-                )}
-            </div>
+                    {pendingCount > 0 && (
+                        <button
+                            onClick={() => setShowPendingModal(true)}
+                            className="flex items-center gap-1 bg-red-600 hover:bg-red-700 px-2 py-1 rounded text-xs transition-colors"
+                        >
+                            <CloudUpload className="w-3 h-3" />
+                            <span>{pendingCount} cambios pendientes</span>
+                        </button>
+                    )}
+                </div>
+                {/* Pending Changes Modal - Rendered here for Offline state catch */}
+                <PendingChangesModal
+                    isOpen={showPendingModal}
+                    onClose={() => setShowPendingModal(false)}
+                />
+            </>
         );
     }
 

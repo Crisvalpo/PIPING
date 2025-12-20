@@ -318,6 +318,11 @@ export class SyncManager {
                     }
                 }
             }
+
+            // 6. Config (Locations, Shifts, Weld Configs)
+            console.log('[SyncManager] Paso 6: Verificando configuraciones del proyecto...');
+            await this.syncProjectConfig(projectId);
+
             store.setLastSyncTime(new Date());
 
         } catch (error: any) {
@@ -330,6 +335,140 @@ export class SyncManager {
         } finally {
             this.isSyncing = false;
             store.setIsSyncing(false);
+        }
+    }
+
+    /**
+     * Sincroniza las configuraciones del proyecto (shifts, locations, statuses, weld configs)
+     */
+    public async syncProjectConfig(projectId: string): Promise<void> {
+        const store = useSyncStore.getState();
+        console.log('[SyncManager] Sincronizando configuraciones del proyecto...');
+
+        store.setSyncProgress({
+            phase: 'Configuración',
+            percentage: 0,
+            currentTable: 'project_shifts'
+        });
+
+        try {
+            // 1. Project Shifts
+            const { data: shiftsData, error: shiftsError } = await supabase
+                .from('project_shifts')
+                .select('*')
+                .eq('proyecto_id', projectId);
+
+            if (shiftsError) throw shiftsError;
+
+            if (shiftsData && shiftsData.length > 0) {
+                const localShifts = shiftsData.map((s: any) => ({
+                    id: s.id,
+                    project_id: s.proyecto_id,
+                    shift_name: s.shift_name,
+                    start_time: s.start_time,
+                    end_time: s.end_time,
+                    active: s.active,
+                    valid_from: s.valid_from,
+                    valid_to: s.valid_to,
+                    created_at: s.created_at,
+                    updated_at: s.updated_at,
+                    synced_at: new Date().toISOString()
+                }));
+                await db.projectShifts.bulkPut(localShifts);
+                console.log(`[SyncManager] ✅ Sincronizados ${localShifts.length} turnos`);
+            }
+
+            // 2. Weld Configs
+            store.setSyncProgress({
+                phase: 'Configuración',
+                percentage: 33,
+                currentTable: 'weld_configs'
+            });
+
+            const { data: weldConfigsData, error: weldConfigsError } = await supabase
+                .from('project_weld_configs')
+                .select('*')
+                .eq('project_id', projectId);
+
+            if (weldConfigsError) throw weldConfigsError;
+
+            if (weldConfigsData && weldConfigsData.length > 0) {
+                const localWeldConfigs = weldConfigsData.map((wc: any) => ({
+                    id: wc.id,
+                    project_id: wc.project_id,
+                    name: wc.name,
+                    requires_welder: wc.requires_welder,
+                    requires_sample: wc.requires_sample,
+                    color: wc.color,
+                    active: wc.active,
+                    created_at: wc.created_at,
+                    updated_at: wc.updated_at,
+                    synced_at: new Date().toISOString()
+                }));
+
+                await db.weldConfigs.bulkPut(localWeldConfigs);
+            }
+
+            // 3. Project Locations (Delegated)
+            store.setSyncProgress({
+                phase: 'Configuración',
+                percentage: 66,
+                currentTable: 'project_locations'
+            });
+            await this.syncLocations(projectId);
+
+            store.setModuleSyncTime('projectConfig', new Date());
+            store.setSyncProgress({
+                phase: 'Configuración',
+                percentage: 100,
+                currentTable: 'project_config'
+            });
+        } catch (error: any) {
+            console.error('[SyncManager] Error sincronizando configuraciones del proyecto:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Sincroniza las configuraciones de soldadura del proyecto
+     */
+    public async syncWeldConfigs(projectId: string): Promise<void> {
+        // This method is now redundant as weld configs are part of syncProjectConfig.
+        // Keeping it as a placeholder or for future specific use if needed.
+        console.log('[SyncManager] syncWeldConfigs is now part of syncProjectConfig and might be deprecated.');
+    }
+
+    /**
+     * Sincroniza las ubicaciones del proyecto
+     */
+    public async syncLocations(projectId: string): Promise<void> {
+        try {
+            console.log('[SyncManager] Syncing locations...');
+            // Fetch from API
+            const { data, error } = await supabase
+                .from('project_locations')
+                .select('*')
+                .eq('project_id', projectId);
+
+            if (error) throw error;
+
+            if (data) {
+                const locations = data.map(loc => ({
+                    id: loc.id,
+                    project_id: loc.project_id,
+                    name: loc.name,
+                    code: loc.code || '',
+                    active: loc.is_active, // Map is_active to active
+                    created_at: loc.created_at,
+                    synced_at: new Date().toISOString()
+                }));
+
+                await db.projectLocations.bulkPut(locations);
+                console.log(`[SyncManager] Synced ${locations.length} locations`);
+            }
+        } catch (error) {
+            console.error('[SyncManager] Error syncing locations:', error);
+            // Non-critical, don't throw
         }
     }
 
@@ -471,160 +610,7 @@ export class SyncManager {
         }
     }
 
-    /**
-     * Sincroniza las configuraciones del proyecto (shifts, locations, statuses, weld configs)
-     */
-    public async syncProjectConfig(projectId: string): Promise<void> {
-        const store = useSyncStore.getState();
-        console.log('[SyncManager] Sincronizando configuraciones del proyecto...');
 
-        store.setSyncProgress({
-            phase: 'Configuración',
-            percentage: 0,
-            currentTable: 'project_shifts'
-        });
-
-        try {
-            // 1. Project Shifts
-            const { data: shiftsData, error: shiftsError } = await supabase
-                .from('project_shifts')
-                .select('*')
-                .eq('proyecto_id', projectId);
-
-            if (shiftsError) throw shiftsError;
-
-            if (shiftsData && shiftsData.length > 0) {
-                const localShifts = shiftsData.map((s: any) => ({
-                    id: s.id,
-                    project_id: s.proyecto_id,
-                    shift_name: s.shift_name,
-                    start_time: s.start_time,
-                    end_time: s.end_time,
-                    active: s.active,
-                    valid_from: s.valid_from,
-                    valid_to: s.valid_to,
-                    created_at: s.created_at,
-                    updated_at: s.updated_at,
-                    synced_at: new Date().toISOString()
-                }));
-
-                await db.projectShifts.bulkPut(localShifts);
-                console.log(`[SyncManager] ✅ Sincronizados ${localShifts.length} turnos`);
-            }
-
-            store.setSyncProgress({
-                phase: 'Configuración',
-                percentage: 25,
-                currentTable: 'weld_configs'
-            });
-
-            // 2. Weld Configs
-            const { data: weldConfigsData, error: weldConfigsError } = await supabase
-                .from('project_weld_configs')
-                .select('*')
-                .eq('project_id', projectId);
-
-            if (weldConfigsError) throw weldConfigsError;
-
-            if (weldConfigsData && weldConfigsData.length > 0) {
-                const localWeldConfigs = weldConfigsData.map((wc: any) => ({
-                    id: wc.id,
-                    project_id: wc.project_id,
-                    name: wc.name,
-                    requires_welder: wc.requires_welder,
-                    requires_sample: wc.requires_sample,
-                    color: wc.color,
-                    active: wc.active,
-                    created_at: wc.created_at,
-                    updated_at: wc.updated_at,
-                    synced_at: new Date().toISOString()
-                }));
-
-                await db.weldConfigs.bulkPut(localWeldConfigs);
-                console.log(`[SyncManager] ✅ Sincronizadas ${localWeldConfigs.length} configuraciones de soldadura`);
-            }
-
-            store.setSyncProgress({
-                phase: 'Configuración',
-                percentage: 50,
-                currentTable: 'project_locations'
-            });
-
-            // 3. Project Locations
-            const { data: locationsData, error: locationsError } = await supabase
-                .from('project_locations')
-                .select('*')
-                .eq('project_id', projectId);
-
-            if (locationsError) throw locationsError;
-
-            if (locationsData && locationsData.length > 0) {
-                const localLocations = locationsData.map((l: any) => ({
-                    id: l.id,
-                    project_id: l.project_id,
-                    name: l.name,
-                    code: l.code,
-                    active: l.active,
-                    created_at: l.created_at,
-                    synced_at: new Date().toISOString()
-                }));
-
-                await db.projectLocations.bulkPut(localLocations);
-                console.log(`[SyncManager] ✅ Sincronizadas ${localLocations.length} ubicaciones`);
-            }
-
-            store.setSyncProgress({
-                phase: 'Configuración',
-                percentage: 75,
-                currentTable: 'spool_statuses'
-            });
-
-            // 4. Spool Statuses
-            const { data: statusesData, error: statusesError } = await supabase
-                .from('project_spool_statuses')
-                .select('*')
-                .eq('project_id', projectId)
-                .order('order_index', { ascending: true });
-
-            if (statusesError) throw statusesError;
-
-            if (statusesData && statusesData.length > 0) {
-                const localStatuses = statusesData.map((s: any) => ({
-                    id: s.id,
-                    project_id: s.project_id,
-                    name: s.name,
-                    color: s.color,
-                    order_index: s.order_index,
-                    active: s.active,
-                    created_at: s.created_at,
-                    synced_at: new Date().toISOString()
-                }));
-
-                await db.spoolStatuses.bulkPut(localStatuses);
-                console.log(`[SyncManager] ✅ Sincronizados ${localStatuses.length} estados de spool`);
-            }
-
-            store.setModuleSyncTime('projectConfig', new Date());
-            store.setSyncProgress({
-                phase: 'Configuración',
-                percentage: 100,
-                currentTable: 'spool_statuses'
-            });
-        } catch (error: any) {
-            // Ignorar error si la tabla de estatus no existe aún (Tech Debt)
-            if (error.code === 'PGRST205' || error.message?.includes('project_spool_statuses')) {
-                console.warn('[SyncManager] Tabla de estatus de spools no configurada en DB (Feature opcional omitida)');
-                store.setSyncProgress({
-                    phase: 'Configuración',
-                    percentage: 100,
-                    currentTable: 'spool_statuses'
-                });
-                return;
-            }
-            console.error('[SyncManager] Error sincronizando configuraciones:', error);
-            throw error;
-        }
-    }
 
     /**
      * Sincroniza reportes diarios de un rango de fechas
@@ -747,14 +733,13 @@ export class SyncManager {
      */
     public async processPendingActions(): Promise<void> {
         const store = useSyncStore.getState();
-        const pendingActions = await db.pendingActions
-            .where('status')
-            .equals('PENDING')
-            .toArray();
 
-        store.setPendingCount(pendingActions.length);
+        // Use RetryQueue logic to get PENDING + Retryable ERROR actions
+        const actionsToProcess = await getActionsReadyForRetry();
 
-        if (pendingActions.length === 0) return;
+        store.setPendingCount(actionsToProcess.length);
+
+        if (actionsToProcess.length === 0) return;
         if (this.isSyncing) return;
 
         try {
@@ -762,7 +747,7 @@ export class SyncManager {
             store.setIsSyncing(true);
             store.setSyncError(null);
 
-            const sortedActions = pendingActions.sort((a, b) =>
+            const sortedActions = actionsToProcess.sort((a, b) =>
                 new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
             );
 
@@ -862,6 +847,7 @@ export class SyncManager {
                                 'Authorization': `Bearer ${session?.access_token}`
                             },
                             body: JSON.stringify({
+                                id: levantamientoId, // Send client-side ID to maintain consistency
                                 revisionId,
                                 projectId: action.project_id,
                                 storageLocation,

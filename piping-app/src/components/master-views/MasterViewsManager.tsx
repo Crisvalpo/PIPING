@@ -274,7 +274,10 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
         if (isOnline && projectId && !hasSyncRun.current) {
             hasSyncRun.current = true;
             console.log('[MasterViews] Online detectado: Procesando cola de cambios pendientes...');
-            syncManager.processPendingActions().catch(console.error);
+            // Procesar pendientes Y descargar datos actualizados (incluye config)
+            syncManager.processPendingActions()
+                .then(() => syncManager.syncProject(projectId))
+                .catch(console.error);
         }
         // Reset flag if we go offline, so we can sync again if we come back online
         if (!isOnline) {
@@ -2004,6 +2007,29 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
                                                                                 {/* Expanded content with phases */}
                                                                                 {isExpanded && (
                                                                                     <div className="p-4 space-y-3 bg-gray-50">
+
+                                                                                        {/* Action Buttons */}
+                                                                                        <div className="mb-3 pb-3 border-b border-gray-300 flex gap-2">
+                                                                                            {/* Edit Info - requires UPDATE permission */}
+                                                                                            {userRole && hasPermission(userRole, 'spools', 'update') && (
+                                                                                                <button
+                                                                                                    onClick={() => handleOpenSpoolInfoModal(spool)}
+                                                                                                    className="flex-1 px-3 py-2 text-sm font-medium text-blue-700 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
+                                                                                                >
+                                                                                                    📏 Información del Spool
+                                                                                                </button>
+                                                                                            )}
+                                                                                            {/* Levantamiento - requires CREATE permission */}
+                                                                                            {userRole && hasPermission(userRole, 'spools', 'create') && (
+                                                                                                <button
+                                                                                                    onClick={() => handleOpenLevantamientoModal(spool)}
+                                                                                                    className="flex-1 px-3 py-2 text-sm font-medium text-purple-700 bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors"
+                                                                                                >
+                                                                                                    📷 Levantamiento
+                                                                                                </button>
+                                                                                            )}
+                                                                                        </div>
+
                                                                                         {phasesConfig.map((phase) => (
                                                                                             <div
                                                                                                 key={phase.id}
@@ -2037,27 +2063,7 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
                                                                                             </div>
                                                                                         ))}
 
-                                                                                        {/* Action Buttons */}
-                                                                                        <div className="mt-4 pt-3 border-t border-gray-300 flex gap-2">
-                                                                                            {/* Edit Info - requires UPDATE permission */}
-                                                                                            {userRole && hasPermission(userRole, 'spools', 'update') && (
-                                                                                                <button
-                                                                                                    onClick={() => handleOpenSpoolInfoModal(spool)}
-                                                                                                    className="flex-1 px-3 py-2 text-sm font-medium text-blue-700 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
-                                                                                                >
-                                                                                                    📏 Información del Spool
-                                                                                                </button>
-                                                                                            )}
-                                                                                            {/* Levantamiento - requires CREATE permission */}
-                                                                                            {userRole && hasPermission(userRole, 'spools', 'create') && (
-                                                                                                <button
-                                                                                                    onClick={() => handleOpenLevantamientoModal(spool)}
-                                                                                                    className="flex-1 px-3 py-2 text-sm font-medium text-purple-700 bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors"
-                                                                                                >
-                                                                                                    📷 Levantamiento
-                                                                                                </button>
-                                                                                            )}
-                                                                                        </div>
+
                                                                                     </div>
                                                                                 )}
                                                                             </div>

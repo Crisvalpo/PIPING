@@ -70,7 +70,11 @@ export async function DELETE(
                 }
             )
 
-            const filePaths = levantamiento.photos.map((p: any) => p.storage_path)
+            const filePaths = levantamiento.photos.flatMap((p: any) => {
+                const paths = [p.storage_path]
+                if (p.thumbnail_path) paths.push(p.thumbnail_path)
+                return paths
+            })
             const { error: storageError } = await supabaseAdmin.storage
                 .from('spool-levantamientos')
                 .remove(filePaths)

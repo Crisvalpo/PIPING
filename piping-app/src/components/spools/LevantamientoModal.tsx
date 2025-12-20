@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useLiveQuery } from 'dexie-react-hooks'
 import { supabase } from '@/lib/supabase'
 import PhotoEditorModal from './PhotoEditorModal'
 import { useUIStore } from '@/store/ui-store'
@@ -58,7 +59,20 @@ export default function LevantamientoModal({
     // Form state
     const [storageLocation, setStorageLocation] = useState('')
     const [showCustomLocation, setShowCustomLocation] = useState(false)
-    const [existingLocations, setExistingLocations] = useState<string[]>([])
+
+
+    // Reactive locations from Dexie
+    const projectLocations = useLiveQuery(
+        () => db.projectLocations
+            .where('project_id').equals(projectId || '')
+            .filter(l => l.active)
+            .toArray(),
+        [projectId]
+    ) ?? []
+
+    const existingLocations = projectLocations
+        .map(l => l.name)
+        .sort((a, b) => a.localeCompare(b))
     const [notes, setNotes] = useState('')
     const [selectedFiles, setSelectedFiles] = useState<File[]>([])
     const [previews, setPreviews] = useState<string[]>([])
@@ -90,6 +104,8 @@ export default function LevantamientoModal({
             loadLevantamientos()
         }
     }, [pendingCount])
+
+
 
     const handleDelete = async (id: string) => {
         if (!confirm('¿Estás seguro de que deseas eliminar este levantamiento y todas sus fotos? Esta acción no se puede deshacer.')) {
@@ -138,21 +154,23 @@ export default function LevantamientoModal({
                     const data = await response.json()
                     remoteLevantamientos = data.levantamientos || []
 
-                    // Locations logic
-                    let locations = data.uniqueLocations || []
-                    if (locations.length === 0 && data.levantamientos) {
-                        const localLocations = data.levantamientos
-                            .map((lev: LevantamientoItem) => lev.storage_location)
-                            .filter((loc: string | null) => loc && loc.trim() !== '')
-                        locations = Array.from(new Set(localLocations))
-                    }
-                    setExistingLocations(locations as string[])
+
                 }
+
             }
 
+
             // 2. Cargar datos locales (offline/pendientes)
-            // Import db dynamically or assume top-level import
-            const { db } = await import('@/lib/db')
+
+
+            // Get pending actions to determine status (Pending vs Error vs Local)
+            const pendingActions = await db.pendingActions
+                .where('project_id').equals(projectId || '') // Optimization if project_id available
+                .filter(a => a.type === 'CREATE_LEVANTAMIENTO')
+                .toArray();
+
+            const pendingMap = new Map(pendingActions.map(a => [a.payload.levantamientoId, a]));
+
             const localLevs = await db.levantamientos
                 .where({ spool_number: spoolNumber, project_id: projectId })
                 .toArray()
@@ -176,6 +194,20 @@ export default function LevantamientoModal({
 
             const localLevsUI = await Promise.all(localLevs.map(async (l) => {
                 const photos = await db.photos.where('levantamiento_id').equals(l.id).toArray()
+                const pendingAction = pendingMap.get(l.id);
+
+                let syncStatus: 'local' | 'pending' | 'error' = 'local';
+                let errorMessage: string | undefined = undefined;
+
+                if (pendingAction) {
+                    if (pendingAction.status === 'ERROR') {
+                        syncStatus = 'error';
+                        errorMessage = pendingAction.error_message;
+                    } else if (pendingAction.status === 'PENDING') {
+                        syncStatus = 'pending';
+                    }
+                }
+
                 return {
                     id: l.id,
                     storage_location: l.storage_location,
@@ -193,12 +225,19 @@ export default function LevantamientoModal({
                         file_name: p.file_name,
                         description: p.description
                     })),
-                    isLocal: !l.synced // Flag extra para UI
-                } as LevantamientoItem & { isLocal?: boolean }
+                    isLocal: true, // Siempre true si viene de Dexie
+                    syncStatus,    // Nuevo campo para badge
+                    errorMessage   // Mensaje de error si existe
+                } as LevantamientoItem & { isLocal?: boolean, syncStatus?: string, errorMessage?: string }
             }))
 
-            // Merge: Local first (they are usually newer)
-            setLevantamientos([...localLevsUI, ...remoteLevantamientos])
+            // Merge: Deduplicate by ID
+            // If an item exists in both (Synced), prefer Remote (better metadata like user info)
+            // But keep Local if it's pending or not in remote yet
+            const remoteIds = new Set(remoteLevantamientos.map(r => r.id))
+            const uniqueLocal = localLevsUI.filter(l => !remoteIds.has(l.id))
+
+            setLevantamientos([...uniqueLocal, ...remoteLevantamientos])
 
         } catch (err) {
             console.error('Error loading levantamientos:', err)
@@ -511,9 +550,10 @@ export default function LevantamientoModal({
                                                     <div className="flex items-center gap-2 mb-1">
                                                         <div className="font-medium text-gray-900">{lev.storage_location || 'Sin ubicación'}</div>
                                                         <SyncStatusBadge
-                                                            status={(lev as any).isLocal ? 'local' : 'synced'}
+                                                            status={(lev as any).syncStatus || ((lev as any).isLocal ? 'local' : 'synced')}
                                                             size="sm"
                                                             showLabel={false}
+                                                            errorMessage={(lev as any).errorMessage}
                                                         />
                                                     </div>
                                                     <div className="text-xs text-gray-500 mt-1">{formatDate(lev.captured_at)}</div>
@@ -588,49 +628,25 @@ export default function LevantamientoModal({
                                     Ubicación de Acopio *
                                 </label>
 
-                                {!showCustomLocation ? (
-                                    <div className="space-y-2">
-                                        <select
-                                            value={storageLocation}
-                                            onChange={(e) => {
-                                                if (e.target.value === '__CUSTOM__') {
-                                                    setShowCustomLocation(true)
-                                                    setStorageLocation('')
-                                                } else {
-                                                    setStorageLocation(e.target.value)
-                                                }
-                                            }}
-                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-gray-900"
-                                        >
-                                            <option value="">Seleccionar ubicación...</option>
-                                            {existingLocations.map((loc, idx) => (
-                                                <option key={idx} value={loc}>{loc}</option>
-                                            ))}
-                                            <option value="__CUSTOM__">+ Nueva ubicación...</option>
-                                        </select>
-                                    </div>
-                                ) : (
-                                    <div className="space-y-2">
-                                        <input
-                                            type="text"
-                                            value={storageLocation}
-                                            onChange={(e) => setStorageLocation(e.target.value.toUpperCase())}
-                                            placeholder="Ej: ACOPIO PRINCIPAL - ZONA A"
-                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 uppercase text-gray-900 placeholder-gray-500"
-                                            autoFocus
-                                        />
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                setShowCustomLocation(false)
-                                                setStorageLocation('')
-                                            }}
-                                            className="text-sm text-gray-600 hover:text-gray-800 underline"
-                                        >
-                                            ← Volver a seleccionar
-                                        </button>
-                                    </div>
-                                )}
+                                <div className="space-y-2">
+                                    <select
+                                        value={storageLocation}
+                                        onChange={(e) => setStorageLocation(e.target.value)}
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-gray-900"
+                                        required
+                                    >
+                                        <option value="">Seleccionar ubicación...</option>
+                                        {existingLocations.map((loc, idx) => (
+                                            <option key={idx} value={loc}>{loc}</option>
+                                        ))}
+                                    </select>
+                                    {existingLocations.length === 0 && (
+                                        <p className="text-xs text-amber-600 mt-1">
+                                            No hay ubicaciones configuradas para este proyecto. Contacta al administrador.
+                                        </p>
+                                    )}
+                                </div>
+
                             </div>
 
                             <div>
