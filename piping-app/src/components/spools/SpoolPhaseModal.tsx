@@ -13,7 +13,7 @@ interface SpoolPhaseModalProps {
     phase: 'ndt' | 'pwht' | 'surface_treatment' | 'dispatch' | 'field_erection'
     phaseName: string
     currentStatus?: string
-    onUpdate: () => void
+    onUpdate: (spoolNumber: string, phase: string, newStatus: string) => void
 }
 
 // ... helper constants
@@ -265,7 +265,8 @@ export default function SpoolPhaseModal({
             }
 
             // Success
-            onUpdate()
+            // Success
+            onUpdate(spoolNumber, phase, status)
             onClose()
         } catch (err: any) {
             console.error('Error updating phase:', err)

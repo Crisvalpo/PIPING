@@ -1269,11 +1269,52 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
         setShowSpoolPhaseModal(true)
     }
 
-    const handleModalUpdate = async () => {
-        // Reload details to refresh spool data
+    const handleModalUpdate = async (spoolNumber?: string, phase?: string, newStatus?: string) => {
+        // 1. Optimistic Update (Immediate UI Refresh)
+        if (spoolNumber && phase && newStatus && details && details.spools) {
+            console.log(`Optimistic update: ${spoolNumber} - ${phase} -> ${newStatus}`)
+
+            // Map phase to status property
+            const statusFieldMap: Record<string, string> = {
+                'ndt': 'ndt_status',
+                'pwht': 'pwht_status',
+                'surface_treatment': 'surface_treatment_status',
+                'dispatch': 'dispatch_status',
+                'field_erection': 'field_erection_status'
+            };
+
+            const statusField = statusFieldMap[phase];
+
+            if (statusField) {
+                setDetails(prev => {
+                    if (!prev) return prev;
+                    return {
+                        ...prev,
+                        spools: prev.spools.map(s => {
+                            if (s.spool_number === spoolNumber) {
+                                return { ...s, [statusField]: newStatus }
+                            }
+                            return s
+                        }),
+                        // Also update fabricationTracking to ensure consistency in both tabs
+                        fabricationTracking: (prev.fabricationTracking || []).map(s => {
+                            if (s.spool_number === spoolNumber) {
+                                return { ...s, [statusField]: newStatus }
+                            }
+                            return s
+                        })
+                    }
+                })
+            }
+        }
+
+        // 2. Original Logic (Reload details to ensure consistency)
         if (details && selectedRevisionId) {
             try {
                 if (isOnline) {
+                    // In online mode, we can optionally wait or debounce this to avoid overriding the optimistic update too quickly 
+                    // if the server is slow to index. BUT, getIsometricDetails usually reads DB directly.
+                    // For now, we allow re-fetch to happen to keep data fully synced.
                     const freshData = await getIsometricDetails(selectedRevisionId)
                     setDetails(freshData)
                 } else {
