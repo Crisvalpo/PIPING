@@ -33,10 +33,12 @@ import DeleteWeldModal from '@/components/welding/DeleteWeldModal'
 
 // Offline imports
 import { db } from '@/lib/db'
+import { useLiveQuery } from 'dexie-react-hooks'
 import { useNetworkStatus } from '@/hooks/useNetworkStatus'
 import { syncManager } from '@/lib/sync/SyncManager'
 import { useSyncStore } from '@/store/syncStore'
 import { Wifi, WifiOff, RefreshCw, Smartphone } from 'lucide-react'
+import SyncStatusBadge from '@/components/sync/SyncStatusBadge'
 
 interface MasterViewsManagerProps {
     projectId: string
@@ -95,6 +97,7 @@ function groupWeldsBySpool(welds: any[] = []): WeldsBySpool[] {
         spool.welds.push(weld)
 
         // Skip deleted welds from counts
+        // Ensure truthy check handles various truthy values just in case
         if (weld.deleted) return
 
         // Contar soldaduras de taller (S = Shop)
@@ -319,6 +322,42 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
         initialize()
     }, [fetchRolesFromStore])
 
+    // Offline sync status tracking
+    const pendingActions = useLiveQuery(
+        () => db.pendingActions
+            .where('project_id')
+            .equals(projectId)
+            .toArray(),
+        [projectId]
+    )
+
+    const getSpoolSyncStatus = (spoolNumber: string) => {
+        if (!pendingActions) return 'synced';
+
+        const action = pendingActions.find(a =>
+            (a.payload as any).spoolNumber === spoolNumber
+        );
+
+        if (action) {
+            return action.status === 'ERROR' ? 'error' : 'pending';
+        }
+
+        return 'synced';
+    }
+
+    const getWeldSyncStatus = (weldId: string) => {
+        if (!pendingActions) return 'synced';
+
+        const action = pendingActions.find(a =>
+            (a.payload as any).weldId === weldId || (a.payload as any).id === weldId
+        );
+
+        if (action) {
+            return action.status === 'ERROR' ? 'error' : 'pending';
+        }
+
+        return 'synced';
+    }
 
     // Load configs on mount
     useEffect(() => {
@@ -676,21 +715,24 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
                     // Construct details object compatible with MasterViewsManager
                     // Note: Adapting data shapes might be needed if Local types differ from API response
                     const offlineDetails: any = {
-                        welds: localWelds.map(w => ({
-                            ...w,
-                            diameter_inches: w.diameter, // Mapping
-                            name: w.weld_number,
-                            destination: w.destination || (w.type?.includes('SHOP') ? 'S' : 'F') // Use stored destination or fallback
-                        })) || [],
-                        materials: [], // TODO: Sync materials offline if needed
+                        welds: localWelds
+                            .sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
+                            .map(w => ({
+                                ...w,
+                                diameter_inches: w.diameter,
+                                nps: w.diameter, // Map for DetailModal
+                                sch: w.schedule, // Map for DetailModal
+                                thickness: w.thickness,
+                                material: w.material,
+                                name: w.weld_number,
+                                type_weld: w.type, // Map for DetailModal (requiresWelder check)
+                                destination: w.destination || (w.type?.includes('SHOP') ? 'S' : 'F')
+                            })) || [],
+                        materials: [],
                         boltedJoints: [],
                         spools: (localSpools || []).map(s => {
                             // Find latest levantamiento for this spool
-                            // Logic: Spool 1-to-Many Levs. We take the most recent?
-                            // localLevs is already filtered by revision_id (which usually implies spool scope if strictly linked, but 
-                            // actually revision_id is Isometric Revision. So we need to filter by spool_number too.)
                             const spoolLevs = localLevs.filter(l => l.spool_number === s.spool_number)
-                            // Sort by captured_at desc
                             spoolLevs.sort((a, b) => new Date(b.captured_at).getTime() - new Date(a.captured_at).getTime())
                             const latestLev = spoolLevs[0]
 
@@ -698,10 +740,16 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
                                 ...s,
                                 welds: localWelds
                                     .filter(w => w.spool_number === s.spool_number)
+                                    .sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
                                     .map(w => ({
                                         ...w,
                                         diameter_inches: w.diameter,
+                                        nps: w.diameter, // Map for DetailModal
+                                        sch: w.schedule, // Map for DetailModal
+                                        thickness: w.thickness,
+                                        material: w.material,
                                         name: w.weld_number,
+                                        type_weld: w.type, // Map for DetailModal
                                         destination: w.destination
                                     })),
                                 levantamiento_photo_url: latestLev?.latest_photo_url || null,
@@ -725,13 +773,7 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
 
     const handleWeldUpdate = async (weldId: string, updates: any) => {
         try {
-            const { error } = await supabase
-                .from('spools_welds')
-                .update(updates)
-                .eq('id', weldId)
-
-            if (error) throw error
-
+            // Optimistic UI Update (Immediate)
             setDetails(prev => {
                 if (!prev) return null
                 return {
@@ -740,10 +782,42 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
                 }
             })
 
+            if (isOnline) {
+                // Online Mode
+                const { error } = await supabase
+                    .from('spools_welds')
+                    .update(updates)
+                    .eq('id', weldId)
+
+                if (error) throw error
+            } else {
+                // Offline Mode
+                console.log('Modo Offline: Guardando edición en cola local...')
+
+                // 1. Queue Pending Action
+                await db.pendingActions.add({
+                    id: crypto.randomUUID(),
+                    project_id: projectId,
+                    type: 'UPDATE_WELD',
+                    payload: { weld_id: weldId, updates },
+                    created_at: new Date().toISOString(),
+                    status: 'PENDING',
+                    retry_count: 0
+                })
+
+                // 2. Update Local DB
+                await db.welds.update(weldId, {
+                    ...updates,
+                    updated_at: new Date().toISOString(),
+                    synced_at: undefined // Mark as needing sync implicitly if we tracked that, but pendingActions handles it
+                })
+            }
+
             alert('✅ Soldadura actualizada correctamente')
         } catch (error) {
             console.error('Error updating weld:', error)
             alert('❌ Error al actualizar la soldadura')
+            // Revert optimistic update could be added here
         }
     }
 
@@ -898,11 +972,50 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
         if (!weldForDelete) return
 
         try {
-            // Get current user for audit
-            const { data: { user } } = await supabase.auth.getUser()
-            await deleteWeld(weldForDelete.id, reason, user?.id)
+            // Check online status
+            if (isOnline) {
+                // Get current user for audit
+                const { data: { user } } = await supabase.auth.getUser()
+                await deleteWeld(weldForDelete.id, reason, user?.id)
+            } else {
+                console.log('Modo Offline: Eliminando soldadura localmente')
 
-            // Update local state
+                // Update local Dexie db
+                // 1. Mark as deleted in welds table
+                const updated = await db.welds.update(weldForDelete.id, {
+                    deleted: true,
+                    deletion_reason: reason,
+                    deleted_at: new Date().toISOString()
+                })
+
+                if (updated === 0) {
+                    // Record didn't exist locally, so we add it with deleted status
+                    await db.welds.put({
+                        ...weldForDelete,
+                        deleted: true,
+                        deletion_reason: reason,
+                        deleted_at: new Date().toISOString(),
+                        synced_at: undefined
+                    })
+                }
+
+                // 2. Queue pending action
+                await db.pendingActions.add({
+                    id: crypto.randomUUID(),
+                    type: 'DELETE_WELD',
+                    payload: {
+                        weldId: weldForDelete.id,
+                        reason
+                    },
+                    created_at: new Date().toISOString(),
+                    status: 'PENDING',
+                    project_id: projectId,
+                    retry_count: 0,
+                    error_message: undefined
+                })
+            }
+
+            // Update local state (Optimistic Update)
             setDetails(prev => {
                 if (!prev) return null
                 return {
@@ -921,16 +1034,53 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
             alert('✅ Unión eliminada correctamente.')
         } catch (error) {
             console.error('Error deleting weld:', error)
-            throw error
+            alert('❌ Error al eliminar la unión') // Prevent full crash, show alert
         }
     }
 
     // Handle restore of a deleted weld
     const handleRestoreWeld = async (weld: any) => {
         try {
-            await restoreWeld(weld.id)
+            if (isOnline) {
+                await restoreWeld(weld.id)
+            } else {
+                console.log('Modo Offline: Restaurando soldadura localmente')
 
-            // Update local state
+                // 1. Check if there is a pending DELETE action to cancel
+                const pendingDelete = await db.pendingActions
+                    .filter(a => a.type === 'DELETE_WELD' && a.payload.weldId === weld.id && a.status === 'PENDING')
+                    .first();
+
+                if (pendingDelete) {
+                    // Just cancel the deletion
+                    await db.pendingActions.delete(pendingDelete.id);
+                    console.log('Cancelada acción de eliminación pendiente');
+                } else {
+                    // Queue a RESTORE action
+                    await db.pendingActions.add({
+                        id: crypto.randomUUID(),
+                        type: 'RESTORE_WELD',
+                        payload: { weldId: weld.id },
+                        created_at: new Date().toISOString(),
+                        status: 'PENDING',
+                        project_id: projectId,
+                        retry_count: 0,
+                        error_message: undefined
+                    });
+                }
+
+                // 2. Update local Dexie db
+                await db.welds.update(weld.id, {
+                    deleted: false,
+                    deletion_reason: null,
+                    deleted_at: null,
+                    synced_at: undefined // Mark as needy of sync? Or let pending action handle it?
+                    // Usually we don't unset synced_at unless we want to force re-upload of the RECORD itself. 
+                    // But here the action drives the sync. 
+                });
+            }
+
+            // Update local state (Optimistic Update)
             setDetails(prev => {
                 if (!prev) return null
                 return {
@@ -943,7 +1093,8 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
                 }
             })
 
-            alert('✅ Unión restaurada correctamente.')
+            const message = isOnline ? '✅ Unión restaurada correctamente.' : '💾 Restauración guardada localmente.';
+            alert(message)
         } catch (error) {
             console.error('Error restoring weld:', error)
             alert('❌ Error al restaurar la unión')
@@ -993,34 +1144,124 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
         setShowAddWeldModal(true)
     }
 
-    // Handle when new weld is created
-    const handleNewWeldCreated = (newWeld: any) => {
-        setDetails(prev => {
-            if (!prev) return null
+    // Handle when new weld is created (Online/Offline)
+    const handleNewWeldCreated = async (
+        weldData: any,
+        creationType: 'TERRENO' | 'INGENIERIA',
+        creationReason: string,
+        executionData?: any,
+        displayOrder?: number
+    ) => {
+        try {
+            const userId = (await supabase.auth.getUser()).data.user?.id
 
-            let updatedWelds = [...prev.welds]
+            let newWeld: any
 
-            // If newWeld has display_order, might need to shift local welds
-            // (Only strictly necessary if we want to avoid refresh, but good for UX)
-            if (newWeld.display_order) {
-                updatedWelds = updatedWelds.map(w => {
-                    if ((w.display_order || 0) >= newWeld.display_order) {
-                        return { ...w, display_order: (w.display_order || 0) + 1 }
-                    }
-                    return w
+            if (isOnline) {
+                // Online: Call service directly
+                newWeld = await createFieldWeld(
+                    weldData,
+                    creationType,
+                    creationReason,
+                    userId,
+                    executionData,
+                    displayOrder
+                )
+            } else {
+                // Offline logic
+                console.log('Modo Offline: Creando soldadura localmente...')
+                const tempId = crypto.randomUUID()
+                const now = new Date().toISOString()
+
+                // Construct the weld object as it would be returned by DB
+                newWeld = {
+                    ...weldData,
+                    id: tempId,
+                    created_at: now,
+                    updated_at: now,
+                    created_by: userId,
+                    display_order: displayOrder,
+                    requires_welder: requiresWelder(weldData.type_weld),
+
+                    // Offline specifics
+                    is_local: true,
+                    synced_at: undefined,
+
+                    // Execution data if TERRENO
+                    executed: creationType === 'TERRENO',
+                    execution_date: executionData?.fecha || null,
+                    welder_id: executionData?.welderId || null,
+                    foreman_id: executionData?.foremanId || null,
+
+                    // Default values
+                    deleted: false,
+                    rework_count: 0
+                }
+
+                // 1. Queue Pending Action
+                await db.pendingActions.add({
+                    id: crypto.randomUUID(),
+                    project_id: projectId,
+                    type: 'CREATE_WELD',
+                    payload: {
+                        weldData,
+                        creationType,
+                        creationReason,
+                        userId,
+                        executionData,
+                        displayOrder,
+                        tempId // Pass tempId so sync can optionally use it or map it
+                    },
+                    created_at: now,
+                    status: 'PENDING',
+                    retry_count: 0
                 })
+
+                // 2. Add to Local DB
+                await db.welds.add(newWeld)
+
+                // If executed, we might need to update spool status locally too? 
+                // For now, rely on optimistic update below for UI.
             }
 
-            return {
-                ...prev,
-                welds: [...updatedWelds, newWeld].sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
-            }
-        })
-        setShowAddWeldModal(false)
-        setAddWeldContext(null)
+            // Optimistic UI Update
+            setDetails(prev => {
+                if (!prev) return null
+
+                let updatedWelds = [...prev.welds]
+
+                // Shift orders if needed
+                if (displayOrder) {
+                    updatedWelds = updatedWelds.map(w => {
+                        if ((w.display_order || 0) >= displayOrder) {
+                            return { ...w, display_order: (w.display_order || 0) + 1 }
+                        }
+                        return w
+                    })
+                }
+
+                return {
+                    ...prev,
+                    welds: [...updatedWelds, newWeld].sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
+                }
+            })
+
+            setShowAddWeldModal(false)
+            setAddWeldContext(null)
+
+            // Only alert if online, modal handles success message? 
+            // Actually modal expects us to handle it or return success.
+            // We'll let modal close.
+            return newWeld
+        } catch (error) {
+            console.error('Error creating weld:', error)
+            throw error
+        }
     }
 
     // Drag & drop handlers for weld reordering
+
+
     const handleWeldDragStart = (e: React.DragEvent, weldId: string) => {
         if (!isDragDropEnabled) return
         setDraggedWeldId(weldId)
@@ -1405,7 +1646,7 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
     }
 
     return (
-        <div className="relative min-h-screen pb-20 max-w-4xl mx-auto w-full">
+        <div className="relative min-h-screen pb-32 md:pb-40 max-w-4xl mx-auto w-full">
             {/* Search Bar */}
             < div className="bg-white p-4 rounded-xl shadow-sm border border-gray-300 sticky top-0 z-10 mb-6" >
                 <div className="flex items-center gap-3">
@@ -1734,9 +1975,14 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
                                                                                             </span>
                                                                                         </div>
                                                                                         <span className="text-gray-500 font-normal ml-2">
-                                                                                            Taller: {spool.welds?.filter((w: any) => w.destination === 'S' && w.executed).length || 0}/{spool.welds?.filter((w: any) => w.destination === 'S').length || 0} •
-                                                                                            Campo: {spool.welds?.filter((w: any) => w.destination === 'F' && w.executed).length || 0}/{spool.welds?.filter((w: any) => w.destination === 'F').length || 0} •
-                                                                                            Total: {(spool.welds || []).length} uniones
+                                                                                            Taller: {spool.shop_welds_executed}/{spool.shop_welds_total} •
+                                                                                            Campo: {spool.field_welds_executed}/{spool.field_welds_total} •
+                                                                                            Total: {spool.shop_welds_total + spool.field_welds_total} uniones
+                                                                                            {(spool.welds || []).some((w: any) => w.deleted) && (
+                                                                                                <span className="text-red-600 ml-1 font-medium">
+                                                                                                    ({(spool.welds || []).filter((w: any) => w.deleted).length} elim.)
+                                                                                                </span>
+                                                                                            )}
                                                                                         </span>
                                                                                     </div>
                                                                                     <div className="text-gray-600">{isExpanded ? '▲' : '▼'}</div>
@@ -1825,6 +2071,12 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
                                                                                                         </div>
 
                                                                                                         <div className="flex flex-col items-end gap-2">
+                                                                                                            {/* Sync Status Badge */}
+                                                                                                            <SyncStatusBadge
+                                                                                                                status={getWeldSyncStatus(weld.id)}
+                                                                                                                size="sm"
+                                                                                                                showLabel={false}
+                                                                                                            />
                                                                                                             <span
                                                                                                                 className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all ${weld.deleted
                                                                                                                     ? 'bg-red-100 text-red-700 border border-red-200'
@@ -2011,6 +2263,12 @@ export default function MasterViewsManager({ projectId }: MasterViewsManagerProp
                                                                                         <div className="text-xs text-gray-600">
                                                                                             Largo: {spool.length_meters || '--'}m | Peso: {spool.weight_kg || '--'}kg
                                                                                         </div>
+                                                                                        {/* Sync Status Badge */}
+                                                                                        <SyncStatusBadge
+                                                                                            status={(spool as any).isLocal ? 'local' : getSpoolSyncStatus(spool.spool_number)}
+                                                                                            size="sm"
+                                                                                            showLabel={false}
+                                                                                        />
                                                                                         <div className="text-gray-600">{isExpanded ? '▲' : '▼'}</div>
                                                                                     </div>
                                                                                 </div>

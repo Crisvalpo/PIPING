@@ -206,6 +206,8 @@ export interface WeldExecution {
     rework_responsibility: ReworkResponsibility | null;
     created_at: string;
     reported_by_user: string | null;
+    responsibility?: string; // Optional for older executions
+    notes?: string;
 }
 
 /**

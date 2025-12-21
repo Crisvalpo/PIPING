@@ -204,6 +204,13 @@ export class SyncManager {
                     destination: w.destination,
                     type: w.type_weld || w.type,
                     diameter: w.nps || w.diameter_inches,
+                    material: w.material,
+                    schedule: w.sch || w.schedule,
+                    thickness: w.thickness,
+                    display_order: w.display_order,
+                    deleted: w.deleted,
+                    deleted_at: w.deleted_at,
+                    deletion_reason: w.deletion_reason,
                     updated_at: w.created_at || new Date().toISOString(),
                     synced_at: new Date().toISOString()
                 }));

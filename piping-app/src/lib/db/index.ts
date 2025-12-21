@@ -51,8 +51,14 @@ export interface LocalWeld {
     diameter: string;
     schedule?: string;
     material?: string;
+    thickness?: string;
+    display_order?: number;
     updated_at: string;
     synced_at?: string;
+    // Deletion support
+    deleted?: boolean;
+    deletion_reason?: string | null;
+    deleted_at?: string | null;
 }
 
 export interface LocalLevantamiento {
@@ -83,7 +89,7 @@ export interface LocalPhoto {
 
 export interface PendingAction {
     id: string; // UUID
-    type: 'EXECUTE_WELD' | 'CREATE_LEVANTAMIENTO' | 'UPDATE_SPOOL_PHASE' | 'UPDATE_SPOOL_GLOBAL' | 'OTHER';
+    type: 'EXECUTE_WELD' | 'CREATE_LEVANTAMIENTO' | 'UPDATE_SPOOL_PHASE' | 'UPDATE_SPOOL_GLOBAL' | 'DELETE_WELD' | 'RESTORE_WELD' | 'UPDATE_WELD' | 'CREATE_WELD' | 'OTHER';
     payload: any;
     created_at: string;
     status: 'PENDING' | 'SYNCING' | 'ERROR';

@@ -113,6 +113,45 @@ export default function LevantamientoModal({
         }
 
         try {
+            // Check if it's a local item
+            const itemToDelete = levantamientos.find(l => l.id === id);
+            const isLocalItem = (itemToDelete as any)?.isLocal;
+
+            if (isLocalItem) {
+                // --- OFFLINE/LOCAL DELETION ---
+                const { db } = await import('@/lib/db')
+
+                // 1. Delete associated photos from Dexie
+                const photos = await db.photos.where('levantamiento_id').equals(id).toArray();
+                await db.photos.bulkDelete(photos.map(p => p.id));
+
+                // 2. Delete the levantamiento from Dexie
+                await db.levantamientos.delete(id);
+
+                // 3. Remove from pending actions if it exists
+                // We need to find the action with payload.levantamientoId === id
+                const pendingActions = await db.pendingActions
+                    .where('type').equals('CREATE_LEVANTAMIENTO')
+                    .toArray();
+
+                const actionToDelete = pendingActions.find(a => a.payload?.levantamientoId === id);
+
+                if (actionToDelete) {
+                    await db.pendingActions.delete(actionToDelete.id);
+                    await refreshPendingCount();
+                }
+
+                loadLevantamientos();
+                alert('🗑️ Levantamiento local eliminado');
+                return;
+            }
+
+            // --- ONLINE DELETION (For synced items) ---
+            if (!isOnline) {
+                alert('⚠️ No puedes eliminar levantamientos sincronizados mientras estás offline.');
+                return;
+            }
+
             const { data: { session } } = await supabase.auth.getSession()
             const response = await fetch(
                 `/api/spools/${encodeURIComponent(spoolNumber)}/levantamientos/${id}`,
@@ -176,20 +215,21 @@ export default function LevantamientoModal({
                 .toArray()
 
             // Map local levs to UI format
-            let currentUser = { id: 'offline', email: 'offline', full_name: 'Guardado Local' };
-            if (isOnline) {
-                try {
-                    const { data: { user } } = await supabase.auth.getUser()
-                    if (user) {
-                        currentUser = {
-                            id: user.id,
-                            email: user.email || 'unknown',
-                            full_name: user.user_metadata?.full_name || user.email
-                        };
-                    }
-                } catch (e) {
-                    console.warn('Auth check failed (likely offline):', e);
+            let currentUser = { id: 'offline', email: 'offline', full_name: 'Usuario Local' };
+            try {
+                // Try to get cached session first (works offline usually)
+                const { data: { session } } = await supabase.auth.getSession()
+                if (session?.user) {
+                    // Extract name specifically; prefer metadata name
+                    const fullName = session.user.user_metadata?.full_name || 'Usuario';
+                    currentUser = {
+                        id: session.user.id,
+                        email: session.user.email || 'unknown',
+                        full_name: fullName
+                    };
                 }
+            } catch (e) {
+                console.warn('Auth check failed:', e);
             }
 
             const localLevsUI = await Promise.all(localLevs.map(async (l) => {
@@ -208,15 +248,23 @@ export default function LevantamientoModal({
                     }
                 }
 
+                // Determine effective user name
+                // If it's my creation (offline user matched), use my current session name.
+                // Otherwise fallback to what's stored or 'Usuario Local'.
+                const isMyCreation = l.captured_by === currentUser.id || l.captured_by === 'offline-user';
+                const displayUserName = isMyCreation
+                    ? currentUser.full_name
+                    : (l.captured_by === 'offline' ? 'Usuario Local' : 'Usuario Desconocido');
+
                 return {
                     id: l.id,
                     storage_location: l.storage_location,
                     captured_at: l.captured_at,
                     notes: l.notes || null,
                     captured_by_user: {
-                        id: l.captured_by || currentUser.id, // Use stored ID if available
+                        id: l.captured_by || currentUser.id,
                         email: 'offline',
-                        full_name: 'Guardado Local (Pendiente)'
+                        full_name: displayUserName
                     },
                     photos: photos.map(p => ({
                         id: p.id,
@@ -308,9 +356,12 @@ export default function LevantamientoModal({
                 console.log('Modo Offline: Guardando levantamiento localmente...')
                 const { db } = await import('@/lib/db')
 
-                // Get user ID safely if possible (from local storage or cached state?), 
-                // for now use 'offline-user' since we can't verify against server
-                const userId = 'offline-user';
+                // Try to identify user safely from cache
+                let userId = 'offline';
+                try {
+                    const { data: { session } } = await supabase.auth.getSession();
+                    if (session?.user?.id) userId = session.user.id;
+                } catch (e) { console.warn('Offline auth check failed', e) }
 
                 const levantamientoId = crypto.randomUUID()
                 const photoIds: string[] = []
@@ -585,7 +636,11 @@ export default function LevantamientoModal({
                                             )}
 
                                             {/* Photo thumbnails */}
-                                            <div className="grid grid-cols-4 gap-2">
+                                            <div className={`grid gap-2 ${lev.photos.length === 1 ? 'grid-cols-1 max-w-[50%]' :
+                                                lev.photos.length === 2 ? 'grid-cols-2' :
+                                                    lev.photos.length === 3 ? 'grid-cols-3' :
+                                                        'grid-cols-4'
+                                                }`}>
                                                 {lev.photos.map((photo) => (
                                                     <div
                                                         key={photo.id}

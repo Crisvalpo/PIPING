@@ -3,6 +3,7 @@ import { useUIStore } from '@/store/ui-store'
 import { supabase } from '@/lib/supabase'
 import { getWeldExecutions, type WeldExecution } from '@/services/master-views'
 import { hasPermission } from '@/config/roles'
+import { useNetworkStatus } from '@/hooks/useNetworkStatus'
 
 interface WeldDetailModalProps {
     weld: any
@@ -42,6 +43,7 @@ export default function WeldDetailModal({ weld, projectId, requiresWelder, userR
     const [executionHistory, setExecutionHistory] = useState<WeldExecution[]>([])
     const [loadingHistory, setLoadingHistory] = useState(false)
 
+    const isOnline = useNetworkStatus()
     const setFocusMode = useUIStore((state) => state.setFocusMode)
 
     // Handle Focus Mode using UI Store
@@ -53,6 +55,13 @@ export default function WeldDetailModal({ weld, projectId, requiresWelder, userR
     // Load personnel names and execution history when modal opens
     useEffect(() => {
         const loadData = async () => {
+            // Skip server calls if offline
+            if (!isOnline) {
+                console.log('Modo Offline: Omitiendo carga de historial externo')
+                setLoadingHistory(false)
+                return
+            }
+
             // Load execution history
             setLoadingHistory(true)
             try {
@@ -116,6 +125,9 @@ export default function WeldDetailModal({ weld, projectId, requiresWelder, userR
                 }
             }
 
+            // Load deleted_by info if weld has creation info (Wait, this comment was for deleted_by but logic was here?)
+            // Actually continue previous logic...
+
             // Load deleted_by info if weld is deleted
             if (weld.deleted && weld.deleted_by) {
                 const { data: deleter } = await supabase
@@ -144,7 +156,7 @@ export default function WeldDetailModal({ weld, projectId, requiresWelder, userR
         }
 
         loadData()
-    }, [weld])
+    }, [weld, isOnline])
 
     const handleSave = async () => {
         onUpdate(weld.id, formData)
@@ -262,7 +274,7 @@ export default function WeldDetailModal({ weld, projectId, requiresWelder, userR
                                 <select
                                     value={formData.destination}
                                     onChange={(e) => setFormData({ ...formData, destination: e.target.value })}
-                                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                                 >
                                     <option value="S">Taller (Shop)</option>
                                     <option value="F">Campo (Field)</option>

@@ -5,7 +5,7 @@ import { db } from '@/lib/db';
 import type { PendingAction } from '@/lib/db';
 import { syncManager } from '@/lib/sync/SyncManager';
 import { resetRetryCount, formatTimeUntilRetry } from '@/lib/sync/RetryQueue';
-import { X, RefreshCw, Trash2, Image, Hammer, AlertCircle, Clock } from 'lucide-react';
+import { X, RefreshCw, Trash2, Image, Hammer, AlertCircle, Clock, RotateCcw } from 'lucide-react';
 
 interface PendingChangesModalProps {
     isOpen: boolean;
@@ -16,6 +16,8 @@ const ACTION_LABELS = {
     'EXECUTE_WELD': { label: 'Ejecución de Soldadura', icon: Hammer, color: 'blue' },
     'CREATE_LEVANTAMIENTO': { label: 'Levantamiento Fotográfico', icon: Image, color: 'purple' },
     'WELD_REWORK': { label: 'Reporte de Rework', icon: AlertCircle, color: 'amber' },
+    'DELETE_WELD': { label: 'Eliminación de Soldadura', icon: Trash2, color: 'red' },
+    'RESTORE_WELD': { label: 'Restauración de Soldadura', icon: RotateCcw, color: 'green' },
 };
 
 export default function PendingChangesModal({ isOpen, onClose }: PendingChangesModalProps) {

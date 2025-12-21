@@ -5,6 +5,8 @@ import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 import { useSyncStore } from '@/store/syncStore';
 import { Wifi, WifiOff, RefreshCw, AlertCircle, CloudUpload, CheckCircle } from 'lucide-react';
 import { syncManager } from '@/lib/sync/SyncManager';
+import { db } from '@/lib/db';
+import { useLiveQuery } from 'dexie-react-hooks';
 import PendingChangesModal from '@/components/sync/PendingChangesModal';
 
 interface NetworkStatusBarProps {
@@ -15,15 +17,26 @@ export default function NetworkStatusBar({ projectId: propProjectId }: NetworkSt
     const [hasMounted, setHasMounted] = useState(false);
     const [isManuallySyncing, setIsManuallySyncing] = useState(false);
     const [showPendingModal, setShowPendingModal] = useState(false);
+
+    // Live count of pending actions
+    const livePendingCount = useLiveQuery(async () => {
+        // If we have a projectId, we could filter. For now, show all pending actions?
+        // Usually users care about ALL pending actions on their device.
+        return await db.pendingActions.where('status').equals('PENDING').count();
+    }) ?? 0;
+
     const isOnline = useNetworkStatus();
     const {
         isSyncing,
-        pendingCount,
+        // pendingCount, // Use livePendingCount instead
         syncError,
         syncProgress,
         lastSyncTime,
         conflictCount
     } = useSyncStore();
+
+    // Use livePendingCount for display
+    const pendingCount = livePendingCount;
 
     useEffect(() => {
         setHasMounted(true);
